@@ -1,0 +1,494 @@
+package com.nagopy.android.foldlytics.data
+
+import com.nagopy.android.foldlytics.model.Calibration
+import com.nagopy.android.foldlytics.model.DisplayConfiguration
+import com.nagopy.android.foldlytics.model.DisplayPosture
+import com.nagopy.android.foldlytics.model.PostureCheckpoint
+import com.nagopy.android.foldlytics.model.PostureCheckpointSource
+import com.nagopy.android.foldlytics.model.UnknownPostureReason
+import com.nagopy.android.foldlytics.model.UsageEventKind
+import com.nagopy.android.foldlytics.model.UsageRecord
+import java.time.Instant
+import java.time.ZoneOffset
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+class UsageAnalyzerTest {
+    private val cover = configuration(width = 420, height = 890, smallest = 420)
+    private val inner = configuration(width = 730, height = 820, smallest = 730)
+    private val calibration = Calibration(cover = cover, inner = inner)
+    private val analyzer = UsageAnalyzer { "label:$it" }
+
+    @Test
+    fun collectionInterruptionStopsCarryingForwardStaleDeviceState() {
+        val hour = 3_600_000L
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+        )
+
+        val result = analyzer.analyze(
+            records = records,
+            rangeStartMillis = 0,
+            rangeEndMillis = hour * 72,
+            calibration = calibration,
+            collectionGapStarts = listOf(hour),
+        )
+
+        assertEquals(hour, result.coverMillis)
+        assertEquals(1, result.evidenceGapCount)
+        assertEquals(
+            UnknownPostureReason.COLLECTION_INTERRUPTION,
+            result.postureEvents.first().unknownReason,
+        )
+    }
+
+    @Test
+    fun splitsVisibleTimeByPostureAndApp() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(1_000, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(6_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+            record(9_000, UsageEventKind.ACTIVITY_PAUSED, "app.a", "A"),
+            record(9_000, UsageEventKind.ACTIVITY_RESUMED, "app.b", "B"),
+        )
+
+        val result = analyzer.analyze(records, 0, 14_000, calibration)
+
+        assertEquals(6_000, result.coverMillis)
+        assertEquals(8_000, result.innerMillis)
+        assertEquals(5_000, result.apps.first { it.packageName == "app.a" }.coverMillis)
+        assertEquals(3_000, result.apps.first { it.packageName == "app.a" }.innerMillis)
+        assertEquals(5_000, result.apps.first { it.packageName == "app.b" }.innerMillis)
+        assertEquals(1, result.openedCount)
+        assertEquals(0, result.closedCount)
+    }
+
+    @Test
+    fun splitsAppUsageAcrossCalendarDays() {
+        val midnight = 86_400_000L
+        val rangeStart = midnight - 2_000L
+        val records = listOf(
+            record(rangeStart, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(rangeStart, UsageEventKind.SCREEN_INTERACTIVE),
+            record(rangeStart, UsageEventKind.KEYGUARD_HIDDEN),
+            record(midnight - 1_000L, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(midnight + 2_000L, UsageEventKind.ACTIVITY_PAUSED, "app.a", "A"),
+        )
+
+        val result = analyzer.analyze(
+            records = records,
+            rangeStartMillis = rangeStart,
+            rangeEndMillis = midnight + 3_000L,
+            calibration = calibration,
+            zoneId = ZoneOffset.UTC,
+        )
+
+        assertEquals(2, result.dailyAppSummaries.size)
+        assertEquals(1_000L, result.dailyAppSummaries[0].coverMillis)
+        assertEquals(2_000L, result.dailyAppSummaries[1].coverMillis)
+        assertEquals(3_000L, result.dailyAppSummaries.sumOf { it.classifiedMillis })
+    }
+
+    @Test
+    fun marksWhetherEachObservedPackageHasALauncherEntry() {
+        val analyzerWithLauncherMetadata = UsageAnalyzer(
+            isLauncherApp = { packageName -> packageName == "app.launcher" },
+            packageLabel = { packageName -> "label:$packageName" },
+        )
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.launcher", "A"),
+            record(1_000, UsageEventKind.ACTIVITY_PAUSED, "app.launcher", "A"),
+            record(1_000, UsageEventKind.ACTIVITY_RESUMED, "app.internal", "B"),
+        )
+
+        val result = analyzerWithLauncherMetadata.analyze(records, 0, 2_000, calibration)
+
+        assertEquals(true, result.apps.first { it.packageName == "app.launcher" }.isLauncherApp)
+        assertEquals(false, result.apps.first { it.packageName == "app.internal" }.isLauncherApp)
+    }
+
+    @Test
+    fun excludesScreenOffAndLockedIntervals() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(2_000, UsageEventKind.KEYGUARD_HIDDEN),
+            record(4_000, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(7_000, UsageEventKind.KEYGUARD_SHOWN),
+            record(9_000, UsageEventKind.KEYGUARD_HIDDEN),
+            record(11_000, UsageEventKind.SCREEN_NON_INTERACTIVE),
+        )
+
+        val result = analyzer.analyze(records, 0, 15_000, calibration)
+
+        assertEquals(7_000, result.coverMillis)
+        assertEquals(5_000, result.apps.single().coverMillis)
+    }
+
+    @Test
+    fun countsMultiResumeButDoesNotDoubleCountDeviceTime() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(2_000, UsageEventKind.ACTIVITY_RESUMED, "app.b", "B"),
+        )
+
+        val result = analyzer.analyze(records, 0, 7_000, calibration)
+
+        assertEquals(7_000, result.innerMillis)
+        assertEquals(5_000, result.multiResumeMillis)
+        assertEquals(7_000, result.apps.first { it.packageName == "app.a" }.innerMillis)
+        assertEquals(5_000, result.apps.first { it.packageName == "app.b" }.innerMillis)
+    }
+
+    @Test
+    fun calibrationChoosesNearestKnownConfiguration() {
+        assertEquals(DisplayPosture.COVER, calibration.classify(configuration(430, 900, 430)))
+        assertEquals(DisplayPosture.INNER, calibration.classify(configuration(720, 830, 720)))
+    }
+
+    @Test
+    fun automaticClassificationUsesTheSixHundredDpBreakpoint() {
+        val automatic = Calibration()
+
+        assertEquals(DisplayPosture.COVER, automatic.classify(configuration(443, 994, 443)))
+        assertEquals(DisplayPosture.INNER, automatic.classify(configuration(852, 883, 852)))
+    }
+
+    @Test
+    fun incompleteCalibrationKeepsUsingAutomaticClassification() {
+        val coverOnly = Calibration(cover = cover)
+
+        assertEquals(DisplayPosture.COVER, coverOnly.classify(cover))
+        assertEquals(DisplayPosture.INNER, coverOnly.classify(inner))
+    }
+
+    @Test
+    fun classifiesBothDisplaysTheSameAfterRotation() {
+        val coverLandscape = configuration(890, 420, 420, orientation = 2)
+        val innerLandscape = configuration(820, 730, 730, orientation = 2)
+
+        val coverResult = calibration.classifyWithDetails(coverLandscape)
+        val innerResult = calibration.classifyWithDetails(innerLandscape)
+
+        assertEquals(DisplayPosture.COVER, coverResult.posture)
+        assertEquals(0, coverResult.coverDistance)
+        assertEquals(DisplayPosture.INNER, innerResult.posture)
+        assertEquals(0, innerResult.innerDistance)
+    }
+
+    @Test
+    fun classifiesPixelPartialConfigurationsUsingScreenDimensions() {
+        val pixelCalibration = Calibration(
+            cover = configuration(443, 994, 443, density = 390),
+            inner = configuration(852, 883, 852, density = 390),
+        )
+        val coverLandscape = configuration(
+            width = 994,
+            height = 443,
+            smallest = 0,
+            orientation = 2,
+            density = 0,
+        )
+        val innerPortrait = configuration(
+            width = 852,
+            height = 883,
+            smallest = 0,
+            orientation = 1,
+            density = 0,
+        )
+
+        val coverResult = pixelCalibration.classifyWithDetails(coverLandscape)
+        val innerResult = pixelCalibration.classifyWithDetails(innerPortrait)
+
+        assertEquals(DisplayPosture.COVER, coverResult.posture)
+        assertEquals(0, coverResult.coverDistance)
+        assertEquals(DisplayPosture.INNER, innerResult.posture)
+        assertEquals(0, innerResult.innerDistance)
+    }
+
+    @Test
+    fun partialConfigurationChangesPostureWithoutUnknownTime() {
+        val partialInnerLandscape = configuration(
+            width = 883,
+            height = 852,
+            smallest = 0,
+            orientation = 2,
+            density = 0,
+        )
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(2_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = partialInnerLandscape),
+        )
+
+        val result = analyzer.analyze(records, 0, 10_000, calibration)
+
+        assertEquals(2_000, result.coverMillis)
+        assertEquals(8_000, result.innerMillis)
+        assertEquals(0, result.excludedPostureMillis)
+    }
+
+    @Test
+    fun zeroSizedConfigurationRemainsUnknown() {
+        val emptyConfiguration = configuration(
+            width = 0,
+            height = 0,
+            smallest = 0,
+            orientation = 0,
+            density = 0,
+        )
+
+        assertEquals(DisplayPosture.UNKNOWN, calibration.classify(emptyConfiguration))
+    }
+
+    @Test
+    fun excludesTimeBeforeFirstConfigurationAndReportsCoverage() {
+        val records = listOf(
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(5_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+        )
+
+        val result = analyzer.analyze(records, 0, 10_000, calibration)
+
+        assertEquals(5_000, result.excludedPostureMillis)
+        assertEquals(
+            5_000L,
+            result.excludedPostureMillisByReason[UnknownPostureReason.NO_BASELINE],
+        )
+        assertEquals(5_000, result.coverMillis)
+        assertEquals(0.5f, result.dataCoverageRatio, 0f)
+    }
+
+    @Test
+    fun checkpointSeedsPostureWithoutConfigurationEvent() {
+        val records = listOf(
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+        )
+        val checkpoints = listOf(
+            PostureCheckpoint(
+                timestampMillis = 0,
+                configuration = cover,
+                source = PostureCheckpointSource.MEASUREMENT_START,
+            ),
+        )
+
+        val result = analyzer.analyze(
+            records = records,
+            rangeStartMillis = 0,
+            rangeEndMillis = 10_000,
+            calibration = calibration,
+            checkpoints = checkpoints,
+        )
+
+        assertEquals(10_000, result.coverMillis)
+        assertEquals(0, result.excludedPostureMillis)
+        assertEquals(1f, result.dataCoverageRatio, 0f)
+    }
+
+    @Test
+    fun excludesTimeAfterRestartUntilNextConfiguration() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(2_000, UsageEventKind.DEVICE_STARTUP),
+            record(3_000, UsageEventKind.SCREEN_INTERACTIVE),
+            record(3_000, UsageEventKind.KEYGUARD_HIDDEN),
+            record(6_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+        )
+
+        val result = analyzer.analyze(records, 0, 10_000, calibration)
+
+        assertEquals(2_000, result.coverMillis)
+        assertEquals(3_000, result.excludedPostureMillis)
+        assertEquals(
+            3_000L,
+            result.excludedPostureMillisByReason[UnknownPostureReason.AFTER_DEVICE_RESTART],
+        )
+        assertEquals(4_000, result.innerMillis)
+    }
+
+    @Test
+    fun excludesTimeAfterConfigurationWithoutValues() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(2_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = null),
+            record(5_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+        )
+
+        val result = analyzer.analyze(records, 0, 10_000, calibration)
+
+        assertEquals(3_000, result.excludedPostureMillis)
+        assertEquals(
+            3_000L,
+            result.excludedPostureMillisByReason[UnknownPostureReason.CONFIGURATION_UNAVAILABLE],
+        )
+    }
+
+    @Test
+    fun countsOnlyConfirmedCoverAndInnerTransitions() {
+        val innerLandscape = configuration(820, 730, 730, orientation = 2)
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+            record(1_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(2_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+            record(3_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = innerLandscape),
+            record(4_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+        )
+
+        val result = analyzer.analyze(records, 0, 5_000, calibration)
+
+        assertEquals(1, result.openedCount)
+        assertEquals(2, result.closedCount)
+        assertEquals(3, result.foldTransitions.size)
+    }
+
+    @Test
+    fun unknownConfigurationBreaksTransitionEvidence() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(1_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = null),
+            record(2_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+        )
+
+        val result = analyzer.analyze(records, 0, 3_000, calibration)
+
+        assertEquals(0, result.openedCount)
+        assertEquals(0, result.closedCount)
+        assertEquals(1, result.evidenceGapCount)
+    }
+
+    @Test
+    fun restartBreaksTransitionEvidence() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(1_000, UsageEventKind.DEVICE_STARTUP),
+            record(2_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+        )
+
+        val result = analyzer.analyze(records, 0, 3_000, calibration)
+
+        assertEquals(0, result.openedCount)
+        assertEquals(1, result.evidenceGapCount)
+    }
+
+    @Test
+    fun checkpointSeedsTransitionButDoesNotCountAsAnAction() {
+        val checkpoints = listOf(
+            PostureCheckpoint(
+                timestampMillis = 0,
+                configuration = cover,
+                source = PostureCheckpointSource.MEASUREMENT_START,
+            ),
+            PostureCheckpoint(
+                timestampMillis = 2_000,
+                configuration = cover,
+                source = PostureCheckpointSource.APP_FOREGROUND,
+            ),
+        )
+        val records = listOf(
+            record(1_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+        )
+
+        val result = analyzer.analyze(records, 0, 3_000, calibration, checkpoints)
+
+        assertEquals(1, result.openedCount)
+        assertEquals(0, result.closedCount)
+    }
+
+    @Test
+    fun countsDetectedTransitionsWhileScreenIsOff() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(1_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+        )
+
+        val result = analyzer.analyze(records, 0, 2_000, calibration)
+
+        assertEquals(1, result.openedCount)
+        assertEquals(0L, result.observedPostureMillis)
+    }
+
+    @Test
+    fun usesSeedPostureAtRangeStartAndExcludesTransitionAtRangeEnd() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(1_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+            record(2_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+        )
+
+        val result = analyzer.analyze(records, 1_000, 2_000, calibration)
+
+        assertEquals(1, result.openedCount)
+        assertEquals(0, result.closedCount)
+    }
+
+    @Test
+    fun splitsDailySummariesAtLocalMidnight() {
+        val start = Instant.parse("2026-01-01T23:59:00Z").toEpochMilli()
+        val end = Instant.parse("2026-01-02T00:01:00Z").toEpochMilli()
+        val records = listOf(
+            record(start, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(start, UsageEventKind.SCREEN_INTERACTIVE),
+            record(start, UsageEventKind.KEYGUARD_HIDDEN),
+        )
+
+        val result = analyzer.analyze(
+            records = records,
+            rangeStartMillis = start,
+            rangeEndMillis = end,
+            calibration = calibration,
+            zoneId = ZoneOffset.UTC,
+        )
+
+        assertEquals(2, result.dailySummaries.size)
+        assertEquals(60_000L, result.dailySummaries[0].coverMillis)
+        assertEquals(60_000L, result.dailySummaries[1].coverMillis)
+    }
+
+    private fun configuration(
+        width: Int,
+        height: Int,
+        smallest: Int,
+        orientation: Int = 1,
+        density: Int = 420,
+    ) = DisplayConfiguration(
+        screenWidthDp = width,
+        screenHeightDp = height,
+        smallestScreenWidthDp = smallest,
+        orientation = orientation,
+        densityDpi = density,
+    )
+
+    private fun record(
+        time: Long,
+        kind: UsageEventKind,
+        packageName: String? = null,
+        className: String? = null,
+        configuration: DisplayConfiguration? = null,
+    ) = UsageRecord(
+        timestampMillis = time,
+        kind = kind,
+        packageName = packageName,
+        className = className,
+        configuration = configuration,
+        rawEventType = 0,
+    )
+}

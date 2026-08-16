@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">Foldlytics</string>
+
+    <!-- Navigation and actions -->
+    <string name="screen_diagnostics">Posture diagnostics</string>
+    <string name="screen_calibration">Adjust fold detection</string>
+    <string name="nav_home">Home</string>
+    <string name="drawer_section_data">Data</string>
+    <string name="action_save_all_csv">Save all-time CSV</string>
+    <string name="action_share_diagnostic_report">Share diagnostic report</string>
+    <string name="action_usage_access_settings">Usage access settings</string>
+    <string name="action_privacy_policy">Privacy policy</string>
+    <string name="action_open_source_licenses">Open source licenses</string>
+    <string name="action_open_settings">Open settings</string>
+    <string name="action_agree_and_open_settings">Agree and continue</string>
+    <string name="action_not_now">Not now</string>
+    <string name="action_review_details">Review details</string>
+    <string name="action_record_cover">Record outer</string>
+    <string name="action_record_inner">Record inner</string>
+    <string name="action_clear_calibration">Clear saved values</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="action_syncing">Syncing…</string>
+    <string name="action_apply">Apply</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="drawer_privacy_note">Data stays on this device and is never sent elsewhere unless you choose an export or share action.</string>
+
+    <!-- Accessibility -->
+    <string name="content_desc_analysis_progress">Analyzing saved data</string>
+    <string name="content_desc_open_menu">Open menu</string>
+    <string name="content_desc_cover_app_ranking">Outer-display app ranking</string>
+    <string name="content_desc_inner_app_ranking">Inner-display app ranking</string>
+    <string name="content_desc_summary">%1$s: outer %2$s, inner %3$s, inner share %4$s</string>
+    <string name="content_desc_chart_no_data">%1$s: no data</string>
+    <string name="content_desc_chart_inner_ratio">%1$s: inner %2$s</string>
+    <plurals name="content_desc_chart_opened">
+        <item quantity="one">%1$s: opened %2$d time</item>
+        <item quantity="other">%1$s: opened %2$d times</item>
+    </plurals>
+
+    <!-- Common labels and values -->
+    <string name="posture_cover">Outer</string>
+    <string name="posture_inner">Inner</string>
+    <string name="posture_unknown">Unknown</string>
+    <string name="label_no_data">No data</string>
+    <string name="status_registered">Saved</string>
+    <string name="status_not_registered">Not saved</string>
+    <string name="status_not_detected">Not detected</string>
+    <string name="status_unavailable">Unavailable</string>
+    <string name="status_detected_waiting">Detected; waiting for a value</string>
+    <string name="status_not_synced">Not synced</string>
+    <string name="status_not_acquired">Not available</string>
+    <string name="status_none">None</string>
+    <string name="status_allowed">Allowed</string>
+    <string name="status_not_allowed">Not allowed</string>
+    <string name="status_range_in">In range</string>
+    <string name="status_range_seed">Lookback</string>
+    <string name="value_item_count">%1$d</string>
+    <string name="value_day_count">%1$d</string>
+    <string name="value_open_count">%1$d</string>
+    <string name="value_average_open_count">%1$.1f</string>
+    <string name="value_day_fraction">%1$d / %2$d</string>
+    <string name="value_points">%1$+.1f pts</string>
+    <string name="value_percent_0">%1$.0f%%</string>
+    <string name="value_percent_1">%1$.1f%%</string>
+    <string name="value_degrees">%1$.1f°</string>
+    <string name="value_rank">#%1$d</string>
+    <plurals name="days_count">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <string name="date_range">%1$s – %2$s</string>
+    <string name="selected_date_range">Selected: %1$s – %2$s</string>
+    <string name="short_date_pattern">M/d/yyyy</string>
+    <string name="time_pattern">M/d HH:mm:ss</string>
+    <string name="report_date_time_pattern">yyyy-MM-dd HH:mm:ss</string>
+    <string name="duration_hours_minutes">%1$d hr %2$d min</string>
+    <string name="duration_hours_only">%1$d hr</string>
+    <string name="duration_minutes_seconds">%1$dm %2$ds</string>
+    <string name="duration_seconds">%1$ds</string>
+
+    <!-- Domain labels -->
+    <string name="period_1_hour">1 hour</string>
+    <string name="period_6_hours">6 hours</string>
+    <string name="period_24_hours">24 hours</string>
+    <string name="period_7_days">7 days</string>
+    <string name="period_30_days">30 days</string>
+    <string name="period_90_days">90 days</string>
+    <string name="period_1_year">1 year</string>
+    <string name="period_custom">Custom</string>
+    <string name="unknown_reason_no_baseline">No initial posture</string>
+    <string name="unknown_reason_after_restart">After device restart</string>
+    <string name="unknown_reason_collection_interruption">After collection interruption</string>
+    <string name="unknown_reason_configuration_unavailable">No configuration data</string>
+    <string name="unknown_reason_classification_unavailable">Unable to classify</string>
+    <string name="checkpoint_source_app_launch">App launch</string>
+    <string name="checkpoint_source_app_foreground">App foreground</string>
+    <string name="checkpoint_source_app_background">App background</string>
+    <string name="checkpoint_source_calibration_cover">Outer calibration</string>
+    <string name="checkpoint_source_calibration_inner">Inner calibration</string>
+    <string name="checkpoint_source_manual_refresh">Manual refresh</string>
+    <string name="checkpoint_source_measurement_start">Measurement start</string>
+    <string name="event_source_configuration_change">Configuration change</string>
+    <string name="event_source_checkpoint">Checkpoint</string>
+    <string name="event_source_collection_interruption">Collection interruption</string>
+    <string name="event_source_device_startup">Device startup</string>
+    <string name="event_source_device_shutdown">Device shutdown</string>
+    <string name="orientation_portrait">portrait</string>
+    <string name="orientation_landscape">landscape</string>
+    <string name="orientation_horizontal">horizontal</string>
+    <string name="orientation_vertical">vertical</string>
+    <string name="orientation_unknown">unknown (%1$d)</string>
+    <string name="configuration_dp">%1$d dp</string>
+    <string name="configuration_unavailable_fallback">unavailable → %1$d dp</string>
+    <string name="configuration_summary">%1$d×%2$d dp / orientation=%3$s / smallest=%4$s / density=%5$s</string>
+
+    <!-- Home and permission disclosure -->
+    <string name="section_usage_trends">Usage trends</string>
+    <string name="no_ranked_apps">No apps have measurable %1$s-display time in this period.</string>
+    <string name="saved_data_usage_access_note">Showing saved data. Usage access is required to sync new data.</string>
+    <string name="error_sync_read">Sync or data-loading error: %1$s</string>
+    <string name="calibration_intro_title">Usually no setup is needed</string>
+    <string name="calibration_intro_body">Foldlytics automatically identifies the outer and inner displays from screen width. Save device-specific values only if the current state on Home is incorrect.</string>
+    <string name="label_current_posture">Current posture</string>
+    <string name="label_classification_method">Detection method</string>
+    <string name="classification_saved_values">Device-specific saved values</string>
+    <string name="classification_automatic">Automatic detection</string>
+    <string name="calibration_edge_case_note">Calibration can help on vertically folding devices whose inner display is under 600 dp, after display-size changes, or when a manufacturer reports unusual configuration values.</string>
+    <string name="usage_access_disclosure_title">How usage data is handled</string>
+    <string name="usage_access_disclosure_body">To calculate outer- and inner-display usage, Foldlytics reads displayed app names, screen on and lock state, screen configuration, and their timestamps. It also reads this data about every six hours while the app is closed and stores it in an on-device database until you uninstall the app.\n\nThe data is used only for statistics and for CSV export or sharing that you initiate. It is not used for advertising or third-party analytics and is not transmitted automatically. Only when you choose to export or share is the data passed to the destination or app you select.</string>
+    <string name="usage_access_required_title">Usage access is required</string>
+    <string name="usage_access_required_body">App display time and fold state are calculated only on this device.</string>
+    <string name="live_state_cover">Using the outer display</string>
+    <string name="live_state_inner">Using the inner display</string>
+    <string name="live_state_unknown">Fold state cannot be determined</string>
+    <string name="classification_saved_values_detail">Detected from device-specific saved values</string>
+    <string name="classification_automatic_detail">Detected automatically from device information</string>
+    <string name="live_state_title">Current device state</string>
+    <string name="calibration_values_title">Device-specific detection values</string>
+    <string name="calibration_instructions">Close the device and record the outer display, then open it and record the inner display. Automatic detection remains active until both values are saved.</string>
+
+    <!-- Period selection and summary -->
+    <string name="section_analysis_period">Analysis period</string>
+    <string name="last_updated">Last updated %1$s</string>
+    <string name="never_synced">No data has been synced yet</string>
+    <string name="custom_period_select_both">Select a start and end date (up to 3 years)</string>
+    <string name="custom_period_too_long">The selected range is %1$s. You can select up to %2$s.</string>
+    <string name="custom_period_selected">%1$d-day range selected (up to 3 years)</string>
+    <string name="custom_period_dialog_title">Select analysis period</string>
+    <string name="record_range_empty">No recorded date range yet</string>
+    <string name="record_range">Recorded range: %1$s – %2$s (%3$s)</string>
+    <string name="summary_title">Usage summary</string>
+    <string name="label_analysis_range">Analyzed range</string>
+    <string name="label_classified_time">Classified time</string>
+    <string name="label_data_coverage">Data coverage</string>
+    <string name="label_opened">Opened</string>
+    <string name="label_closed">Closed</string>
+    <string name="label_opened_per_observed_day">Opened per observed day</string>
+    <string name="label_observed_days">Days with data</string>
+    <string name="label_inner_used_days">Days using inner display</string>
+    <string name="label_change_from_first_30_days">Change from first 30 days (latest 30)</string>
+    <string name="inner_ratio_trend_title">Inner-display share over time</string>
+    <string name="legend_inner_ratio">Inner share</string>
+    <string name="open_count_trend_title">Open count over time</string>
+    <string name="legend_open_count">Open count</string>
+    <string name="label_period_total">Period total</string>
+
+    <!-- App ranking -->
+    <string name="app_ranking_title">Most-used apps by display</string>
+    <string name="selected_period">Period: %1$s</string>
+    <string name="app_ranking_basis">Ranking basis</string>
+    <string name="app_ranking_order">Sorted by time on the %1$s display</string>
+    <string name="app_usage_selected">%1$s %2$s</string>
+    <string name="app_usage_counterpart">On %1$s: %2$s</string>
+
+    <!-- Diagnostics -->
+    <string name="diagnostics_overview_title">Detection data overview</string>
+    <string name="diagnostics_overview_body">Review fold-state evidence for the latest %1$d hr window.</string>
+    <string name="label_in_range_posture_events">Posture events in range</string>
+    <string name="label_lookback_events">Lookback before range</string>
+    <string name="label_processed_usage_events">Usage events processed</string>
+    <string name="label_multi_app_display">Multiple apps displayed simultaneously</string>
+    <string name="posture_events_title">Posture events</string>
+    <string name="posture_events_empty">No posture events are available for this period.</string>
+    <string name="current_detection_title">Current detection data</string>
+    <string name="label_current_configuration">Current configuration</string>
+    <string name="label_cover_calibration">Outer calibration</string>
+    <string name="label_inner_calibration">Inner calibration</string>
+    <string name="label_hinge_orientation_occlusion">Hinge orientation / occlusion</string>
+    <string name="label_bounds">Bounds</string>
+    <string name="label_hinge_angle_sensor">Hinge-angle sensor</string>
+    <string name="excluded_time_title">Excluded time</string>
+    <string name="excluded_time_empty">No app-usage time was excluded for missing posture evidence in the selected period.</string>
+    <string name="label_total">Total</string>
+    <string name="label_evidence_gaps">Fold-evidence gaps</string>
+    <string name="collection_status_title">Data collection status</string>
+    <string name="label_last_sync">Last sync</string>
+    <string name="label_recent_sync_start">Latest sync query start</string>
+    <string name="label_recent_sync_saved">New records in latest sync</string>
+    <string name="label_evidence_gap_days">Days with posture-evidence gaps</string>
+    <string name="sync_history_note">Sync history accumulates after updating to a version that supports this feature.</string>
+    <string name="label_recorded_sync_attempts">Recorded sync attempts</string>
+    <string name="label_unsuccessful_sync_attempts">Sync attempts needing review</string>
+    <string name="label_collection_interruptions">Collection interruptions over 24 hours</string>
+    <string name="label_longest_sync_gap">Longest sync interval</string>
+    <string name="backup_note">Automatic backup is not used. Save the all-time CSV from the menu when needed.</string>
+    <string name="event_source_with_checkpoint">%1$s / %2$s</string>
+    <string name="event_summary">%1$s · %2$s</string>
+    <string name="excluded_reason">Excluded reason: %1$s</string>
+    <string name="classification_distance">Detection distance: outer=%1$s / inner=%2$s</string>
+
+    <!-- Activity messages -->
+    <string name="error_open_output">Unable to open the destination</string>
+    <string name="csv_saved">All-time daily CSV saved</string>
+    <string name="csv_save_failed">Couldn’t save the CSV</string>
+    <string name="share_report_subject">Foldlytics diagnostic report</string>
+    <string name="share_report_chooser">Share diagnostic report</string>
+    <string name="privacy_policy_open_failed">Couldn’t open the privacy policy</string>
+    <string name="fold_feature_separating">%1$s · separating displays</string>
+
+    <!-- Background errors -->
+    <string name="sync_after_first_unlock">Sync will start after the device is first unlocked</string>
+    <string name="usage_events_temporarily_unavailable">Usage events are temporarily unavailable</string>
+    <string name="sync_failed">Sync failed (%1$s)</string>
+    <string name="checkpoint_save_failed">Couldn’t save the posture checkpoint (%1$s)</string>
+    <string name="stored_analysis_failed">Couldn’t analyze saved data (%1$s)</string>
+
+    <!-- Diagnostic report -->
+    <string name="report_title">Foldlytics diagnostic report</string>
+    <string name="report_field">%1$s: %2$s</string>
+    <string name="report_bullet_field">  - %1$s: %2$s</string>
+    <string name="label_created">Created</string>
+    <string name="label_usage_access">Usage access</string>
+    <string name="label_data_source">Data source</string>
+    <string name="data_source_on_device_database">On-device database</string>
+    <string name="label_screen_period">On-screen period</string>
+    <string name="custom_period_with_range">%1$s (%2$s – %3$s)</string>
+    <string name="label_recent_sync_range">Latest sync query range</string>
+    <string name="label_hinge_angle">Hinge angle</string>
+    <string name="label_folding_feature" translatable="false">FoldingFeature</string>
+    <string name="report_no_analysis">No analysis data</string>
+    <string name="label_diagnostic_period">Diagnostic analysis period</string>
+    <string name="label_excluded_time">Excluded time</string>
+    <string name="label_event_count">Event count</string>
+    <string name="report_apps_heading">Apps (outer / inner / excluded)</string>
+    <plurals name="report_apps_omitted">
+        <item quantity="one">%1$d more app omitted</item>
+        <item quantity="other">%1$d more apps omitted</item>
+    </plurals>
+    <string name="report_posture_log_heading">Posture log (in range: %1$d / lookback: %2$d; newest first, max: %3$d)</string>
+    <string name="report_reason_suffix"> / excluded reason=%1$s</string>
+    <string name="report_raw_type_suffix"> / raw=%1$d</string>
+    <string name="report_event_line">%1$s [%2$s] %3$s / posture=%4$s%5$s%6$s</string>
+    <string name="report_configuration_line">  Configuration: %1$s</string>
+    <string name="report_distance_line">  Distance: outer=%1$s / inner=%2$s</string>
+    <string name="report_usage_trends_heading">Usage trends (%1$s)</string>
+    <string name="label_inner_ratio">Inner share</string>
+    <string name="report_observed_days">Days with data: %1$d/%2$d / days using inner display: %3$d</string>
+    <string name="label_inner_ratio_change">Change from first 30 days (latest 30-day inner share)</string>
+    <string name="report_collection_heading">Collection status</string>
+</resources>

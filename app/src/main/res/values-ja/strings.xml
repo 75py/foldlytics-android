@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Navigation and actions -->
+    <string name="screen_diagnostics">姿勢判定ログ</string>
+    <string name="screen_calibration">開閉判定の調整</string>
+    <string name="nav_home">ホーム</string>
+    <string name="drawer_section_data">データ</string>
+    <string name="action_save_all_csv">全期間CSVを保存</string>
+    <string name="action_share_diagnostic_report">診断レポートを共有</string>
+    <string name="action_usage_access_settings">利用状況アクセスの設定</string>
+    <string name="action_privacy_policy">プライバシーポリシー</string>
+    <string name="action_open_source_licenses">オープンソース ライセンス</string>
+    <string name="action_open_settings">設定を開く</string>
+    <string name="action_agree_and_open_settings">同意して設定へ</string>
+    <string name="action_not_now">今はしない</string>
+    <string name="action_review_details">内容を確認</string>
+    <string name="action_record_cover">外側を記録</string>
+    <string name="action_record_inner">内側を記録</string>
+    <string name="action_clear_calibration">登録値を消去</string>
+    <string name="action_refresh">更新</string>
+    <string name="action_syncing">同期中…</string>
+    <string name="action_apply">適用</string>
+    <string name="action_cancel">キャンセル</string>
+    <string name="drawer_privacy_note">データは端末内に保存され、操作しない限り外部へ送信されません。</string>
+
+    <!-- Accessibility -->
+    <string name="content_desc_analysis_progress">保存データを集計中</string>
+    <string name="content_desc_open_menu">メニューを開く</string>
+    <string name="content_desc_cover_app_ranking">外側のアプリランキング</string>
+    <string name="content_desc_inner_app_ranking">内側のアプリランキング</string>
+    <string name="content_desc_summary">%1$sは外側%2$s、内側%3$s、内側%4$s</string>
+    <string name="content_desc_chart_no_data">%1$s データなし</string>
+    <string name="content_desc_chart_inner_ratio">%1$s 内側%2$s</string>
+    <plurals name="content_desc_chart_opened">
+        <item quantity="other">%1$s %2$d回</item>
+    </plurals>
+
+    <!-- Common labels and values -->
+    <string name="posture_cover">外側</string>
+    <string name="posture_inner">内側</string>
+    <string name="posture_unknown">不明</string>
+    <string name="label_no_data">データなし</string>
+    <string name="status_registered">登録済み</string>
+    <string name="status_not_registered">未登録</string>
+    <string name="status_not_detected">未検出</string>
+    <string name="status_unavailable">利用不可</string>
+    <string name="status_detected_waiting">検出済み・値待ち</string>
+    <string name="status_not_synced">未同期</string>
+    <string name="status_not_acquired">取得なし</string>
+    <string name="status_none">なし</string>
+    <string name="status_allowed">許可</string>
+    <string name="status_not_allowed">未許可</string>
+    <string name="status_range_in">期間内</string>
+    <string name="status_range_seed">先読み</string>
+    <string name="value_item_count">%1$d件</string>
+    <string name="value_day_count">%1$d日</string>
+    <string name="value_open_count">%1$d回</string>
+    <string name="value_average_open_count">%1$.1f回</string>
+    <string name="value_day_fraction">%1$d/%2$d日</string>
+    <string name="value_points">%1$+.1fポイント</string>
+    <string name="value_percent_0">%1$.0f%%</string>
+    <string name="value_percent_1">%1$.1f%%</string>
+    <string name="value_degrees">%1$.1f°</string>
+    <string name="value_rank">%1$d位</string>
+    <plurals name="days_count">
+        <item quantity="other">%1$d日</item>
+    </plurals>
+    <string name="date_range">%1$s〜%2$s</string>
+    <string name="selected_date_range">選択中 %1$s〜%2$s</string>
+    <string name="short_date_pattern">yyyy/M/d</string>
+    <string name="time_pattern">MM/dd HH:mm:ss</string>
+    <string name="report_date_time_pattern">yyyy-MM-dd HH:mm:ss</string>
+    <string name="duration_hours_minutes">%1$d時間%2$d分</string>
+    <string name="duration_hours_only">%1$d時間</string>
+    <string name="duration_minutes_seconds">%1$d分%2$d秒</string>
+    <string name="duration_seconds">%1$d秒</string>
+
+    <!-- Domain labels -->
+    <string name="period_1_hour">1時間</string>
+    <string name="period_6_hours">6時間</string>
+    <string name="period_24_hours">24時間</string>
+    <string name="period_7_days">7日</string>
+    <string name="period_30_days">30日</string>
+    <string name="period_90_days">90日</string>
+    <string name="period_1_year">1年</string>
+    <string name="period_custom">期間指定</string>
+    <string name="unknown_reason_no_baseline">初期姿勢なし</string>
+    <string name="unknown_reason_after_restart">端末再起動後</string>
+    <string name="unknown_reason_collection_interruption">収集途切れ後</string>
+    <string name="unknown_reason_configuration_unavailable">構成情報なし</string>
+    <string name="unknown_reason_classification_unavailable">分類不能</string>
+    <string name="checkpoint_source_app_launch">アプリ起動</string>
+    <string name="checkpoint_source_app_foreground">アプリ復帰</string>
+    <string name="checkpoint_source_app_background">アプリ離脱</string>
+    <string name="checkpoint_source_calibration_cover">外側校正</string>
+    <string name="checkpoint_source_calibration_inner">内側校正</string>
+    <string name="checkpoint_source_manual_refresh">手動更新</string>
+    <string name="checkpoint_source_measurement_start">計測開始</string>
+    <string name="event_source_configuration_change">構成変更</string>
+    <string name="event_source_checkpoint">チェックポイント</string>
+    <string name="event_source_collection_interruption">収集途切れ</string>
+    <string name="event_source_device_startup">端末起動</string>
+    <string name="event_source_device_shutdown">端末停止</string>
+    <string name="orientation_portrait">縦</string>
+    <string name="orientation_landscape">横</string>
+    <string name="orientation_horizontal">水平</string>
+    <string name="orientation_vertical">垂直</string>
+    <string name="orientation_unknown">不明（%1$d）</string>
+    <string name="configuration_dp">%1$ddp</string>
+    <string name="configuration_unavailable_fallback">未取得→%1$ddp</string>
+    <string name="configuration_summary">%1$d×%2$ddp / 向き=%3$s / smallest=%4$s / density=%5$s</string>
+
+    <!-- Home and permission disclosure -->
+    <string name="section_usage_trends">利用傾向</string>
+    <string name="no_ranked_apps">この期間に%1$sで集計できるアプリはありません。</string>
+    <string name="saved_data_usage_access_note">保存済みデータを表示しています。新しいデータの同期には利用状況アクセスが必要です。</string>
+    <string name="error_sync_read">同期・読み込みエラー: %1$s</string>
+    <string name="calibration_intro_title">通常は設定不要です</string>
+    <string name="calibration_intro_body">Foldlyticsは画面幅から外側・内側を自動判定します。ホームの現在状態が実際と異なる場合だけ、端末ごとの値を登録してください。</string>
+    <string name="label_current_posture">現在の判定</string>
+    <string name="label_classification_method">判定方法</string>
+    <string name="classification_saved_values">端末ごとの登録値</string>
+    <string name="classification_automatic">自動判定</string>
+    <string name="calibration_edge_case_note">縦折り端末など内側も600dp未満になる端末、表示サイズを変更した端末、メーカー独自の画面構成値で誤判定する場合に有効です。</string>
+    <string name="usage_access_disclosure_title">利用状況データの取り扱い</string>
+    <string name="usage_access_disclosure_body">外側・内側の利用統計を作るため、表示したアプリ名、画面の点灯・ロック状態、画面構成とその時刻を読み取ります。アプリを閉じている間も約6時間ごとに読み取り、アンインストールまで端末内DBへ保存します。\n\nデータは統計表示と、あなたが操作したCSV保存・共有だけに使います。広告や第三者の分析サービスには利用せず、外部へ自動送信しません。CSV保存・共有を選んだ場合に限り、選択した保存先または共有先へデータが渡ります。</string>
+    <string name="usage_access_required_title">利用状況へのアクセスが必要です</string>
+    <string name="usage_access_required_body">アプリの表示時間と開閉状態を、端末内だけで集計します。</string>
+    <string name="live_state_cover">外側ディスプレイを使用中</string>
+    <string name="live_state_inner">内側ディスプレイを使用中</string>
+    <string name="live_state_unknown">開閉状態を判定できません</string>
+    <string name="classification_saved_values_detail">端末ごとの登録値で判定</string>
+    <string name="classification_automatic_detail">端末情報から自動判定</string>
+    <string name="live_state_title">現在の端末状態</string>
+    <string name="calibration_values_title">端末ごとの判定値</string>
+    <string name="calibration_instructions">端末を閉じて外側を記録し、次に端末を開いて内側を記録してください。両方の登録が完了するまでは自動判定を使います。</string>
+
+    <!-- Period selection and summary -->
+    <string name="section_analysis_period">対象期間</string>
+    <string name="last_updated">最終更新 %1$s</string>
+    <string name="never_synced">まだデータを同期していません</string>
+    <string name="custom_period_select_both">開始日と終了日を選択してください（最大3年）</string>
+    <string name="custom_period_too_long">%1$s間です。最大%2$sまで選択できます</string>
+    <string name="custom_period_selected">%1$d日間を選択中（最大3年）</string>
+    <string name="custom_period_dialog_title">対象期間を選択</string>
+    <string name="record_range_empty">記録範囲はまだありません</string>
+    <string name="record_range">記録範囲 %1$s〜%2$s（%3$s）</string>
+    <string name="summary_title">利用サマリー</string>
+    <string name="label_analysis_range">集計範囲</string>
+    <string name="label_classified_time">判定できた時間</string>
+    <string name="label_data_coverage">データ充足率</string>
+    <string name="label_opened">開いた</string>
+    <string name="label_closed">閉じた</string>
+    <string name="label_opened_per_observed_day">観測日あたり開いた回数</string>
+    <string name="label_observed_days">記録のある日</string>
+    <string name="label_inner_used_days">内側を使った日</string>
+    <string name="label_change_from_first_30_days">開始30日比（直近30日）</string>
+    <string name="inner_ratio_trend_title">内側利用割合の推移</string>
+    <string name="legend_inner_ratio">内側の割合</string>
+    <string name="open_count_trend_title">開いた回数の推移</string>
+    <string name="legend_open_count">開いた回数</string>
+    <string name="label_period_total">期間合計</string>
+
+    <!-- App ranking -->
+    <string name="app_ranking_title">画面別によく使うアプリ</string>
+    <string name="selected_period">対象期間：%1$s</string>
+    <string name="app_ranking_basis">ランキングの基準</string>
+    <string name="app_ranking_order">%1$sでの表示時間が長い順です</string>
+    <string name="app_usage_selected">%1$s %2$s</string>
+    <string name="app_usage_counterpart">%1$sでは %2$s</string>
+
+    <!-- Diagnostics -->
+    <string name="diagnostics_overview_title">判定データの概要</string>
+    <string name="diagnostics_overview_body">直近%1$d時間の、開閉状態の根拠を確認できます。</string>
+    <string name="label_in_range_posture_events">期間内の姿勢イベント</string>
+    <string name="label_lookback_events">集計開始前の先読み</string>
+    <string name="label_processed_usage_events">処理した利用イベント</string>
+    <string name="label_multi_app_display">複数アプリ同時表示</string>
+    <string name="posture_events_title">姿勢イベント</string>
+    <string name="posture_events_empty">この期間に表示できる姿勢イベントはありません。</string>
+    <string name="current_detection_title">現在の判定情報</string>
+    <string name="label_current_configuration">現在構成</string>
+    <string name="label_cover_calibration">外側の校正値</string>
+    <string name="label_inner_calibration">内側の校正値</string>
+    <string name="label_hinge_orientation_occlusion">ヒンジ向き / 遮蔽</string>
+    <string name="label_bounds">境界</string>
+    <string name="label_hinge_angle_sensor">ヒンジ角度センサー</string>
+    <string name="excluded_time_title">集計対象外の時間</string>
+    <string name="excluded_time_empty">選択中の期間に、姿勢の根拠不足で除外した利用時間はありません。</string>
+    <string name="label_total">合計</string>
+    <string name="label_evidence_gaps">開閉判定の根拠途切れ</string>
+    <string name="collection_status_title">データ収集の状態</string>
+    <string name="label_last_sync">最終同期</string>
+    <string name="label_recent_sync_start">直近同期の取得開始</string>
+    <string name="label_recent_sync_saved">直近同期の新規保存</string>
+    <string name="label_evidence_gap_days">姿勢根拠が途切れた日</string>
+    <string name="sync_history_note">同期履歴は、この機能に対応したバージョンへの更新後から蓄積します。</string>
+    <string name="label_recorded_sync_attempts">記録済み同期試行</string>
+    <string name="label_unsuccessful_sync_attempts">要確認の同期試行</string>
+    <string name="label_collection_interruptions">24時間超の収集中断</string>
+    <string name="label_longest_sync_gap">最長同期間隔</string>
+    <string name="backup_note">自動バックアップは行いません。必要に応じてメニューから全期間CSVを保存してください。</string>
+    <string name="event_source_with_checkpoint">%1$s / %2$s</string>
+    <string name="event_summary">%1$s · %2$s</string>
+    <string name="excluded_reason">集計対象外理由: %1$s</string>
+    <string name="classification_distance">判定距離: 外側=%1$s / 内側=%2$s</string>
+
+    <!-- Activity messages -->
+    <string name="error_open_output">出力先を開けません</string>
+    <string name="csv_saved">全期間の日次CSVを保存しました</string>
+    <string name="csv_save_failed">CSVを保存できませんでした</string>
+    <string name="share_report_subject">Foldlytics 診断レポート</string>
+    <string name="share_report_chooser">診断レポートを共有</string>
+    <string name="privacy_policy_open_failed">プライバシーポリシーを開けませんでした</string>
+    <string name="fold_feature_separating">%1$s・画面分離</string>
+
+    <!-- Background errors -->
+    <string name="sync_after_first_unlock">端末の初回ロック解除後に同期します</string>
+    <string name="usage_events_temporarily_unavailable">利用状況イベントを一時的に取得できません</string>
+    <string name="sync_failed">同期できませんでした（%1$s）</string>
+    <string name="checkpoint_save_failed">姿勢チェックポイントを保存できませんでした（%1$s）</string>
+    <string name="stored_analysis_failed">保存データを集計できませんでした（%1$s）</string>
+
+    <!-- Diagnostic report -->
+    <string name="report_title">Foldlytics 診断レポート</string>
+    <string name="report_field">%1$s: %2$s</string>
+    <string name="report_bullet_field">  - %1$s: %2$s</string>
+    <string name="label_created">作成</string>
+    <string name="label_usage_access">利用状況アクセス</string>
+    <string name="label_data_source">表示元</string>
+    <string name="data_source_on_device_database">端末内データベース</string>
+    <string name="label_screen_period">画面の対象期間</string>
+    <string name="custom_period_with_range">%1$s（%2$s ～ %3$s）</string>
+    <string name="label_recent_sync_range">直近同期の取得範囲</string>
+    <string name="label_hinge_angle">ヒンジ角度</string>
+    <string name="report_no_analysis">集計データなし</string>
+    <string name="label_diagnostic_period">診断用集計期間</string>
+    <string name="label_excluded_time">集計対象外</string>
+    <string name="label_event_count">イベント数</string>
+    <string name="report_apps_heading">アプリ別（外側 / 内側 / 集計対象外）</string>
+    <plurals name="report_apps_omitted">
+        <item quantity="other">ほか%1$d件は省略</item>
+    </plurals>
+    <string name="report_posture_log_heading">姿勢判定ログ（期間内%1$d件 / 先読み%2$d件、新しい順・最大%3$d件）</string>
+    <string name="report_reason_suffix"> / 集計対象外理由=%1$s</string>
+    <string name="report_raw_type_suffix"> / raw=%1$d</string>
+    <string name="report_event_line">%1$s [%2$s] %3$s / 判定=%4$s%5$s%6$s</string>
+    <string name="report_configuration_line">  構成: %1$s</string>
+    <string name="report_distance_line">  距離: 外側=%1$s / 内側=%2$s</string>
+    <string name="report_usage_trends_heading">利用傾向（%1$s）</string>
+    <string name="label_inner_ratio">内側割合</string>
+    <string name="report_observed_days">記録のある日: %1$d/%2$d日 / 内側利用日: %3$d日</string>
+    <string name="label_inner_ratio_change">開始30日比（直近30日の内側割合）</string>
+    <string name="report_collection_heading">収集状態</string>
+</resources>

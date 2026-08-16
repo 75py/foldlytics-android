@@ -1,0 +1,483 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "176724ec3326bf77ad43409769496cee",
+    "entities": [
+      {
+        "tableName": "usage_events",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`event_key` TEXT NOT NULL, `timestamp_millis` INTEGER NOT NULL, `sequence_at_timestamp` INTEGER NOT NULL, `raw_event_type` INTEGER NOT NULL, `package_name` TEXT, `class_name` TEXT, `has_configuration` INTEGER NOT NULL, `screen_width_dp` INTEGER, `screen_height_dp` INTEGER, `smallest_screen_width_dp` INTEGER, `orientation` INTEGER, `density_dpi` INTEGER, PRIMARY KEY(`event_key`))",
+        "fields": [
+          {
+            "fieldPath": "eventKey",
+            "columnName": "event_key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestampMillis",
+            "columnName": "timestamp_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sequenceAtTimestamp",
+            "columnName": "sequence_at_timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rawEventType",
+            "columnName": "raw_event_type",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "packageName",
+            "columnName": "package_name",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "className",
+            "columnName": "class_name",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "hasConfiguration",
+            "columnName": "has_configuration",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "screenWidthDp",
+            "columnName": "screen_width_dp",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "screenHeightDp",
+            "columnName": "screen_height_dp",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "smallestScreenWidthDp",
+            "columnName": "smallest_screen_width_dp",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "orientation",
+            "columnName": "orientation",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "densityDpi",
+            "columnName": "density_dpi",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "event_key"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_usage_events_timestamp_millis_sequence_at_timestamp",
+            "unique": false,
+            "columnNames": [
+              "timestamp_millis",
+              "sequence_at_timestamp"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_usage_events_timestamp_millis_sequence_at_timestamp` ON `${TABLE_NAME}` (`timestamp_millis`, `sequence_at_timestamp`)"
+          },
+          {
+            "name": "index_usage_events_raw_event_type_timestamp_millis",
+            "unique": false,
+            "columnNames": [
+              "raw_event_type",
+              "timestamp_millis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_usage_events_raw_event_type_timestamp_millis` ON `${TABLE_NAME}` (`raw_event_type`, `timestamp_millis`)"
+          },
+          {
+            "name": "index_usage_events_package_name_class_name_raw_event_type_timestamp_millis_sequence_at_timestamp",
+            "unique": false,
+            "columnNames": [
+              "package_name",
+              "class_name",
+              "raw_event_type",
+              "timestamp_millis",
+              "sequence_at_timestamp"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_usage_events_package_name_class_name_raw_event_type_timestamp_millis_sequence_at_timestamp` ON `${TABLE_NAME}` (`package_name`, `class_name`, `raw_event_type`, `timestamp_millis`, `sequence_at_timestamp`)"
+          }
+        ]
+      },
+      {
+        "tableName": "usage_sync_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`singleton_id` INTEGER NOT NULL, `last_successful_end_millis` INTEGER NOT NULL, `last_successful_at_millis` INTEGER NOT NULL, `last_query_begin_millis` INTEGER NOT NULL, `last_inserted_event_count` INTEGER NOT NULL, PRIMARY KEY(`singleton_id`))",
+        "fields": [
+          {
+            "fieldPath": "singletonId",
+            "columnName": "singleton_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSuccessfulEndMillis",
+            "columnName": "last_successful_end_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastSuccessfulAtMillis",
+            "columnName": "last_successful_at_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastQueryBeginMillis",
+            "columnName": "last_query_begin_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastInsertedEventCount",
+            "columnName": "last_inserted_event_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "singleton_id"
+          ]
+        }
+      },
+      {
+        "tableName": "posture_checkpoints",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`checkpoint_key` TEXT NOT NULL, `timestamp_millis` INTEGER NOT NULL, `screen_width_dp` INTEGER NOT NULL, `screen_height_dp` INTEGER NOT NULL, `smallest_screen_width_dp` INTEGER NOT NULL, `orientation` INTEGER NOT NULL, `density_dpi` INTEGER NOT NULL, `source` TEXT NOT NULL, PRIMARY KEY(`checkpoint_key`))",
+        "fields": [
+          {
+            "fieldPath": "checkpointKey",
+            "columnName": "checkpoint_key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestampMillis",
+            "columnName": "timestamp_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "screenWidthDp",
+            "columnName": "screen_width_dp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "screenHeightDp",
+            "columnName": "screen_height_dp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "smallestScreenWidthDp",
+            "columnName": "smallest_screen_width_dp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "orientation",
+            "columnName": "orientation",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "densityDpi",
+            "columnName": "density_dpi",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "checkpoint_key"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_posture_checkpoints_timestamp_millis",
+            "unique": false,
+            "columnNames": [
+              "timestamp_millis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_posture_checkpoints_timestamp_millis` ON `${TABLE_NAME}` (`timestamp_millis`)"
+          }
+        ]
+      },
+      {
+        "tableName": "daily_posture_summary",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`day_start_millis` INTEGER NOT NULL, `day_end_millis` INTEGER NOT NULL, `zone_id` TEXT NOT NULL, `cover_millis` INTEGER NOT NULL, `inner_millis` INTEGER NOT NULL, `excluded_millis` INTEGER NOT NULL, `opened_count` INTEGER NOT NULL, `closed_count` INTEGER NOT NULL, `evidence_gap_count` INTEGER NOT NULL, PRIMARY KEY(`day_start_millis`))",
+        "fields": [
+          {
+            "fieldPath": "dayStartMillis",
+            "columnName": "day_start_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dayEndMillis",
+            "columnName": "day_end_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "zoneId",
+            "columnName": "zone_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "coverMillis",
+            "columnName": "cover_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "innerMillis",
+            "columnName": "inner_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "excludedMillis",
+            "columnName": "excluded_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "openedCount",
+            "columnName": "opened_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "closedCount",
+            "columnName": "closed_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "evidenceGapCount",
+            "columnName": "evidence_gap_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "day_start_millis"
+          ]
+        }
+      },
+      {
+        "tableName": "daily_app_usage_summary",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`day_start_millis` INTEGER NOT NULL, `day_end_millis` INTEGER NOT NULL, `zone_id` TEXT NOT NULL, `package_name` TEXT NOT NULL, `cover_millis` INTEGER NOT NULL, `inner_millis` INTEGER NOT NULL, `excluded_millis` INTEGER NOT NULL, PRIMARY KEY(`day_start_millis`, `package_name`))",
+        "fields": [
+          {
+            "fieldPath": "dayStartMillis",
+            "columnName": "day_start_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dayEndMillis",
+            "columnName": "day_end_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "zoneId",
+            "columnName": "zone_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "packageName",
+            "columnName": "package_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "coverMillis",
+            "columnName": "cover_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "innerMillis",
+            "columnName": "inner_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "excludedMillis",
+            "columnName": "excluded_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "day_start_millis",
+            "package_name"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_daily_app_usage_summary_package_name",
+            "unique": false,
+            "columnNames": [
+              "package_name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_daily_app_usage_summary_package_name` ON `${TABLE_NAME}` (`package_name`)"
+          }
+        ]
+      },
+      {
+        "tableName": "daily_summary_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`singleton_id` INTEGER NOT NULL, `last_aggregated_through_millis` INTEGER NOT NULL, `calibration_key` TEXT NOT NULL, `zone_id` TEXT NOT NULL, `checkpoint_revision` INTEGER NOT NULL, `aggregation_version` INTEGER NOT NULL, PRIMARY KEY(`singleton_id`))",
+        "fields": [
+          {
+            "fieldPath": "singletonId",
+            "columnName": "singleton_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastAggregatedThroughMillis",
+            "columnName": "last_aggregated_through_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "calibrationKey",
+            "columnName": "calibration_key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "zoneId",
+            "columnName": "zone_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "checkpointRevision",
+            "columnName": "checkpoint_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "aggregationVersion",
+            "columnName": "aggregation_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "singleton_id"
+          ]
+        }
+      },
+      {
+        "tableName": "sync_history",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `attempted_at_millis` INTEGER NOT NULL, `query_begin_millis` INTEGER NOT NULL, `query_end_millis` INTEGER NOT NULL, `status` TEXT NOT NULL, `read_event_count` INTEGER NOT NULL, `inserted_event_count` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attemptedAtMillis",
+            "columnName": "attempted_at_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "queryBeginMillis",
+            "columnName": "query_begin_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "queryEndMillis",
+            "columnName": "query_end_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "readEventCount",
+            "columnName": "read_event_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "insertedEventCount",
+            "columnName": "inserted_event_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sync_history_attempted_at_millis",
+            "unique": false,
+            "columnNames": [
+              "attempted_at_millis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sync_history_attempted_at_millis` ON `${TABLE_NAME}` (`attempted_at_millis`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '176724ec3326bf77ad43409769496cee')"
+    ]
+  }
+}

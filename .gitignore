@@ -1,0 +1,43 @@
+# Gradle and Kotlin caches/build outputs
+.gradle/
+.kotlin/
+**/build/
+/dist/
+
+# Android local configuration and generated files
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.apks
+*.idsig
+
+# IDE and editor state
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Signing material and local credentials
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+secrets.properties
+.env
+.env.*
+!.env.example
+google-services.json
+service-account*.json
+play-publisher-credentials.json
+
+# JVM diagnostics
+*.hprof
