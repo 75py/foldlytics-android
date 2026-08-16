@@ -75,3 +75,7 @@ use an emulator or a dedicated test device.
 - `TYPE_HINGE_ANGLE` diagnostics
 - Room
 - WorkManager
+
+## License
+
+Foldlytics is licensed under the [Apache License 2.0](LICENSE).

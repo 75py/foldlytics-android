@@ -74,3 +74,7 @@ Application IDは`com.nagopy.android.foldlytics.debug`、公開版は
 - `TYPE_HINGE_ANGLE`による診断
 - Room
 - WorkManager
+
+## ライセンス
+
+Foldlyticsは[Apache License 2.0](LICENSE)のもとで公開しています。
