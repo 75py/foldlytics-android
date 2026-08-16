@@ -25,6 +25,11 @@ android {
             applicationIdSuffix = ".debug"
             resValue("string", "app_name", "Foldlytics (Debug)")
         }
+        release {
+            optimization {
+                enable = true
+            }
+        }
     }
 
     buildFeatures {
