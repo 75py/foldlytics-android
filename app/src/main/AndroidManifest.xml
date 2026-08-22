@@ -8,6 +8,9 @@
 
     <!-- WorkManagerの通信制約・長時間Foreground Workerは利用しない。 -->
     <uses-permission
+        android:name="android.permission.INTERNET"
+        tools:node="remove" />
+    <uses-permission
         android:name="android.permission.ACCESS_NETWORK_STATE"
         tools:node="remove" />
     <uses-permission
