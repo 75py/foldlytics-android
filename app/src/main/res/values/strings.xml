@@ -92,7 +92,6 @@
     <string name="unknown_reason_after_restart">After device restart</string>
     <string name="unknown_reason_collection_interruption">After collection interruption</string>
     <string name="unknown_reason_configuration_unavailable">No configuration data</string>
-    <string name="unknown_reason_classification_unavailable">Unable to classify</string>
     <string name="checkpoint_source_app_launch">App launch</string>
     <string name="checkpoint_source_app_foreground">App foreground</string>
     <string name="checkpoint_source_app_background">App background</string>

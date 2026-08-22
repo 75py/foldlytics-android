@@ -1009,6 +1009,13 @@ private fun SummaryCard(
     val resources = LocalResources.current
     val colors = postureColors()
     val percent = resources.getString(R.string.value_percent_0, summary.innerRatio * 100)
+    val noData = stringResource(R.string.label_no_data)
+    val innerRatioText = if (summary.classifiedMillis > 0L) percent else noData
+    val dataCoverageText = if (summary.observedMillis > 0L) {
+        resources.getString(R.string.value_percent_0, summary.dataCoverageRatio * 100)
+    } else {
+        noData
+    }
     LabCard(title = stringResource(R.string.summary_title)) {
         if (longTermInsights != null) {
             InfoLine(
@@ -1042,7 +1049,7 @@ private fun SummaryCard(
                 stringResource(summary.period.labelRes),
                 summary.coverMillis.toDurationText(resources),
                 summary.innerMillis.toDurationText(resources),
-                percent,
+                innerRatioText,
             ),
             colors = colors,
             size = 164.dp,
@@ -1069,7 +1076,7 @@ private fun SummaryCard(
         )
         InfoLine(
             stringResource(R.string.label_data_coverage),
-            resources.getString(R.string.value_percent_0, summary.dataCoverageRatio * 100),
+            dataCoverageText,
         )
         Row(Modifier.fillMaxWidth()) {
             Metric(

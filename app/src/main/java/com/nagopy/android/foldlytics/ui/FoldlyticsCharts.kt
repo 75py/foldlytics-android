@@ -1,5 +1,7 @@
 package com.nagopy.android.foldlytics.ui
 
+import android.content.res.Resources
+import android.icu.text.ListFormatter
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -151,7 +153,7 @@ internal fun InnerRatioTrendChart(
     modifier: Modifier = Modifier,
 ) {
     val resources = LocalResources.current
-    val description = buckets.joinToString(separator = "、") { bucket ->
+    val description = resources.formatChartAccessibilityList(buckets.map { bucket ->
         if (bucket.classifiedMillis == 0L) {
             resources.getString(
                 R.string.content_desc_chart_no_data,
@@ -164,7 +166,7 @@ internal fun InnerRatioTrendChart(
                 resources.getString(R.string.value_percent_0, bucket.innerRatio * 100),
             )
         }
-    }
+    })
     ChartWithYAxis(
         labels = listOf("100%", "50%", "0%"),
         buckets = buckets,
@@ -218,7 +220,7 @@ internal fun OpenCountTrendChart(
         ?.coerceAtLeast(1)
         ?: 1
     val middle = maximum / 2f
-    val description = buckets.joinToString(separator = "、") { bucket ->
+    val description = resources.formatChartAccessibilityList(buckets.map { bucket ->
         if (bucket.observedDayCount == 0) {
             resources.getString(
                 R.string.content_desc_chart_no_data,
@@ -232,7 +234,7 @@ internal fun OpenCountTrendChart(
                 bucket.openedCount,
             )
         }
-    }
+    })
     ChartWithYAxis(
         labels = listOf(
             resources.getString(R.string.value_open_count, maximum),
@@ -277,6 +279,13 @@ internal fun OpenCountTrendChart(
         }
     }
 }
+
+private fun Resources.formatChartAccessibilityList(items: List<String>): String =
+    if (items.isEmpty()) {
+        getString(R.string.label_no_data)
+    } else {
+        ListFormatter.getInstance(configuration.locales[0]).format(items)
+    }
 
 @Composable
 private fun ChartWithYAxis(

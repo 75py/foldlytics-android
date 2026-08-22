@@ -240,7 +240,7 @@ class UsageAnalyzerTest {
     }
 
     @Test
-    fun zeroSizedConfigurationRemainsUnknown() {
+    fun nullAndZeroSizedConfigurationsRemainUnknown() {
         val emptyConfiguration = configuration(
             width = 0,
             height = 0,
@@ -249,7 +249,23 @@ class UsageAnalyzerTest {
             density = 0,
         )
 
+        assertEquals(DisplayPosture.UNKNOWN, calibration.classify(null))
         assertEquals(DisplayPosture.UNKNOWN, calibration.classify(emptyConfiguration))
+    }
+
+    @Test
+    fun usableConfigurationEventsAreAlwaysCoverOrInner() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(1_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+        )
+
+        val result = analyzer.analyze(records, 0, 2_000, calibration)
+
+        assertEquals(
+            listOf(DisplayPosture.COVER, DisplayPosture.INNER),
+            result.postureEvents.asReversed().map { it.posture },
+        )
     }
 
     @Test
@@ -339,6 +355,40 @@ class UsageAnalyzerTest {
         assertEquals(
             3_000L,
             result.excludedPostureMillisByReason[UnknownPostureReason.CONFIGURATION_UNAVAILABLE],
+        )
+        assertEquals(
+            UnknownPostureReason.CONFIGURATION_UNAVAILABLE,
+            result.postureEvents.first { it.posture == DisplayPosture.UNKNOWN }.unknownReason,
+        )
+    }
+
+    @Test
+    fun excludesTimeAfterUnusableConfigurationAsConfigurationUnavailable() {
+        val unusableConfiguration = configuration(
+            width = 0,
+            height = 0,
+            smallest = 0,
+            orientation = 0,
+            density = 0,
+        )
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(2_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = unusableConfiguration),
+            record(5_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+        )
+
+        val result = analyzer.analyze(records, 0, 10_000, calibration)
+
+        assertEquals(3_000L, result.excludedPostureMillis)
+        assertEquals(
+            3_000L,
+            result.excludedPostureMillisByReason[UnknownPostureReason.CONFIGURATION_UNAVAILABLE],
+        )
+        assertEquals(
+            UnknownPostureReason.CONFIGURATION_UNAVAILABLE,
+            result.postureEvents.first { it.posture == DisplayPosture.UNKNOWN }.unknownReason,
         )
     }
 

@@ -88,7 +88,6 @@
     <string name="unknown_reason_after_restart">端末再起動後</string>
     <string name="unknown_reason_collection_interruption">収集途切れ後</string>
     <string name="unknown_reason_configuration_unavailable">構成情報なし</string>
-    <string name="unknown_reason_classification_unavailable">分類不能</string>
     <string name="checkpoint_source_app_launch">アプリ起動</string>
     <string name="checkpoint_source_app_foreground">アプリ復帰</string>
     <string name="checkpoint_source_app_background">アプリ離脱</string>

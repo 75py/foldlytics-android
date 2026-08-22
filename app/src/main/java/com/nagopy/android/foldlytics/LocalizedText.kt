@@ -28,7 +28,6 @@ internal val UnknownPostureReason.labelRes: Int
         UnknownPostureReason.AFTER_DEVICE_RESTART -> R.string.unknown_reason_after_restart
         UnknownPostureReason.COLLECTION_INTERRUPTION -> R.string.unknown_reason_collection_interruption
         UnknownPostureReason.CONFIGURATION_UNAVAILABLE -> R.string.unknown_reason_configuration_unavailable
-        UnknownPostureReason.CLASSIFICATION_UNAVAILABLE -> R.string.unknown_reason_classification_unavailable
     }
 
 internal val PostureCheckpointSource.labelRes: Int
