@@ -1,6 +1,7 @@
 package com.nagopy.android.foldlytics.ui
 
 import android.content.res.Resources
+import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -109,6 +110,7 @@ internal const val CUSTOM_PERIOD_DIALOG_TITLE_TAG = "custom_period_dialog_title"
 internal const val CUSTOM_PERIOD_DIALOG_GUIDANCE_TAG = "custom_period_dialog_guidance"
 internal const val CUSTOM_PERIOD_DIALOG_CANCEL_TAG = "custom_period_dialog_cancel"
 internal const val CUSTOM_PERIOD_DIALOG_APPLY_TAG = "custom_period_dialog_apply"
+internal const val SUMMARY_SHARE_BUTTON_TAG = "summary_share_button"
 private val MaxContentWidth = 720.dp
 
 private enum class ScreenDestination(val titleRes: Int) {
@@ -173,6 +175,7 @@ fun FoldlyticsScreen(
     onExportCsv: () -> Unit,
     onOpenPrivacyPolicy: () -> Unit,
     onOpenOssLicenses: () -> Unit,
+    onShareSummary: suspend (Bitmap) -> Boolean = { false },
     appName: String? = null,
     screenshotSectionEndSpacing: Dp = 0.dp,
 ) {
@@ -183,6 +186,7 @@ fun FoldlyticsScreen(
     var destination by rememberSaveable { mutableStateOf(ScreenDestination.HOME) }
     var showUsageAccessDisclosure by rememberSaveable { mutableStateOf(false) }
     var showAnalysisProgress by remember { mutableStateOf(false) }
+    var summaryShareSnapshot by remember { mutableStateOf<PeriodUsageSummary?>(null) }
 
     LaunchedEffect(state.isAnalysisLoading) {
         if (state.isAnalysisLoading) {
@@ -265,6 +269,7 @@ fun FoldlyticsScreen(
                     onPeriodChanged = onPeriodChanged,
                     onCustomPeriodChanged = onCustomPeriodChanged,
                     onRefresh = onRefresh,
+                    onShareSummaryRequested = { summaryShareSnapshot = it },
                     screenshotSectionEndSpacing = screenshotSectionEndSpacing,
                 )
 
@@ -292,6 +297,15 @@ fun FoldlyticsScreen(
                 showUsageAccessDisclosure = false
                 onOpenUsageAccess()
             },
+        )
+    }
+
+    summaryShareSnapshot?.let { snapshot ->
+        SummarySharePreviewDialog(
+            summary = snapshot,
+            canShare = !state.isLoading && !state.isAnalysisLoading,
+            onDismiss = { summaryShareSnapshot = null },
+            onShare = onShareSummary,
         )
     }
 }
@@ -412,6 +426,49 @@ private fun MenuButton(onClick: () -> Unit) {
 }
 
 @Composable
+private fun SummaryShareButton(
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val iconColor = if (enabled) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+    }
+    val description = stringResource(R.string.content_desc_share_summary)
+    IconButton(
+        enabled = enabled,
+        onClick = onClick,
+        modifier = Modifier
+            .testTag(SUMMARY_SHARE_BUTTON_TAG)
+            .semantics { contentDescription = description },
+    ) {
+        Canvas(Modifier.size(24.dp)) {
+            val left = Offset(6.dp.toPx(), 12.dp.toPx())
+            val upperRight = Offset(17.dp.toPx(), 6.dp.toPx())
+            val lowerRight = Offset(17.dp.toPx(), 18.dp.toPx())
+            drawLine(
+                color = iconColor,
+                start = left,
+                end = upperRight,
+                strokeWidth = 2.dp.toPx(),
+                cap = StrokeCap.Round,
+            )
+            drawLine(
+                color = iconColor,
+                start = left,
+                end = lowerRight,
+                strokeWidth = 2.dp.toPx(),
+                cap = StrokeCap.Round,
+            )
+            listOf(left, upperRight, lowerRight).forEach { center ->
+                drawCircle(color = iconColor, radius = 3.dp.toPx(), center = center)
+            }
+        }
+    }
+}
+
+@Composable
 internal fun FoldlyticsLazyColumn(
     scaffoldPadding: PaddingValues,
     content: LazyListScope.() -> Unit,
@@ -441,6 +498,7 @@ private fun HomeContent(
     onPeriodChanged: (AnalysisPeriod) -> Unit,
     onCustomPeriodChanged: (Long, Long) -> Unit,
     onRefresh: () -> Unit,
+    onShareSummaryRequested: (PeriodUsageSummary) -> Unit,
     screenshotSectionEndSpacing: Dp,
 ) {
     var appRankingBasis by rememberSaveable { mutableStateOf(AppRankingBasis.COVER) }
@@ -463,6 +521,11 @@ private fun HomeContent(
                     SummaryCard(
                         summary = summary,
                         longTermInsights = state.longTermInsights,
+                        canShare =
+                            summary.classifiedMillis > 0L &&
+                                !state.isLoading &&
+                                !state.isAnalysisLoading,
+                        onShare = { onShareSummaryRequested(summary) },
                     )
                     if (screenshotSectionEndSpacing > 0.dp) {
                         Spacer(Modifier.height(screenshotSectionEndSpacing))
@@ -1005,6 +1068,8 @@ private fun Long.toDatePickerLocalDate(): LocalDate =
 private fun SummaryCard(
     summary: PeriodUsageSummary,
     longTermInsights: LongTermInsights?,
+    canShare: Boolean,
+    onShare: () -> Unit,
 ) {
     val resources = LocalResources.current
     val colors = postureColors()
@@ -1016,7 +1081,15 @@ private fun SummaryCard(
     } else {
         noData
     }
-    LabCard(title = stringResource(R.string.summary_title)) {
+    LabCard(
+        title = stringResource(R.string.summary_title),
+        titleAction = {
+            SummaryShareButton(
+                enabled = canShare,
+                onClick = onShare,
+            )
+        },
+    ) {
         if (longTermInsights != null) {
             InfoLine(
                 stringResource(R.string.label_analysis_range),
@@ -1390,13 +1463,29 @@ internal fun InfoLine(label: String, value: String) {
 }
 
 @Composable
-internal fun LabCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+internal fun LabCard(
+    title: String,
+    titleAction: (@Composable () -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
     Card {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(3.dp),
         ) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    title,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                titleAction?.invoke()
+            }
             Spacer(Modifier.height(5.dp))
             content()
         }

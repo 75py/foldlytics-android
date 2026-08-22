@@ -21,11 +21,14 @@
     <string name="action_syncing">同期中…</string>
     <string name="action_apply">適用</string>
     <string name="action_cancel">キャンセル</string>
+    <string name="action_share_summary_image">画像を共有</string>
     <string name="drawer_privacy_note">データは端末内に保存され、操作しない限り外部へ送信されません。</string>
 
     <!-- Accessibility -->
     <string name="content_desc_analysis_progress">保存データを集計中</string>
     <string name="content_desc_open_menu">メニューを開く</string>
+    <string name="content_desc_share_summary">利用サマリーを画像で共有</string>
+    <string name="content_desc_summary_share_preview">Foldlytics 利用サマリー共有画像</string>
     <string name="content_desc_cover_app_ranking">外側のアプリランキング</string>
     <string name="content_desc_inner_app_ranking">内側のアプリランキング</string>
     <string name="content_desc_summary">%1$sは外側%2$s、内側%3$s、内側%4$s</string>
@@ -159,6 +162,18 @@
     <string name="open_count_trend_title">開いた回数の推移</string>
     <string name="legend_open_count">開いた回数</string>
     <string name="label_period_total">期間合計</string>
+
+    <!-- Summary image sharing -->
+    <string name="share_summary_period">%1$s · %2$s</string>
+    <string name="share_summary_inner_ratio">内側ディスプレイ</string>
+    <string name="share_summary_cover_time">外側ディスプレイ</string>
+    <string name="share_summary_inner_time">内側ディスプレイ</string>
+    <string name="share_summary_opened_count">開いた回数</string>
+    <string name="share_summary_preview_title">利用サマリーを共有</string>
+    <string name="share_summary_generating">共有画像を作成中…</string>
+    <string name="share_summary_generation_failed">共有画像を作成できませんでした。キャンセルして、もう一度お試しください。</string>
+    <string name="share_summary_failed">画像を共有できませんでした。もう一度お試しください。</string>
+    <string name="share_summary_chooser">利用サマリーを共有</string>
 
     <!-- App ranking -->
     <string name="app_ranking_title">画面別によく使うアプリ</string>
