@@ -74,6 +74,34 @@ class UsageSyncRepositoryTest {
     }
 
     @Test
+    fun overlappingSyncDeduplicatesAnEventWhenItsFilteredSequenceChanges() = runBlocking {
+        val usageRecord = record(
+            timestampMillis = 9_000_000L,
+            sequenceAtTimestamp = 2,
+        )
+        val source = FakeUsageEventSource(UsageReadResult.Success(listOf(usageRecord)))
+        val store = FakeUsageEventStore()
+        var nowMillis = 10_000_000L
+        val repository = UsageSyncRepository(
+            eventSource = source,
+            eventStore = store,
+            currentTimeMillis = { nowMillis },
+            ioDispatcher = Dispatchers.Unconfined,
+        )
+
+        val first = repository.sync() as UsageSyncResult.Success
+        source.result = UsageReadResult.Success(
+            listOf(usageRecord.copy(sequenceAtTimestamp = 0)),
+        )
+        nowMillis = 11_000_000L
+        val second = repository.sync() as UsageSyncResult.Success
+
+        assertEquals(1, first.insertedEventCount)
+        assertEquals(0, second.insertedEventCount)
+        assertEquals(listOf(usageRecord), store.records)
+    }
+
+    @Test
     fun unavailableReadDoesNotAdvanceCursor() = runBlocking {
         val initialState = UsageSyncState(
             lastSuccessfulEndMillis = 10_000_000L,

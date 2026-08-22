@@ -1,14 +1,17 @@
 package com.nagopy.android.foldlytics.data
 
+import android.annotation.SuppressLint
 import android.app.AppOpsManager
 import android.app.usage.UsageEvents
+import android.app.usage.UsageEventsQuery
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.res.Configuration
+import android.os.Build
 import android.os.Process
 import android.os.UserManager
+import androidx.annotation.RequiresApi
 import com.nagopy.android.foldlytics.model.DisplayConfiguration
-import com.nagopy.android.foldlytics.model.UsageEventKind
 import com.nagopy.android.foldlytics.model.UsageRecord
 
 enum class UsageReadUnavailableReason {
@@ -57,36 +60,23 @@ class UsageEventReader(private val context: Context) : UsageEventSource {
         }
 
         return try {
-            val events = usageStatsManager.queryEvents(beginMillis, endMillis)
+            val events = queryEvents(beginMillis, endMillis)
                 ?: return UsageReadResult.Unavailable(
                     UsageReadUnavailableReason.SYSTEM_UNAVAILABLE,
                 )
             val event = UsageEvents.Event()
-            var lastTimestamp: Long? = null
-            var sequenceAtTimestamp = 0
-            val records = buildList {
-                while (events.hasNextEvent()) {
-                    events.getNextEvent(event)
-                    sequenceAtTimestamp = if (lastTimestamp == event.timeStamp) {
-                        sequenceAtTimestamp + 1
-                    } else {
-                        0
-                    }
-                    lastTimestamp = event.timeStamp
-                    add(
-                        UsageRecord(
-                            timestampMillis = event.timeStamp,
-                            kind = event.eventType.toUsageEventKind(),
-                            packageName = event.packageName,
-                            className = event.className,
-                            configuration = event.configuration?.toDisplayConfiguration(),
-                            rawEventType = event.eventType,
-                            sequenceAtTimestamp = sequenceAtTimestamp,
-                        ),
-                    )
-                }
+            val collector = UsageRecordCollector()
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                collector.addIfStored(
+                    timestampMillis = event.timeStamp,
+                    rawEventType = event.eventType,
+                    packageName = event.packageName,
+                    className = event.className,
+                    configuration = event.configuration?.toDisplayConfiguration(),
+                )
             }
-            UsageReadResult.Success(records)
+            UsageReadResult.Success(collector.toList())
         } catch (_: SecurityException) {
             UsageReadResult.Unavailable(UsageReadUnavailableReason.PERMISSION_DENIED)
         } catch (error: Exception) {
@@ -102,20 +92,56 @@ class UsageEventReader(private val context: Context) : UsageEventSource {
 
     fun isLauncherApp(packageName: String): Boolean =
         context.packageManager.getLaunchIntentForPackage(packageName) != null
+
+    private fun queryEvents(beginMillis: Long, endMillis: Long): UsageEvents? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            queryEventsApi35(beginMillis, endMillis)
+        } else {
+            usageStatsManager.queryEvents(beginMillis, endMillis)
+        }
+
+    // Lint loses the EventType constants when the tested central whitelist becomes an IntArray.
+    @SuppressLint("WrongConstant")
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    private fun queryEventsApi35(beginMillis: Long, endMillis: Long): UsageEvents? =
+        usageStatsManager.queryEvents(
+            UsageEventsQuery.Builder(beginMillis, endMillis)
+                .setEventTypes(*StoredUsageEventTypes.all.toIntArray())
+                .build(),
+        )
 }
 
-internal fun Int.toUsageEventKind(): UsageEventKind = when (this) {
-    UsageEvents.Event.ACTIVITY_RESUMED -> UsageEventKind.ACTIVITY_RESUMED
-    UsageEvents.Event.ACTIVITY_PAUSED -> UsageEventKind.ACTIVITY_PAUSED
-    UsageEvents.Event.ACTIVITY_STOPPED -> UsageEventKind.ACTIVITY_STOPPED
-    UsageEvents.Event.CONFIGURATION_CHANGE -> UsageEventKind.CONFIGURATION_CHANGED
-    UsageEvents.Event.SCREEN_INTERACTIVE -> UsageEventKind.SCREEN_INTERACTIVE
-    UsageEvents.Event.SCREEN_NON_INTERACTIVE -> UsageEventKind.SCREEN_NON_INTERACTIVE
-    UsageEvents.Event.KEYGUARD_HIDDEN -> UsageEventKind.KEYGUARD_HIDDEN
-    UsageEvents.Event.KEYGUARD_SHOWN -> UsageEventKind.KEYGUARD_SHOWN
-    UsageEvents.Event.DEVICE_STARTUP -> UsageEventKind.DEVICE_STARTUP
-    UsageEvents.Event.DEVICE_SHUTDOWN -> UsageEventKind.DEVICE_SHUTDOWN
-    else -> UsageEventKind.OTHER
+internal class UsageRecordCollector {
+    private val records = mutableListOf<UsageRecord>()
+    private var lastStoredTimestamp: Long? = null
+    private var sequenceAtTimestamp = 0
+
+    fun addIfStored(
+        timestampMillis: Long,
+        rawEventType: Int,
+        packageName: String? = null,
+        className: String? = null,
+        configuration: DisplayConfiguration? = null,
+    ) {
+        val kind = StoredUsageEventTypes.kindOrNull(rawEventType) ?: return
+        sequenceAtTimestamp = if (lastStoredTimestamp == timestampMillis) {
+            sequenceAtTimestamp + 1
+        } else {
+            0
+        }
+        lastStoredTimestamp = timestampMillis
+        records += UsageRecord(
+            timestampMillis = timestampMillis,
+            kind = kind,
+            packageName = packageName,
+            className = className,
+            configuration = configuration,
+            rawEventType = rawEventType,
+            sequenceAtTimestamp = sequenceAtTimestamp,
+        )
+    }
+
+    fun toList(): List<UsageRecord> = records.toList()
 }
 
 fun Configuration.toDisplayConfiguration(): DisplayConfiguration =

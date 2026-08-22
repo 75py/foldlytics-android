@@ -1,6 +1,5 @@
 package com.nagopy.android.foldlytics.data
 
-import android.app.usage.UsageEvents
 import com.nagopy.android.foldlytics.model.Calibration
 import com.nagopy.android.foldlytics.model.DailyAppUsageSummary
 import com.nagopy.android.foldlytics.model.DailyPostureSummary
@@ -48,7 +47,7 @@ class DailySummaryRepository(
             !cacheIdentityMatches ||
             existingState.lastAggregatedThroughMillis > rangeEnd
         val earliestEvent = usageEventDao.earliestDeviceEventTimestamp(
-            DAILY_SUMMARY_EVENT_TYPES,
+            StoredUsageEventTypes.all,
         )
         val earliestCheckpoint = checkpointDao.earliestTimestamp()
         val earliestGap = collectionGapStarts.asSequence()
@@ -141,7 +140,7 @@ class DailySummaryRepository(
             check(chunkEnd > chunkStart) { "Daily aggregation chunk did not advance" }
 
             val seedRecords = mutableListOf<UsageEventEntity>()
-            DEVICE_STATE_EVENT_GROUPS.forEach { eventTypes ->
+            StoredUsageEventTypes.deviceStateGroups.forEach { eventTypes ->
                 seedRecords += usageEventDao.loadLatestDeviceEventsBefore(
                     endMillis = chunkStart,
                     rawEventTypes = eventTypes,
@@ -149,14 +148,14 @@ class DailySummaryRepository(
             }
             seedRecords += usageEventDao.loadLatestActivityEventsBefore(
                 endMillis = chunkStart,
-                rawEventTypes = ACTIVITY_EVENT_TYPES,
+                rawEventTypes = StoredUsageEventTypes.activity,
             )
             val records = (
                 seedRecords.distinctBy(UsageEventEntity::eventKey) +
                     usageEventDao.loadDeviceEvents(
                         beginMillis = chunkStart,
                         endMillis = chunkEnd,
-                        rawEventTypes = DAILY_SUMMARY_EVENT_TYPES,
+                        rawEventTypes = StoredUsageEventTypes.all,
                     )
                 ).map(UsageEventEntity::toModel)
             val checkpoints = buildList {
@@ -202,32 +201,6 @@ class DailySummaryRepository(
     private companion object {
         const val AGGREGATION_VERSION = 1
         const val AGGREGATION_CHUNK_DAYS = 31L
-
-        val SCREEN_STATE_EVENT_TYPES = listOf(
-            UsageEvents.Event.SCREEN_INTERACTIVE,
-            UsageEvents.Event.SCREEN_NON_INTERACTIVE,
-        )
-        val KEYGUARD_STATE_EVENT_TYPES = listOf(
-            UsageEvents.Event.KEYGUARD_SHOWN,
-            UsageEvents.Event.KEYGUARD_HIDDEN,
-        )
-        val POSTURE_STATE_EVENT_TYPES = listOf(
-            UsageEvents.Event.CONFIGURATION_CHANGE,
-            UsageEvents.Event.DEVICE_STARTUP,
-            UsageEvents.Event.DEVICE_SHUTDOWN,
-        )
-        val ACTIVITY_EVENT_TYPES = listOf(
-            UsageEvents.Event.ACTIVITY_RESUMED,
-            UsageEvents.Event.ACTIVITY_PAUSED,
-            UsageEvents.Event.ACTIVITY_STOPPED,
-        )
-        val DEVICE_STATE_EVENT_GROUPS = listOf(
-            SCREEN_STATE_EVENT_TYPES,
-            KEYGUARD_STATE_EVENT_TYPES,
-            POSTURE_STATE_EVENT_TYPES,
-        )
-        val DAILY_SUMMARY_EVENT_TYPES =
-            (DEVICE_STATE_EVENT_GROUPS.flatten() + ACTIVITY_EVENT_TYPES).distinct()
     }
 
     private data class RebuiltDailySummaries(
