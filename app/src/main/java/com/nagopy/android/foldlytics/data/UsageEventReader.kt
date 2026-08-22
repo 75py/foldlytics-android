@@ -1,5 +1,6 @@
 package com.nagopy.android.foldlytics.data
 
+import android.annotation.SuppressLint
 import android.app.AppOpsManager
 import android.app.usage.UsageEvents
 import android.app.usage.UsageEventsQuery
@@ -99,6 +100,8 @@ class UsageEventReader(private val context: Context) : UsageEventSource {
             usageStatsManager.queryEvents(beginMillis, endMillis)
         }
 
+    // Lint loses the EventType constants when the tested central whitelist becomes an IntArray.
+    @SuppressLint("WrongConstant")
     @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     private fun queryEventsApi35(beginMillis: Long, endMillis: Long): UsageEvents? =
         usageStatsManager.queryEvents(
