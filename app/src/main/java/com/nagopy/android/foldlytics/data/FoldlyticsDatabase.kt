@@ -13,6 +13,7 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Transaction
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.nagopy.android.foldlytics.model.DailyAppUsageSummary
 import com.nagopy.android.foldlytics.model.DailyPostureSummary
@@ -479,7 +480,7 @@ interface DailyPostureSummaryDao {
         DailySummaryStateEntity::class,
         SyncHistoryEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class FoldlyticsDatabase : RoomDatabase() {
@@ -500,22 +501,21 @@ abstract class FoldlyticsDatabase : RoomDatabase() {
                     FoldlyticsDatabase::class.java,
                     "foldlytics.db",
                 )
-                    .addCallback(RemoveUnstoredUsageEventsOnOpen)
+                    .addMigrations(MIGRATION_1_2)
                     .build()
                     .also { instance = it }
             }
     }
 }
 
-internal object RemoveUnstoredUsageEventsOnOpen : RoomDatabase.Callback() {
+internal val MIGRATION_1_2 = object : Migration(1, 2) {
     private val placeholders = StoredUsageEventTypes.all
         .joinToString(separator = ",") { "?" }
     private val bindArgs: Array<out Any?> = StoredUsageEventTypes.all
         .map { it.toLong() }
         .toTypedArray()
 
-    override fun onOpen(db: SupportSQLiteDatabase) {
-        super.onOpen(db)
+    override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(
             "DELETE FROM usage_events WHERE raw_event_type NOT IN ($placeholders)",
             bindArgs,

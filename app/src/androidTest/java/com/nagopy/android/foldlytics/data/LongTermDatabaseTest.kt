@@ -45,8 +45,8 @@ class LongTermDatabaseTest {
     }
 
     @Test
-    fun createsFreshVersionOneDatabase() {
-        assertEquals(1, database.openHelper.readableDatabase.version)
+    fun createsFreshVersionTwoDatabase() {
+        assertEquals(2, database.openHelper.readableDatabase.version)
     }
 
     @Test
