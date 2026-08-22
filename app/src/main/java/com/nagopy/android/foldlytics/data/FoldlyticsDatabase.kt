@@ -13,6 +13,7 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Transaction
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.nagopy.android.foldlytics.model.DailyAppUsageSummary
 import com.nagopy.android.foldlytics.model.DailyPostureSummary
 import com.nagopy.android.foldlytics.model.DisplayConfiguration
@@ -498,9 +499,27 @@ abstract class FoldlyticsDatabase : RoomDatabase() {
                     context.applicationContext,
                     FoldlyticsDatabase::class.java,
                     "foldlytics.db",
-                ).build()
+                )
+                    .addCallback(RemoveUnstoredUsageEventsOnOpen)
+                    .build()
                     .also { instance = it }
             }
+    }
+}
+
+internal object RemoveUnstoredUsageEventsOnOpen : RoomDatabase.Callback() {
+    private val placeholders = StoredUsageEventTypes.all
+        .joinToString(separator = ",") { "?" }
+    private val bindArgs: Array<out Any?> = StoredUsageEventTypes.all
+        .map { it.toLong() }
+        .toTypedArray()
+
+    override fun onOpen(db: SupportSQLiteDatabase) {
+        super.onOpen(db)
+        db.execSQL(
+            "DELETE FROM usage_events WHERE raw_event_type NOT IN ($placeholders)",
+            bindArgs,
+        )
     }
 }
 
