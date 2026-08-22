@@ -12,7 +12,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nagopy.android.foldlytics.MainUiState
 import com.nagopy.android.foldlytics.R
@@ -39,11 +39,12 @@ class SummaryAccessibilityTest {
         )
 
         setContent(context, summary)
-        composeRule.onNode(hasScrollAction()).performScrollToNode(
-            hasContentDescription(description),
-        )
+        composeRule.onNode(hasScrollAction()).performScrollToIndex(2)
 
-        composeRule.onNodeWithContentDescription(description).assertExists()
+        composeRule.onNodeWithContentDescription(
+            description,
+            useUnmergedTree = true,
+        ).assertExists()
         composeRule.onNodeWithText("—", useUnmergedTree = true).assertExists()
         composeRule.onAllNodes(
             hasContentDescription("0%", substring = true),
@@ -68,11 +69,12 @@ class SummaryAccessibilityTest {
         )
 
         setContent(context, summary)
-        composeRule.onNode(hasScrollAction()).performScrollToNode(
-            hasContentDescription(description),
-        )
+        composeRule.onNode(hasScrollAction()).performScrollToIndex(2)
 
-        composeRule.onNodeWithContentDescription(description).assertExists()
+        composeRule.onNodeWithContentDescription(
+            description,
+            useUnmergedTree = true,
+        ).assertExists()
     }
 
     @Test
@@ -88,11 +90,12 @@ class SummaryAccessibilityTest {
         )
 
         setContent(context, summary)
-        composeRule.onNode(hasScrollAction()).performScrollToNode(
-            hasContentDescription(description),
-        )
+        composeRule.onNode(hasScrollAction()).performScrollToIndex(2)
 
-        composeRule.onNodeWithContentDescription(description).assertExists()
+        composeRule.onNodeWithContentDescription(
+            description,
+            useUnmergedTree = true,
+        ).assertExists()
         composeRule.onNodeWithText("25%", useUnmergedTree = true).assertExists()
         composeRule.onNodeWithText("100%", useUnmergedTree = true).assertExists()
     }

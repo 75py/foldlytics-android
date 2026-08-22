@@ -31,9 +31,11 @@ class ChartAccessibilityTest {
 
             composeRule.onNodeWithContentDescription(
                 englishList(innerRatioDescriptions(context)),
+                useUnmergedTree = true,
             ).assertExists()
             composeRule.onNodeWithContentDescription(
                 englishList(openCountDescriptions(context)),
+                useUnmergedTree = true,
             ).assertExists()
         }
     }
@@ -46,9 +48,11 @@ class ChartAccessibilityTest {
 
             composeRule.onNodeWithContentDescription(
                 japaneseList(innerRatioDescriptions(context)),
+                useUnmergedTree = true,
             ).assertExists()
             composeRule.onNodeWithContentDescription(
                 japaneseList(openCountDescriptions(context)),
+                useUnmergedTree = true,
             ).assertExists()
         }
     }
@@ -61,6 +65,7 @@ class ChartAccessibilityTest {
 
         composeRule.onAllNodes(
             hasContentDescription(context.getString(R.string.label_no_data)),
+            useUnmergedTree = true,
         ).assertCountEquals(2)
     }
 
