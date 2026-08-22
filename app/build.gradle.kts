@@ -76,6 +76,8 @@ dependencies {
     ksp("androidx.room:room-compiler:$roomVersion")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
+    // Room testing 2.8.4 loads schemas with kotlinx.serialization 1.8.1 in the target process.
+    debugImplementation(platform("org.jetbrains.kotlinx:kotlinx-serialization-bom:1.8.1"))
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
