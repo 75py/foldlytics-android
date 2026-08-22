@@ -154,12 +154,10 @@ class UsageAnalyzer(
             val classification = calibration.classifyWithDetails(configuration)
             val nextPosture = classification.posture
             val previousPosture = posture
-            val nextUnknownReason = when {
-                configuration == null || !configuration.isUsable() ->
-                    UnknownPostureReason.CONFIGURATION_UNAVAILABLE
-                nextPosture == DisplayPosture.UNKNOWN ->
-                    UnknownPostureReason.CLASSIFICATION_UNAVAILABLE
-                else -> null
+            val nextUnknownReason = if (configuration == null || !configuration.isUsable()) {
+                UnknownPostureReason.CONFIGURATION_UNAVAILABLE
+            } else {
+                null
             }
             if (source == PostureEventSource.CONFIGURATION_CHANGE &&
                 timestampMillis in rangeStartMillis until rangeEndMillis

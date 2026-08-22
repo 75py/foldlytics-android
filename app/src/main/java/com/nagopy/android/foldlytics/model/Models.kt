@@ -88,7 +88,6 @@ enum class UnknownPostureReason {
     AFTER_DEVICE_RESTART,
     COLLECTION_INTERRUPTION,
     CONFIGURATION_UNAVAILABLE,
-    CLASSIFICATION_UNAVAILABLE,
 }
 
 enum class PostureCheckpointSource {
