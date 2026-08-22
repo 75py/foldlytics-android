@@ -3,6 +3,7 @@ package com.nagopy.android.foldlytics
 import android.content.Intent
 import android.content.res.Configuration
 import android.content.res.Resources
+import android.graphics.Bitmap
 import android.graphics.Rect
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -27,6 +28,7 @@ import androidx.window.layout.FoldingFeature
 import androidx.window.layout.WindowInfoTracker
 import com.google.android.gms.oss.licenses.v2.OssLicensesMenuActivity
 import com.nagopy.android.foldlytics.data.toDisplayConfiguration
+import com.nagopy.android.foldlytics.share.SummaryImageShare
 import com.nagopy.android.foldlytics.ui.FoldlyticsScreen
 import com.nagopy.android.foldlytics.ui.FoldlyticsTheme
 import java.time.LocalDate
@@ -109,6 +111,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                     onExportCsv = ::exportLongTermCsv,
                     onOpenPrivacyPolicy = ::openPrivacyPolicy,
                     onOpenOssLicenses = ::openOssLicenses,
+                    onShareSummary = ::shareSummaryImage,
                 )
             }
         }
@@ -161,6 +164,21 @@ class MainActivity : ComponentActivity(), SensorEventListener {
             putExtra(Intent.EXTRA_TEXT, viewModel.diagnosticReport())
         }
         startActivity(Intent.createChooser(intent, getString(R.string.share_report_chooser)))
+    }
+
+    private suspend fun shareSummaryImage(bitmap: Bitmap): Boolean {
+        val imageUri = runCatching {
+            withContext(Dispatchers.IO) {
+                SummaryImageShare.writeImage(this@MainActivity, bitmap)
+            }
+        }.getOrNull() ?: return false
+
+        return runCatching {
+            val sendIntent = SummaryImageShare.createSendIntent(this, imageUri)
+            startActivity(
+                Intent.createChooser(sendIntent, getString(R.string.share_summary_chooser)),
+            )
+        }.isSuccess
     }
 
     private fun exportLongTermCsv() {

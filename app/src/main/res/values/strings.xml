@@ -23,11 +23,14 @@
     <string name="action_syncing">Syncing…</string>
     <string name="action_apply">Apply</string>
     <string name="action_cancel">Cancel</string>
+    <string name="action_share_summary_image">Share image</string>
     <string name="drawer_privacy_note">Data stays on this device and is never sent elsewhere unless you choose an export or share action.</string>
 
     <!-- Accessibility -->
     <string name="content_desc_analysis_progress">Analyzing saved data</string>
     <string name="content_desc_open_menu">Open menu</string>
+    <string name="content_desc_share_summary">Share usage summary as an image</string>
+    <string name="content_desc_summary_share_preview">Foldlytics usage summary share image</string>
     <string name="content_desc_cover_app_ranking">Outer-display app ranking</string>
     <string name="content_desc_inner_app_ranking">Inner-display app ranking</string>
     <string name="content_desc_summary">%1$s: outer %2$s, inner %3$s, inner share %4$s</string>
@@ -163,6 +166,19 @@
     <string name="open_count_trend_title">Open count over time</string>
     <string name="legend_open_count">Open count</string>
     <string name="label_period_total">Period total</string>
+
+    <!-- Summary image sharing -->
+    <string name="share_summary_brand" translatable="false">Foldlytics</string>
+    <string name="share_summary_period">%1$s · %2$s</string>
+    <string name="share_summary_inner_ratio">Inner display</string>
+    <string name="share_summary_cover_time">Outer display</string>
+    <string name="share_summary_inner_time">Inner display</string>
+    <string name="share_summary_opened_count">Opened</string>
+    <string name="share_summary_preview_title">Share usage summary</string>
+    <string name="share_summary_generating">Creating share image…</string>
+    <string name="share_summary_generation_failed">Couldn’t create the share image. Cancel and try again.</string>
+    <string name="share_summary_failed">Couldn’t share the image. Please try again.</string>
+    <string name="share_summary_chooser">Share usage summary</string>
 
     <!-- App ranking -->
     <string name="app_ranking_title">Most-used apps by display</string>
