@@ -385,14 +385,16 @@ internal fun formatDeviceName(
     manufacturer: String,
     model: String,
 ): String {
-    val normalizedManufacturer = manufacturer.trim().replaceFirstChar { character ->
+    val trimmedManufacturer = manufacturer.trim()
+    val normalizedManufacturer = trimmedManufacturer.replaceFirstChar { character ->
         if (character.isLowerCase()) character.titlecase() else character.toString()
     }
     val normalizedModel = model.trim()
     return when {
         normalizedManufacturer.isEmpty() -> normalizedModel
         normalizedModel.isEmpty() -> normalizedManufacturer
-        normalizedModel.startsWith(normalizedManufacturer, ignoreCase = true) -> normalizedModel
+        normalizedModel.startsWith(trimmedManufacturer, ignoreCase = true) ->
+            normalizedManufacturer + normalizedModel.drop(trimmedManufacturer.length)
         else -> "$normalizedManufacturer $normalizedModel"
     }
 }
