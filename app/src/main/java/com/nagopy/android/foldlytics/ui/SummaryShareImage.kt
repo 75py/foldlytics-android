@@ -8,6 +8,7 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.os.Build
 import com.nagopy.android.foldlytics.R
 import com.nagopy.android.foldlytics.labelRes
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
@@ -19,6 +20,7 @@ internal const val SUMMARY_SHARE_IMAGE_HEIGHT = 675
 
 internal data class SummaryShareContent(
     val brand: String,
+    val deviceName: String,
     val period: String,
     val innerRatioLabel: String,
     val innerRatio: String,
@@ -31,6 +33,7 @@ internal data class SummaryShareContent(
 ) {
     val visibleTexts: List<String> = listOf(
         brand,
+        deviceName,
         period,
         innerRatioLabel,
         innerRatio,
@@ -82,6 +85,7 @@ internal object SummaryShareImageRenderer {
     fun createContent(
         resources: Resources,
         summary: PeriodUsageSummary,
+        deviceName: String = formatDeviceName(Build.MANUFACTURER, Build.MODEL),
     ): SummaryShareContent {
         require(summary.classifiedMillis > 0L) {
             "A share image requires classified usage time"
@@ -93,6 +97,7 @@ internal object SummaryShareImageRenderer {
         )
         return SummaryShareContent(
             brand = resources.getString(R.string.share_summary_brand),
+            deviceName = deviceName,
             period = resources.getString(
                 R.string.share_summary_period,
                 resources.getString(summary.period.labelRes),
@@ -152,6 +157,16 @@ internal object SummaryShareImageRenderer {
             color = PrimaryTextColor,
             typeface = BoldTypeface,
             locale = locale,
+        )
+        measurements += canvas.drawFittedText(
+            text = content.deviceName,
+            bounds = RectF(650f, 43f, 1140f, 88f),
+            maxTextSize = 30f,
+            minTextSize = 18f,
+            color = SecondaryTextColor,
+            typeface = MediumTypeface,
+            locale = locale,
+            align = Paint.Align.RIGHT,
         )
         measurements += canvas.drawFittedText(
             text = content.period,
@@ -363,5 +378,23 @@ internal object SummaryShareImageRenderer {
             measuredHeightPx = measuredHeight,
             availableHeightPx = bounds.height(),
         )
+    }
+}
+
+internal fun formatDeviceName(
+    manufacturer: String,
+    model: String,
+): String {
+    val trimmedManufacturer = manufacturer.trim()
+    val normalizedManufacturer = trimmedManufacturer.replaceFirstChar { character ->
+        if (character.isLowerCase()) character.titlecase() else character.toString()
+    }
+    val normalizedModel = model.trim()
+    return when {
+        normalizedManufacturer.isEmpty() -> normalizedModel
+        normalizedModel.isEmpty() -> normalizedManufacturer
+        normalizedModel.startsWith(trimmedManufacturer, ignoreCase = true) ->
+            normalizedManufacturer + normalizedModel.drop(trimmedManufacturer.length)
+        else -> "$normalizedManufacturer $normalizedModel"
     }
 }

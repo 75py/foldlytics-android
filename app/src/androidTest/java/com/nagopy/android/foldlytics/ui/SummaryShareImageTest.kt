@@ -29,17 +29,21 @@ class SummaryShareImageTest {
         val japanese = SummaryShareImageRenderer.createContent(
             localizedContext(Locale.JAPANESE).resources,
             summary,
+            deviceName = "Google Pixel Fold",
         )
         val english = SummaryShareImageRenderer.createContent(
             localizedContext(Locale.US).resources,
             summary,
+            deviceName = "Google Pixel Fold",
         )
 
         assertEquals("Foldlytics", japanese.brand)
+        assertEquals("Google Pixel Fold", japanese.deviceName)
         assertTrue(japanese.period.startsWith("30日"))
         assertEquals("内側ディスプレイ", japanese.innerRatioLabel)
         assertEquals("開いた回数", japanese.openedCountLabel)
         assertEquals("Foldlytics", english.brand)
+        assertEquals("Google Pixel Fold", english.deviceName)
         assertTrue(english.period.startsWith("30 days"))
         assertEquals("Inner display", english.innerRatioLabel)
         assertEquals("Opened", english.openedCountLabel)
