@@ -43,7 +43,7 @@ Foldlytics：折りたたみ利用分析
 
 ### 詳しい説明
 
-710 / 4,000文字
+812 / 4,000文字
 
 ```text
 折りたたみスマホを、実際どれくらい開いて使っていますか？
@@ -53,6 +53,7 @@ Foldlyticsは、対応する折りたたみAndroid端末で、外側と内側の
 確認できること
 ・外側／内側ディスプレイごとの利用時間と割合
 ・検出した「開いた」「閉じた」回数
+・完全に観測できた内側利用セッションの回数、中央値、最長時間、開始時のアプリ
 ・内側利用割合と開いた回数の推移
 ・外側／内側それぞれでよく使うアプリのランキング
 ・プリセット期間と、日付を指定した任意期間の集計
@@ -61,7 +62,7 @@ Foldlyticsは、対応する折りたたみAndroid端末で、外側と内側の
 
 利用にはAndroidの「利用状況へのアクセス」が必要です。Foldlyticsは、表示されたアプリ、画面の点灯・ロック状態、画面構成、その時刻をAndroidから読み取ります。アプリを閉じている間は、約6時間ごとのバックグラウンド同期をスケジュールします。
 
-データは、アプリのデータを消去するかアンインストールするまで端末内に保存されます。広告・分析SDKは使用せず、外部サーバーへ自動送信しません。CSV保存と診断レポートの共有は、ユーザーが操作した場合にだけ実行します。
+データは、アプリのデータを消去するかアンインストールするまで端末内に保存されます。内側利用セッションも、同じ利用状況イベントから端末内で集計します。この機能のために新しい権限やデータの外部送信を追加しません。広告・分析SDKは使用せず、外部サーバーへ自動送信しません。CSV保存と診断レポートの共有は、ユーザーが操作した場合にだけ実行します。
 
 開閉回数は、Androidから取得できた画面構成イベントに基づく検出値です。物理ヒンジの絶対カウンターではありません。根拠のない区間は推測せず、外側・内側の統計から除外してデータ充足率に反映します。取得できるイベントは、機種やAndroidバージョンによって異なる場合があります。
 
@@ -104,7 +105,7 @@ Track display time, detected opens and closes, and app usage on your device.
 
 ### Full description
 
-1,529 / 4,000 characters
+1,746 / 4,000 characters
 
 ```text
 How often do you actually unfold your phone?
@@ -114,6 +115,7 @@ Foldlytics records how you use the cover and inner displays on a compatible fold
 What you can review
 • Time spent on the cover and inner displays
 • Detected open and close counts
+• Complete inner-display sessions, median and longest active time, and start apps
 • Trends for inner display use and detected opens
 • App rankings for each display
 • Preset periods and custom date ranges
@@ -122,7 +124,7 @@ What you can review
 
 Foldlytics requires Android Usage Access. It reads which apps were displayed, whether the screen was on, whether the device was locked, display configuration, and timestamps. While the app is closed, it schedules background sync approximately every six hours.
 
-Your data stays on your device until you clear the app's data or uninstall it. Foldlytics does not use advertising or analytics SDKs and does not automatically send data to an external server. CSV export and diagnostic report sharing occur only when you choose them.
+Your data stays on your device until you clear the app's data or uninstall it. Inner-display sessions are calculated on-device from the same usage events. This feature adds no permission or external data transfer. Foldlytics does not use advertising or analytics SDKs and does not automatically send data to an external server. CSV export and diagnostic report sharing occur only when you choose them.
 
 Open and close counts come from display configuration events provided by Android. They are detections, not an absolute physical hinge counter. Foldlytics does not fill missing intervals with estimates. It leaves uncertain time out of the cover and inner display totals and reflects it in data coverage. Available events can vary by device and Android version.
 

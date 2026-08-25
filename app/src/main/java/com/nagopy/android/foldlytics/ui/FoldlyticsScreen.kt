@@ -73,7 +73,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
@@ -88,6 +90,8 @@ import com.nagopy.android.foldlytics.labelRes
 import com.nagopy.android.foldlytics.model.AnalysisPeriod
 import com.nagopy.android.foldlytics.model.AppUsage
 import com.nagopy.android.foldlytics.model.DisplayPosture
+import com.nagopy.android.foldlytics.model.InnerSessionAppSummary
+import com.nagopy.android.foldlytics.model.InnerSessionSummary
 import com.nagopy.android.foldlytics.model.LongTermInsights
 import com.nagopy.android.foldlytics.model.MAX_CUSTOM_RANGE_DAYS
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
@@ -111,6 +115,10 @@ internal const val CUSTOM_PERIOD_DIALOG_GUIDANCE_TAG = "custom_period_dialog_gui
 internal const val CUSTOM_PERIOD_DIALOG_CANCEL_TAG = "custom_period_dialog_cancel"
 internal const val CUSTOM_PERIOD_DIALOG_APPLY_TAG = "custom_period_dialog_apply"
 internal const val SUMMARY_SHARE_BUTTON_TAG = "summary_share_button"
+internal const val INNER_SESSION_CARD_TAG = "inner_session_card"
+internal const val INNER_SESSION_METRICS_TAG = "inner_session_metrics"
+internal const val INNER_SESSION_EMPTY_TAG = "inner_session_empty"
+internal const val INNER_SESSION_APP_TAG_PREFIX = "inner_session_app_"
 private val MaxContentWidth = 720.dp
 
 private enum class ScreenDestination(val titleRes: Int) {
@@ -531,6 +539,9 @@ private fun HomeContent(
                         Spacer(Modifier.height(screenshotSectionEndSpacing))
                     }
                 }
+            }
+            state.innerSessionSummary?.let { innerSessionSummary ->
+                item { InnerDisplaySessionCard(innerSessionSummary) }
             }
             if (summary.period.showsTrends) {
                 state.longTermInsights?.let { insights ->
@@ -1200,6 +1211,175 @@ private fun SummaryCard(
 }
 
 @Composable
+private fun InnerDisplaySessionCard(summary: InnerSessionSummary) {
+    val resources = LocalResources.current
+    val innerColor = postureColors().inner
+    LabCard(
+        title = stringResource(R.string.inner_sessions_title),
+        modifier = Modifier.testTag(INNER_SESSION_CARD_TAG),
+    ) {
+        if (summary.completeSessionCount == 0) {
+            Text(
+                text = if (summary.detectedOpenCount == 0) {
+                    stringResource(R.string.inner_sessions_empty_no_opens)
+                } else {
+                    pluralStringResource(
+                        R.plurals.inner_sessions_empty_no_complete,
+                        summary.detectedOpenCount,
+                        summary.detectedOpenCount,
+                    )
+                },
+                modifier = Modifier.testTag(INNER_SESSION_EMPTY_TAG),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            return@LabCard
+        }
+
+        val medianText = summary.medianInnerActiveMillis
+            ?.toDurationText(resources)
+            ?: stringResource(R.string.label_no_data)
+        val longestText = summary.longestInnerActiveMillis
+            ?.toDurationText(resources)
+            ?: stringResource(R.string.label_no_data)
+        val metricsDescription = stringResource(
+            R.string.content_desc_inner_session_metrics,
+            summary.completeSessionCount,
+            summary.detectedOpenCount,
+            medianText,
+            longestText,
+        )
+        Box(Modifier.testTag(INNER_SESSION_METRICS_TAG)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clearAndSetSemantics { contentDescription = metricsDescription },
+            ) {
+                InfoLine(
+                    stringResource(R.string.label_complete_inner_sessions),
+                    stringResource(
+                        R.string.value_complete_inner_sessions,
+                        summary.completeSessionCount,
+                        summary.detectedOpenCount,
+                    ),
+                )
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    if (maxWidth >= 420.dp) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            Metric(
+                                stringResource(R.string.label_median_inner_session_time),
+                                medianText,
+                                innerColor,
+                                Modifier.weight(1f),
+                            )
+                            Metric(
+                                stringResource(R.string.label_longest_inner_session_time),
+                                longestText,
+                                innerColor,
+                                Modifier.weight(1f),
+                            )
+                        }
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Metric(
+                                stringResource(R.string.label_median_inner_session_time),
+                                medianText,
+                                innerColor,
+                            )
+                            Metric(
+                                stringResource(R.string.label_longest_inner_session_time),
+                                longestText,
+                                innerColor,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        HorizontalDivider(Modifier.padding(vertical = 10.dp))
+        Text(
+            stringResource(R.string.session_start_apps_title),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+        )
+        val displayedApps = summary.startApps.take(3)
+        if (displayedApps.isEmpty()) {
+            Text(
+                stringResource(R.string.session_start_apps_empty),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            displayedApps.forEachIndexed { index, app ->
+                InnerSessionStartAppRow(
+                    app = app,
+                    rank = index + 1,
+                    color = innerColor,
+                )
+            }
+        }
+        if (summary.unclassifiedStartCount > 0) {
+            InfoLine(
+                stringResource(R.string.label_unclassified_session_starts),
+                resources.getString(
+                    R.string.value_item_count,
+                    summary.unclassifiedStartCount,
+                ),
+            )
+        }
+    }
+}
+
+@Composable
+private fun InnerSessionStartAppRow(
+    app: InnerSessionAppSummary,
+    rank: Int,
+    color: Color,
+) {
+    val resources = LocalResources.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .testTag("$INNER_SESSION_APP_TAG_PREFIX${app.packageName}")
+            .semantics(mergeDescendants = true) {},
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            resources.getString(R.string.value_rank, rank),
+            modifier = Modifier.width(32.dp),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = color,
+        )
+        ApplicationIcon(app.packageName, app.label)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                app.label,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                pluralStringResource(
+                    R.plurals.inner_session_app_summary,
+                    app.completeSessionCount,
+                    app.completeSessionCount,
+                    app.totalInnerActiveMillis.toDurationText(resources),
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
 private fun InnerRatioTrendCard(insights: LongTermInsights) {
     val colors = postureColors()
     LabCard(title = stringResource(R.string.inner_ratio_trend_title)) {
@@ -1417,7 +1597,8 @@ private fun ApplicationIcon(packageName: String, label: String) {
         Box(
             modifier = Modifier
                 .size(44.dp)
-                .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(11.dp)),
+                .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(11.dp))
+                .clearAndSetSemantics {},
             contentAlignment = Alignment.Center,
         ) {
             Text(
@@ -1465,10 +1646,11 @@ internal fun InfoLine(label: String, value: String) {
 @Composable
 internal fun LabCard(
     title: String,
+    modifier: Modifier = Modifier,
     titleAction: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Card {
+    Card(modifier = modifier) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(3.dp),

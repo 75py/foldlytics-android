@@ -34,6 +34,7 @@
     <string name="content_desc_cover_app_ranking">Outer-display app ranking</string>
     <string name="content_desc_inner_app_ranking">Inner-display app ranking</string>
     <string name="content_desc_summary">%1$s: outer %2$s, inner %3$s, inner share %4$s</string>
+    <string name="content_desc_inner_session_metrics">Completely observed inner-display sessions: %1$d. Detected opens: %2$d. Median inner-display time %3$s. Longest inner-display time %4$s.</string>
     <string name="content_desc_chart_no_data">%1$s: no data</string>
     <string name="content_desc_chart_inner_ratio">%1$s: inner %2$s</string>
     <plurals name="content_desc_chart_opened">
@@ -166,6 +167,25 @@
     <string name="open_count_trend_title">Open count over time</string>
     <string name="legend_open_count">Open count</string>
     <string name="label_period_total">Period total</string>
+
+    <!-- Inner-display sessions -->
+    <string name="inner_sessions_title">Inner-display sessions</string>
+    <string name="label_complete_inner_sessions">Completely observed sessions</string>
+    <string name="value_complete_inner_sessions">%1$d / %2$d</string>
+    <string name="label_median_inner_session_time">Median inner-display time</string>
+    <string name="label_longest_inner_session_time">Longest inner-display time</string>
+    <string name="session_start_apps_title">Apps displayed at session start</string>
+    <string name="label_unclassified_session_starts">Unclassified session starts</string>
+    <string name="inner_sessions_empty_no_opens">No opens were detected in this period, so there are no complete inner-display sessions.</string>
+    <plurals name="inner_sessions_empty_no_complete">
+        <item quantity="one">%1$d open was detected, but no complete inner-display session had both its open and following close observed without an evidence gap in this period.</item>
+        <item quantity="other">%1$d opens were detected, but no complete inner-display session had both its open and following close observed without an evidence gap in this period.</item>
+    </plurals>
+    <string name="session_start_apps_empty">No launchable session-start app is available for ranking.</string>
+    <plurals name="inner_session_app_summary">
+        <item quantity="one">%1$d session · %2$s total</item>
+        <item quantity="other">%1$d sessions · %2$s total</item>
+    </plurals>
 
     <!-- Summary image sharing -->
     <string name="share_summary_brand" translatable="false">Foldlytics</string>

@@ -5,8 +5,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nagopy.android.foldlytics.data.CalibrationStore
 import com.nagopy.android.foldlytics.data.CollectionGap
-import com.nagopy.android.foldlytics.data.LongTermCsvWriter
+import com.nagopy.android.foldlytics.data.InnerSessionSummarizer
 import com.nagopy.android.foldlytics.data.LongTermAnalyzer
+import com.nagopy.android.foldlytics.data.LongTermCsvWriter
 import com.nagopy.android.foldlytics.data.UsageAnalyzer
 import com.nagopy.android.foldlytics.data.UsageReadUnavailableReason
 import com.nagopy.android.foldlytics.data.UsageSyncResult
@@ -22,6 +23,7 @@ import com.nagopy.android.foldlytics.model.CustomAnalysisRange
 import com.nagopy.android.foldlytics.model.DailyPostureSummary
 import com.nagopy.android.foldlytics.model.DisplayConfiguration
 import com.nagopy.android.foldlytics.model.DisplayPosture
+import com.nagopy.android.foldlytics.model.InnerSessionSummary
 import com.nagopy.android.foldlytics.model.LongTermInsights
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
 import com.nagopy.android.foldlytics.model.PostureCheckpoint
@@ -75,6 +77,7 @@ data class MainUiState(
     val isAnalysisLoading: Boolean = false,
     val analysis: UsageAnalysis? = null,
     val periodSummary: PeriodUsageSummary? = null,
+    val innerSessionSummary: InnerSessionSummary? = null,
     val longTermInsights: LongTermInsights? = null,
     val collectionHealth: CollectionHealth? = null,
     val lastSuccessfulSyncMillis: Long? = null,
@@ -94,6 +97,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         isLauncherApp = foldlyticsApplication.usageEventReader::isLauncherApp,
     )
     private val longTermAnalyzer = LongTermAnalyzer()
+    private val innerSessionSummarizer = InnerSessionSummarizer(
+        packageLabel = foldlyticsApplication.usageEventReader::packageLabel,
+        isLauncherApp = foldlyticsApplication.usageEventReader::isLauncherApp,
+    )
     private val initialCalibration = calibrationStore.load()
     private val selectedPeriod = MutableStateFlow(AnalysisPeriod.HOURS_24)
     private val customRange = MutableStateFlow<CustomAnalysisRange?>(null)
@@ -649,6 +656,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                     customRange = null,
                                     analysis = null,
                                     periodSummary = null,
+                                    innerSessionSummary = null,
                                     longTermInsights = null,
                                     collectionHealth = null,
                                     dailySummaries = emptyList(),
@@ -761,6 +769,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 longTermInsights?.rangeStartMillis ?: window.rangeStartMillis
                             val selectedRangeEnd =
                                 longTermInsights?.rangeEndMillis ?: syncState.lastSuccessfulEndMillis
+                            val innerSessionSummary = innerSessionSummarizer.summarize(
+                                sessions = dailySummaryRepository.loadCompleteInnerSessions(
+                                    beginMillis = selectedRangeStart,
+                                    endMillis = selectedRangeEnd,
+                                ),
+                                rangeStartMillis = selectedRangeStart,
+                                rangeEndMillis = selectedRangeEnd,
+                                detectedOpenCount = periodSummary.openedCount,
+                            )
                             val periodSyncAttempts = allSyncAttempts.filter {
                                 it.attemptedAtMillis in selectedRangeStart..selectedRangeEnd
                             }
@@ -772,6 +789,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 customRange = validCustomRange,
                                 analysis = diagnosticAnalysis,
                                 periodSummary = periodSummary,
+                                innerSessionSummary = innerSessionSummary,
                                 longTermInsights = longTermInsights,
                                 collectionHealth = longTermAnalyzer.collectionHealth(
                                     periodSyncAttempts,
@@ -790,6 +808,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 customRangeEndMillis = snapshot.customRange?.endMillis,
                                 analysis = snapshot.analysis,
                                 periodSummary = snapshot.periodSummary,
+                                innerSessionSummary = snapshot.innerSessionSummary,
                                 longTermInsights = snapshot.longTermInsights,
                                 collectionHealth = snapshot.collectionHealth,
                                 isAnalysisLoading = false,
@@ -873,6 +892,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val customRange: CustomAnalysisRange?,
         val analysis: UsageAnalysis?,
         val periodSummary: PeriodUsageSummary?,
+        val innerSessionSummary: InnerSessionSummary?,
         val longTermInsights: LongTermInsights?,
         val collectionHealth: CollectionHealth?,
         val dailySummaries: List<DailyPostureSummary>,
