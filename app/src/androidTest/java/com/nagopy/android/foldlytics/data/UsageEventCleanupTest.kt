@@ -31,14 +31,17 @@ class UsageEventCleanupTest {
     fun setUp() {
         context = InstrumentationRegistry.getInstrumentation().targetContext
         require(MIGRATION_DATABASE_NAME != "foldlytics.db")
+        require(SESSION_MIGRATION_DATABASE_NAME != "foldlytics.db")
         require(FRESH_DATABASE_NAME != "foldlytics.db")
         context.deleteDatabase(MIGRATION_DATABASE_NAME)
+        context.deleteDatabase(SESSION_MIGRATION_DATABASE_NAME)
         context.deleteDatabase(FRESH_DATABASE_NAME)
     }
 
     @After
     fun tearDown() {
         context.deleteDatabase(MIGRATION_DATABASE_NAME)
+        context.deleteDatabase(SESSION_MIGRATION_DATABASE_NAME)
         context.deleteDatabase(FRESH_DATABASE_NAME)
     }
 
@@ -70,10 +73,68 @@ class UsageEventCleanupTest {
     }
 
     @Test
-    fun reopeningFreshVersionTwoDatabaseDoesNotRunLegacyCleanup() = runBlocking {
+    fun migrationFromTwoToThreeCreatesEmptySessionCacheAndPreservesCacheState() {
+        val versionTwo = migrationHelper.createDatabase(SESSION_MIGRATION_DATABASE_NAME, 2)
+        try {
+            versionTwo.execSQL(
+                """
+                INSERT INTO daily_summary_state (
+                    singleton_id,
+                    last_aggregated_through_millis,
+                    calibration_key,
+                    zone_id,
+                    checkpoint_revision,
+                    aggregation_version
+                ) VALUES (1, 9000, 'calibration', 'Asia/Tokyo', 7, 1)
+                """.trimIndent(),
+            )
+        } finally {
+            versionTwo.close()
+        }
+
+        val migrated = migrationHelper.runMigrationsAndValidate(
+            SESSION_MIGRATION_DATABASE_NAME,
+            3,
+            true,
+            MIGRATION_2_3,
+        )
+        try {
+            assertEquals(3, migrated.version)
+            migrated.query("SELECT COUNT(*) FROM inner_display_sessions").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(0, cursor.getInt(0))
+                assertFalse(cursor.moveToNext())
+            }
+            migrated.query(
+                """
+                SELECT
+                    last_aggregated_through_millis,
+                    calibration_key,
+                    zone_id,
+                    checkpoint_revision,
+                    aggregation_version
+                FROM daily_summary_state
+                WHERE singleton_id = 1
+                """.trimIndent(),
+            ).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(9_000L, cursor.getLong(0))
+                assertEquals("calibration", cursor.getString(1))
+                assertEquals("Asia/Tokyo", cursor.getString(2))
+                assertEquals(7L, cursor.getLong(3))
+                assertEquals(1, cursor.getInt(4))
+                assertFalse(cursor.moveToNext())
+            }
+        } finally {
+            migrated.close()
+        }
+    }
+
+    @Test
+    fun reopeningFreshVersionThreeDatabaseDoesNotRunLegacyCleanup() = runBlocking {
         var database = openLatestDatabase(FRESH_DATABASE_NAME)
         try {
-            assertEquals(2, database.openHelper.writableDatabase.version)
+            assertEquals(3, database.openHelper.writableDatabase.version)
             database.usageEventDao().insertEvents(
                 listOf(
                     event(
@@ -208,7 +269,7 @@ class UsageEventCleanupTest {
 
     private fun openLatestDatabase(name: String): FoldlyticsDatabase =
         Room.databaseBuilder(context, FoldlyticsDatabase::class.java, name)
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .build()
 
     private fun event(eventKey: String, rawEventType: Int): UsageEventEntity = UsageEventEntity(
@@ -228,6 +289,7 @@ class UsageEventCleanupTest {
 
     private companion object {
         const val MIGRATION_DATABASE_NAME = "foldlytics-usage-event-migration-test.db"
-        const val FRESH_DATABASE_NAME = "foldlytics-usage-event-fresh-v2-test.db"
+        const val SESSION_MIGRATION_DATABASE_NAME = "foldlytics-session-migration-test.db"
+        const val FRESH_DATABASE_NAME = "foldlytics-usage-event-fresh-v3-test.db"
     }
 }

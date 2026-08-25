@@ -1,6 +1,7 @@
 package com.nagopy.android.foldlytics.data
 
 import com.nagopy.android.foldlytics.model.DailyPostureSummary
+import com.nagopy.android.foldlytics.model.InnerDisplaySession
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -34,5 +35,18 @@ class DatabaseModelMappingTest {
         )
 
         assertEquals(attempt, attempt.toEntity().toModel())
+    }
+
+    @Test
+    fun innerSessionRoundTripsThroughRoomEntity() {
+        val session = InnerDisplaySession(
+            openedAtMillis = 1_000L,
+            openedSequenceAtTimestamp = 4,
+            closedAtMillis = 3_000L,
+            innerActiveMillis = 1_500L,
+            startPackageName = "app.example",
+        )
+
+        assertEquals(session, session.toEntity().toModel())
     }
 }

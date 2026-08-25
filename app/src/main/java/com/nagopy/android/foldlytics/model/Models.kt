@@ -142,6 +142,35 @@ data class AppUsage(
     val observedMillis: Long = classifiedMillis + excludedMillis
 }
 
+data class InnerDisplaySession(
+    val openedAtMillis: Long,
+    val openedSequenceAtTimestamp: Int,
+    val closedAtMillis: Long?,
+    val innerActiveMillis: Long,
+    val startPackageName: String?,
+) {
+    val isComplete: Boolean = closedAtMillis != null
+}
+
+data class InnerSessionAppSummary(
+    val packageName: String,
+    val label: String,
+    val completeSessionCount: Int,
+    val totalInnerActiveMillis: Long,
+    val isLauncherApp: Boolean,
+)
+
+data class InnerSessionSummary(
+    val rangeStartMillis: Long,
+    val rangeEndMillis: Long,
+    val detectedOpenCount: Int,
+    val completeSessionCount: Int,
+    val medianInnerActiveMillis: Long?,
+    val longestInnerActiveMillis: Long?,
+    val startApps: List<InnerSessionAppSummary>,
+    val unclassifiedStartCount: Int,
+)
+
 enum class PostureEventSource {
     CONFIGURATION_CHANGE,
     CHECKPOINT,

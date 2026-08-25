@@ -29,6 +29,13 @@ class LongTermDatabaseTest {
         orientation = 1,
         densityDpi = 420,
     )
+    private val innerConfiguration = DisplayConfiguration(
+        screenWidthDp = 852,
+        screenHeightDp = 883,
+        smallestScreenWidthDp = 852,
+        orientation = 1,
+        densityDpi = 420,
+    )
 
     @Before
     fun setUp() {
@@ -45,8 +52,8 @@ class LongTermDatabaseTest {
     }
 
     @Test
-    fun createsFreshVersionTwoDatabase() {
-        assertEquals(2, database.openHelper.readableDatabase.version)
+    fun createsFreshVersionThreeDatabase() {
+        assertEquals(3, database.openHelper.readableDatabase.version)
     }
 
     @Test
@@ -159,6 +166,254 @@ class LongTermDatabaseTest {
         assertEquals(0L, appUsage.innerMillis)
     }
 
+    @Test
+    fun carriesInnerSessionAcrossThirtyOneDayAggregationChunk() = runBlocking {
+        val start = LocalDate.of(2024, 1, 1)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        val chunkBoundary = LocalDate.of(2024, 2, 1)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        val end = chunkBoundary + 2_000L
+        database.usageEventDao().insertEvents(
+            listOf(
+                event(
+                    key = "cover",
+                    timestampMillis = start,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = configuration,
+                ),
+                event(
+                    key = "screen-on",
+                    timestampMillis = start,
+                    sequence = 1,
+                    rawEventType = UsageEvents.Event.SCREEN_INTERACTIVE,
+                ),
+                event(
+                    key = "unlocked",
+                    timestampMillis = start,
+                    sequence = 2,
+                    rawEventType = UsageEvents.Event.KEYGUARD_HIDDEN,
+                ),
+                event(
+                    key = "app-resumed",
+                    timestampMillis = start,
+                    sequence = 3,
+                    rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                    packageName = "app.example",
+                ),
+                event(
+                    key = "opened",
+                    timestampMillis = chunkBoundary - 1_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = innerConfiguration,
+                ),
+                event(
+                    key = "closed",
+                    timestampMillis = chunkBoundary + 1_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = configuration,
+                ),
+            ),
+        )
+        val repository = repository()
+
+        repository.ensureUpToDate(
+            calibration = Calibration(cover = configuration, inner = innerConfiguration),
+            syncedThroughMillis = end,
+            syncQueryBeginMillis = start,
+            checkpointRevision = 0L,
+            zoneId = zoneId,
+            collectionGapStarts = emptyList(),
+        )
+
+        val session = repository.loadCompleteInnerSessions(start, end).single()
+        assertEquals(chunkBoundary - 1_000L, session.openedAtMillis)
+        assertEquals(chunkBoundary + 1_000L, session.closedAtMillis)
+        assertEquals(2_000L, session.innerActiveMillis)
+        assertEquals("app.example", session.startPackageName)
+    }
+
+    @Test
+    fun incrementalRefreshRebuildsFromEarlierIncompleteSessionStart() = runBlocking {
+        val start = LocalDate.of(2024, 1, 1)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        val initialEnd = LocalDate.of(2024, 2, 1)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        val openedAt = initialEnd - TimeUnit.HOURS.toMillis(25L)
+        val closedAt = initialEnd + 1_000L
+        val extendedEnd = closedAt + 1_000L
+        database.usageEventDao().insertEvents(
+            listOf(
+                event(
+                    key = "cover",
+                    timestampMillis = start,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = configuration,
+                ),
+                event(
+                    key = "screen-on",
+                    timestampMillis = start,
+                    sequence = 1,
+                    rawEventType = UsageEvents.Event.SCREEN_INTERACTIVE,
+                ),
+                event(
+                    key = "unlocked",
+                    timestampMillis = start,
+                    sequence = 2,
+                    rawEventType = UsageEvents.Event.KEYGUARD_HIDDEN,
+                ),
+                event(
+                    key = "opened",
+                    timestampMillis = openedAt,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = innerConfiguration,
+                ),
+                event(
+                    key = "closed",
+                    timestampMillis = closedAt,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = configuration,
+                ),
+            ),
+        )
+        val repository = repository()
+        val calibration = Calibration(cover = configuration, inner = innerConfiguration)
+
+        repository.ensureUpToDate(
+            calibration = calibration,
+            syncedThroughMillis = initialEnd,
+            syncQueryBeginMillis = start,
+            checkpointRevision = 0L,
+            zoneId = zoneId,
+            collectionGapStarts = emptyList(),
+        )
+        assertEquals(emptyList<Any>(), repository.loadCompleteInnerSessions(start, initialEnd))
+
+        repository.ensureUpToDate(
+            calibration = calibration,
+            syncedThroughMillis = extendedEnd,
+            syncQueryBeginMillis = initialEnd - TimeUnit.HOURS.toMillis(1L),
+            checkpointRevision = 0L,
+            zoneId = zoneId,
+            collectionGapStarts = emptyList(),
+        )
+
+        val session = repository.loadCompleteInnerSessions(start, extendedEnd).single()
+        assertEquals(openedAt, session.openedAtMillis)
+        assertEquals(closedAt, session.closedAtMillis)
+        assertEquals(closedAt - openedAt, session.innerActiveMillis)
+    }
+
+    @Test
+    fun aggregationVersionChangeRebuildsAllDerivedCaches() = runBlocking {
+        val start = LocalDate.of(2024, 1, 1)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        val openedAt = start + 1_000L
+        val closedAt = start + 2_000L
+        val end = start + 3_000L
+        val calibration = Calibration(cover = configuration, inner = innerConfiguration)
+        database.usageEventDao().insertEvents(
+            listOf(
+                event(
+                    key = "cover",
+                    timestampMillis = start,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = configuration,
+                ),
+                event(
+                    key = "screen-on",
+                    timestampMillis = start,
+                    sequence = 1,
+                    rawEventType = UsageEvents.Event.SCREEN_INTERACTIVE,
+                ),
+                event(
+                    key = "unlocked",
+                    timestampMillis = start,
+                    sequence = 2,
+                    rawEventType = UsageEvents.Event.KEYGUARD_HIDDEN,
+                ),
+                event(
+                    key = "opened",
+                    timestampMillis = openedAt,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = innerConfiguration,
+                ),
+                event(
+                    key = "closed",
+                    timestampMillis = closedAt,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = configuration,
+                ),
+            ),
+        )
+        database.dailyPostureSummaryDao().replaceAll(
+            summaries = listOf(
+                DailyPostureSummaryEntity(
+                    dayStartMillis = start,
+                    dayEndMillis = start + TimeUnit.DAYS.toMillis(1L),
+                    zoneId = zoneId.id,
+                    coverMillis = 999L,
+                    innerMillis = 999L,
+                    excludedMillis = 999L,
+                    openedCount = 99,
+                    closedCount = 99,
+                    evidenceGapCount = 99,
+                ),
+            ),
+            appUsage = emptyList(),
+            innerSessions = listOf(
+                InnerDisplaySessionEntity(
+                    openedAtMillis = start + 500L,
+                    openedSequenceAtTimestamp = 0,
+                    closedAtMillis = null,
+                    innerActiveMillis = 999L,
+                    startPackageName = "stale.app",
+                ),
+            ),
+            state = DailySummaryStateEntity(
+                lastAggregatedThroughMillis = end,
+                calibrationKey =
+                    "cover=443,994,443,1,420|inner=852,883,852,1,420",
+                zoneId = zoneId.id,
+                checkpointRevision = 0L,
+                aggregationVersion = 1,
+            ),
+        )
+
+        repository().ensureUpToDate(
+            calibration = calibration,
+            syncedThroughMillis = end,
+            syncQueryBeginMillis = start,
+            checkpointRevision = 0L,
+            zoneId = zoneId,
+            collectionGapStarts = emptyList(),
+        )
+
+        val sessions = repository().loadCompleteInnerSessions(start, end)
+        assertEquals(listOf(openedAt), sessions.map { it.openedAtMillis })
+        assertEquals(1_000L, sessions.single().innerActiveMillis)
+        assertEquals(2, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
+        assertEquals(1, database.dailyPostureSummaryDao().loadAll().single().openedCount)
+    }
+
     private fun eventsForDay(dayStartMillis: Long): List<UsageEventEntity> = listOf(
         event(
             key = "$dayStartMillis-configuration",
@@ -193,6 +448,7 @@ class LongTermDatabaseTest {
         sequence: Int,
         rawEventType: Int,
         withConfiguration: Boolean = false,
+        eventConfiguration: DisplayConfiguration? = null,
         packageName: String? = null,
     ) = UsageEventEntity(
         eventKey = key,
@@ -201,14 +457,23 @@ class LongTermDatabaseTest {
         rawEventType = rawEventType,
         packageName = packageName,
         className = packageName?.let { "$it.MainActivity" },
-        hasConfiguration = withConfiguration,
-        screenWidthDp = configuration.screenWidthDp.takeIf { withConfiguration },
-        screenHeightDp = configuration.screenHeightDp.takeIf { withConfiguration },
-        smallestScreenWidthDp = configuration.smallestScreenWidthDp.takeIf {
-            withConfiguration
-        },
-        orientation = configuration.orientation.takeIf { withConfiguration },
-        densityDpi = configuration.densityDpi.takeIf { withConfiguration },
+        hasConfiguration = withConfiguration || eventConfiguration != null,
+        screenWidthDp = eventConfiguration?.screenWidthDp
+            ?: configuration.screenWidthDp.takeIf { withConfiguration },
+        screenHeightDp = eventConfiguration?.screenHeightDp
+            ?: configuration.screenHeightDp.takeIf { withConfiguration },
+        smallestScreenWidthDp = eventConfiguration?.smallestScreenWidthDp
+            ?: configuration.smallestScreenWidthDp.takeIf { withConfiguration },
+        orientation = eventConfiguration?.orientation
+            ?: configuration.orientation.takeIf { withConfiguration },
+        densityDpi = eventConfiguration?.densityDpi
+            ?: configuration.densityDpi.takeIf { withConfiguration },
+    )
+
+    private fun repository() = DailySummaryRepository(
+        usageEventDao = database.usageEventDao(),
+        checkpointDao = database.postureCheckpointDao(),
+        summaryDao = database.dailyPostureSummaryDao(),
     )
 
 }

@@ -4,6 +4,7 @@ import com.nagopy.android.foldlytics.model.Calibration
 import com.nagopy.android.foldlytics.model.DailyAppUsageSummary
 import com.nagopy.android.foldlytics.model.DailyPostureSummary
 import com.nagopy.android.foldlytics.model.DisplayConfiguration
+import com.nagopy.android.foldlytics.model.InnerDisplaySession
 import java.time.Instant
 import java.time.ZoneId
 
@@ -19,6 +20,13 @@ class DailySummaryRepository(
         endMillis: Long,
     ): List<AggregatedAppUsage> =
         summaryDao.loadAggregatedAppUsage(beginMillis, endMillis)
+
+    suspend fun loadCompleteInnerSessions(
+        beginMillis: Long,
+        endMillis: Long,
+    ): List<InnerDisplaySession> =
+        summaryDao.loadCompleteInnerSessions(beginMillis, endMillis)
+            .map(InnerDisplaySessionEntity::toModel)
 
     suspend fun ensureUpToDate(
         calibration: Calibration,
@@ -60,7 +68,7 @@ class DailySummaryRepository(
         ).minOrNull()
         val checkpointChanged = existingState?.checkpointRevision != checkpointRevision
         val latestCheckpoint = if (checkpointChanged) checkpointDao.latestTimestamp() else null
-        val rebuildStart = chooseDailySummaryRebuildStart(
+        val plannedRebuildStart = chooseDailySummaryRebuildStart(
             fullRebuild = fullRebuild,
             earliestEvidenceMillis = earliestEvidence,
             previousAggregatedThroughMillis = existingState?.lastAggregatedThroughMillis,
@@ -70,6 +78,21 @@ class DailySummaryRepository(
             latestCheckpointMillis = latestCheckpoint,
             zoneId = zoneId,
         )
+        val rebuildStart = if (fullRebuild || plannedRebuildStart == null) {
+            plannedRebuildStart
+        } else {
+            val safeSessionStart = minOf(
+                plannedRebuildStart,
+                summaryDao.earliestInnerSessionStartOverlapping(plannedRebuildStart)
+                    ?: plannedRebuildStart,
+            )
+            Instant.ofEpochMilli(safeSessionStart)
+                .atZone(zoneId)
+                .toLocalDate()
+                .atStartOfDay(zoneId)
+                .toInstant()
+                .toEpochMilli()
+        }
         val state = DailySummaryStateEntity(
             lastAggregatedThroughMillis = rangeEnd,
             calibrationKey = calibrationKey,
@@ -80,7 +103,7 @@ class DailySummaryRepository(
 
         if (rebuildStart == null) {
             if (fullRebuild) {
-                summaryDao.replaceAll(emptyList(), emptyList(), state)
+                summaryDao.replaceAll(emptyList(), emptyList(), emptyList(), state)
             } else {
                 summaryDao.upsertState(state)
             }
@@ -98,6 +121,7 @@ class DailySummaryRepository(
             summaryDao.replaceAll(
                 summaries = rebuilt.posture.map(DailyPostureSummary::toEntity),
                 appUsage = rebuilt.appUsage.map { it.toEntity() },
+                innerSessions = rebuilt.innerSessions.map(InnerDisplaySession::toEntity),
                 state = state,
             )
         } else {
@@ -105,6 +129,7 @@ class DailySummaryRepository(
                 beginMillis = rebuildStart,
                 summaries = rebuilt.posture.map(DailyPostureSummary::toEntity),
                 appUsage = rebuilt.appUsage.map { it.toEntity() },
+                innerSessions = rebuilt.innerSessions.map(InnerDisplaySession::toEntity),
                 state = state,
             )
         }
@@ -127,7 +152,12 @@ class DailySummaryRepository(
             .toList()
         val summaries = mutableListOf<DailyPostureSummary>()
         val appUsage = mutableListOf<DailyAppUsageSummary>()
+        val sessionAnalyzer = InnerDisplaySessionAnalyzer(
+            calibration = calibration,
+            analysisStartMillis = rangeStartMillis,
+        )
         var chunkStart = rangeStartMillis
+        var firstChunk = true
         while (chunkStart < rangeEndMillis) {
             val chunkStartDate = Instant.ofEpochMilli(chunkStart).atZone(zoneId).toLocalDate()
             val chunkEnd = minOf(
@@ -150,24 +180,25 @@ class DailySummaryRepository(
                 endMillis = chunkStart,
                 rawEventTypes = StoredUsageEventTypes.activity,
             )
+            val currentRecordEntities = usageEventDao.loadDeviceEvents(
+                beginMillis = chunkStart,
+                endMillis = chunkEnd,
+                rawEventTypes = StoredUsageEventTypes.all,
+            )
             val records = (
                 seedRecords.distinctBy(UsageEventEntity::eventKey) +
-                    usageEventDao.loadDeviceEvents(
-                        beginMillis = chunkStart,
-                        endMillis = chunkEnd,
-                        rawEventTypes = StoredUsageEventTypes.all,
-                    )
+                    currentRecordEntities
                 ).map(UsageEventEntity::toModel)
+            val currentCheckpoints = checkpointDao.load(chunkStart, chunkEnd)
+                .map(PostureCheckpointEntity::toModel)
             val checkpoints = buildList {
                 checkpointDao.latestBefore(chunkStart)?.let { add(it.toModel()) }
-                addAll(
-                    checkpointDao.load(chunkStart, chunkEnd)
-                        .map(PostureCheckpointEntity::toModel),
-                )
+                addAll(currentCheckpoints)
             }
+            val currentGaps = orderedGapStarts.filter { it in chunkStart until chunkEnd }
             val gaps = buildList {
                 orderedGapStarts.lastOrNull { it < chunkStart }?.let(::add)
-                addAll(orderedGapStarts.filter { it in chunkStart until chunkEnd })
+                addAll(currentGaps)
             }
             val analysis = analyzer.analyze(
                 records = records,
@@ -180,9 +211,24 @@ class DailySummaryRepository(
             )
             summaries += analysis.dailySummaries
             appUsage += analysis.dailyAppSummaries
+            sessionAnalyzer.processChunk(
+                records = if (firstChunk) {
+                    records
+                } else {
+                    currentRecordEntities.map(UsageEventEntity::toModel)
+                },
+                checkpoints = if (firstChunk) checkpoints else currentCheckpoints,
+                collectionGapStarts = if (firstChunk) gaps else currentGaps,
+                chunkEndMillis = chunkEnd,
+            )
+            firstChunk = false
             chunkStart = chunkEnd
         }
-        return RebuiltDailySummaries(posture = summaries, appUsage = appUsage)
+        return RebuiltDailySummaries(
+            posture = summaries,
+            appUsage = appUsage,
+            innerSessions = sessionAnalyzer.sessionsAtEnd(),
+        )
     }
 
     private fun Calibration.cacheKey(): String =
@@ -199,13 +245,14 @@ class DailySummaryRepository(
     } ?: "none"
 
     private companion object {
-        const val AGGREGATION_VERSION = 1
+        const val AGGREGATION_VERSION = 2
         const val AGGREGATION_CHUNK_DAYS = 31L
     }
 
     private data class RebuiltDailySummaries(
         val posture: List<DailyPostureSummary> = emptyList(),
         val appUsage: List<DailyAppUsageSummary> = emptyList(),
+        val innerSessions: List<InnerDisplaySession> = emptyList(),
     )
 }
 
