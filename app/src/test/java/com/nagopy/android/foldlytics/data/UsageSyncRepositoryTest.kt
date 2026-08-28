@@ -125,8 +125,14 @@ class UsageSyncRepositoryTest {
 
     @Test
     fun failedDatabaseWriteDoesNotAdvanceCursor() = runBlocking {
+        val checkpoint = DeviceStateCheckpoint(
+            observedAtMillis = 9_999_000L,
+            screenInteractive = true,
+            keyguardHidden = true,
+        )
         val source = FakeUsageEventSource(
             UsageReadResult.Success(listOf(record(timestampMillis = 9_000_000L))),
+            checkpoint,
         )
         val store = FakeUsageEventStore(failPersistence = true)
         val repository = repository(source, store, nowMillis = 10_000_000L)
@@ -136,11 +142,19 @@ class UsageSyncRepositoryTest {
         assertTrue(result is UsageSyncResult.Failed)
         assertNull(store.state)
         assertTrue(store.records.isEmpty())
+        assertTrue(store.attempts.isEmpty())
     }
 
     @Test
     fun failedReadIsAuditedWithoutAdvancingCursor() = runBlocking {
-        val source = FakeUsageEventSource(UsageReadResult.Failure(IOException("reader failed")))
+        val source = FakeUsageEventSource(
+            UsageReadResult.Failure(IOException("reader failed")),
+            DeviceStateCheckpoint(
+                observedAtMillis = 9_999_000L,
+                screenInteractive = true,
+                keyguardHidden = true,
+            ),
+        )
         val store = FakeUsageEventStore()
         val repository = repository(source, store, nowMillis = 10_000_000L)
 
@@ -149,6 +163,50 @@ class UsageSyncRepositoryTest {
         assertTrue(result is UsageSyncResult.Failed)
         assertNull(store.state)
         assertEquals(SyncAttemptStatus.FAILED, store.attempts.single().status)
+        assertNull(store.attempts.single().deviceStateCheckpoint)
+    }
+
+    @Test
+    fun successfulSyncPersistsObservedDeviceStateWithEventsAndCursor() = runBlocking {
+        val checkpoint = DeviceStateCheckpoint(
+            observedAtMillis = 9_999_000L,
+            screenInteractive = true,
+            keyguardHidden = true,
+        )
+        val source = FakeUsageEventSource(
+            result = UsageReadResult.Success(listOf(record(timestampMillis = 9_000_000L))),
+            checkpoint = checkpoint,
+        )
+        val store = FakeUsageEventStore()
+        val repository = repository(source, store, nowMillis = 10_000_000L)
+
+        repository.sync()
+
+        assertEquals(checkpoint, store.attempts.single().deviceStateCheckpoint)
+        assertEquals(
+            listOf(checkpoint),
+            repository.loadDeviceStateCheckpointsForAnalysis(9_999_500L, 10_000_001L),
+        )
+    }
+
+    @Test
+    fun successfulCursorNeverPrecedesDeviceStateObservation() = runBlocking {
+        val checkpoint = DeviceStateCheckpoint(
+            observedAtMillis = 10_000_001L,
+            screenInteractive = true,
+            keyguardHidden = true,
+        )
+        val source = FakeUsageEventSource(
+            result = UsageReadResult.Success(emptyList()),
+            checkpoint = checkpoint,
+        )
+        val store = FakeUsageEventStore()
+        val repository = repository(source, store, nowMillis = 10_000_000L)
+
+        repository.sync()
+
+        assertEquals(0L to checkpoint.observedAtMillis, source.requestedRanges.single())
+        assertEquals(checkpoint.observedAtMillis, store.state?.lastSuccessfulEndMillis)
     }
 
     @Test
@@ -186,10 +244,13 @@ class UsageSyncRepositoryTest {
 
     private class FakeUsageEventSource(
         var result: UsageReadResult,
+        var checkpoint: DeviceStateCheckpoint? = null,
     ) : UsageEventSource {
         val requestedRanges = mutableListOf<Pair<Long, Long>>()
 
         override fun hasUsageAccess(): Boolean = true
+
+        override fun observeDeviceState(): DeviceStateCheckpoint? = checkpoint
 
         override fun read(beginMillis: Long, endMillis: Long): UsageReadResult {
             requestedRanges += beginMillis to endMillis
@@ -232,7 +293,7 @@ class UsageSyncRepositoryTest {
             attempts += attempt
         }
 
-        override suspend fun loadRecords(
+        override suspend fun loadRecordsForAnalysis(
             beginMillis: Long,
             endMillis: Long,
         ): List<UsageRecord> = records.filter { it.timestampMillis in beginMillis until endMillis }
@@ -242,6 +303,23 @@ class UsageSyncRepositoryTest {
             endMillis: Long,
         ): List<SyncAttempt> = attempts.filter {
             it.attemptedAtMillis in beginMillis until endMillis
+        }
+
+        override suspend fun loadDeviceStateCheckpointsForAnalysis(
+            beginMillis: Long,
+            endMillis: Long,
+        ): List<DeviceStateCheckpoint> {
+            val checkpoints = attempts.asSequence()
+                .filter { it.status == SyncAttemptStatus.SUCCESS }
+                .mapNotNull(SyncAttempt::deviceStateCheckpoint)
+                .sortedBy(DeviceStateCheckpoint::observedAtMillis)
+                .toList()
+            return buildList {
+                checkpoints.lastOrNull { it.observedAtMillis < beginMillis }?.let(::add)
+                addAll(
+                    checkpoints.filter { it.observedAtMillis in beginMillis until endMillis },
+                )
+            }
         }
     }
 }

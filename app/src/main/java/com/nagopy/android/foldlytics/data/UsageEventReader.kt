@@ -2,12 +2,14 @@ package com.nagopy.android.foldlytics.data
 
 import android.annotation.SuppressLint
 import android.app.AppOpsManager
+import android.app.KeyguardManager
 import android.app.usage.UsageEvents
 import android.app.usage.UsageEventsQuery
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
+import android.os.PowerManager
 import android.os.Process
 import android.os.UserManager
 import androidx.annotation.RequiresApi
@@ -31,12 +33,19 @@ sealed interface UsageReadResult {
 interface UsageEventSource {
     fun hasUsageAccess(): Boolean
 
+    fun observeDeviceState(): DeviceStateCheckpoint? = null
+
     fun read(beginMillis: Long, endMillis: Long): UsageReadResult
 }
 
-class UsageEventReader(private val context: Context) : UsageEventSource {
+class UsageEventReader(
+    private val context: Context,
+    private val currentTimeMillis: () -> Long = System::currentTimeMillis,
+) : UsageEventSource {
     private val usageStatsManager =
         context.getSystemService(UsageStatsManager::class.java)
+    private val keyguardManager = context.getSystemService(KeyguardManager::class.java)
+    private val powerManager = context.getSystemService(PowerManager::class.java)
 
     override fun hasUsageAccess(): Boolean {
         val appOps = context.getSystemService(AppOpsManager::class.java)
@@ -49,15 +58,29 @@ class UsageEventReader(private val context: Context) : UsageEventSource {
         }.getOrDefault(false)
     }
 
+    override fun observeDeviceState(): DeviceStateCheckpoint? {
+        val userManager = context.getSystemService(UserManager::class.java)
+        if (!userManager.isUserUnlocked) return null
+        return runCatching {
+            val screenInteractive = powerManager.isInteractive
+            val keyguardHidden = !keyguardManager.isKeyguardLocked
+            DeviceStateCheckpoint(
+                observedAtMillis = currentTimeMillis(),
+                screenInteractive = screenInteractive,
+                keyguardHidden = keyguardHidden,
+            )
+        }.getOrNull()
+    }
+
     override fun read(beginMillis: Long, endMillis: Long): UsageReadResult {
         if (!hasUsageAccess()) {
             return UsageReadResult.Unavailable(UsageReadUnavailableReason.PERMISSION_DENIED)
         }
-        if (beginMillis >= endMillis) return UsageReadResult.Success(emptyList())
         val userManager = context.getSystemService(UserManager::class.java)
         if (!userManager.isUserUnlocked) {
             return UsageReadResult.Unavailable(UsageReadUnavailableReason.USER_LOCKED)
         }
+        if (beginMillis >= endMillis) return UsageReadResult.Success(emptyList())
 
         return try {
             val events = queryEvents(beginMillis, endMillis)
