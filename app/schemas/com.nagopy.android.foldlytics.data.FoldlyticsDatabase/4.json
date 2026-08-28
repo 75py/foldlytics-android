@@ -1,8 +1,8 @@
 {
   "formatVersion": 1,
   "database": {
-    "version": 3,
-    "identityHash": "16f100658d3f99944f61214a3009403e",
+    "version": 4,
+    "identityHash": "3b89f74106d88c06408d3f3039bcfb49",
     "entities": [
       {
         "tableName": "usage_events",
@@ -362,6 +362,67 @@
         ]
       },
       {
+        "tableName": "inner_display_sessions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`opened_at_millis` INTEGER NOT NULL, `opened_sequence_at_timestamp` INTEGER NOT NULL, `closed_at_millis` INTEGER, `inner_active_millis` INTEGER NOT NULL, `start_package_name` TEXT, PRIMARY KEY(`opened_at_millis`, `opened_sequence_at_timestamp`))",
+        "fields": [
+          {
+            "fieldPath": "openedAtMillis",
+            "columnName": "opened_at_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "openedSequenceAtTimestamp",
+            "columnName": "opened_sequence_at_timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "closedAtMillis",
+            "columnName": "closed_at_millis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "innerActiveMillis",
+            "columnName": "inner_active_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "startPackageName",
+            "columnName": "start_package_name",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "opened_at_millis",
+            "opened_sequence_at_timestamp"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_inner_display_sessions_closed_at_millis",
+            "unique": false,
+            "columnNames": [
+              "closed_at_millis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_inner_display_sessions_closed_at_millis` ON `${TABLE_NAME}` (`closed_at_millis`)"
+          },
+          {
+            "name": "index_inner_display_sessions_start_package_name",
+            "unique": false,
+            "columnNames": [
+              "start_package_name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_inner_display_sessions_start_package_name` ON `${TABLE_NAME}` (`start_package_name`)"
+          }
+        ]
+      },
+      {
         "tableName": "daily_summary_state",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`singleton_id` INTEGER NOT NULL, `last_aggregated_through_millis` INTEGER NOT NULL, `calibration_key` TEXT NOT NULL, `zone_id` TEXT NOT NULL, `checkpoint_revision` INTEGER NOT NULL, `aggregation_version` INTEGER NOT NULL, PRIMARY KEY(`singleton_id`))",
         "fields": [
@@ -501,7 +562,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '16f100658d3f99944f61214a3009403e')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3b89f74106d88c06408d3f3039bcfb49')"
     ]
   }
 }

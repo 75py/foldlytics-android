@@ -52,8 +52,8 @@ class LongTermDatabaseTest {
     }
 
     @Test
-    fun createsFreshVersionThreeDatabase() {
-        assertEquals(3, database.openHelper.readableDatabase.version)
+    fun createsFreshVersionFourDatabase() {
+        assertEquals(4, database.openHelper.readableDatabase.version)
     }
 
     @Test
@@ -167,7 +167,153 @@ class LongTermDatabaseTest {
     }
 
     @Test
-    fun carriesInnerSessionAcrossThirtyOneDayAggregationChunk() = runBlocking {
+    fun deviceStateBaselineStartsAtObservationAndCarriesAcrossAggregationChunks() = runBlocking {
+        val start = LocalDate.of(2024, 1, 1)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        val observation = LocalDate.of(2024, 1, 31)
+            .atTime(12, 0)
+            .atZone(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        val end = LocalDate.of(2024, 2, 2)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        database.usageEventDao().insertEvents(
+            listOf(
+                event(
+                    key = "baseline-configuration",
+                    timestampMillis = start,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    withConfiguration = true,
+                ),
+                event(
+                    key = "baseline-app-resumed",
+                    timestampMillis = start,
+                    sequence = 1,
+                    rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                    packageName = "app.example",
+                ),
+            ),
+        )
+        database.usageEventDao().insertSyncHistory(
+            SyncHistoryEntity(
+                attemptedAtMillis = observation + 1L,
+                queryBeginMillis = start,
+                queryEndMillis = observation + 1L,
+                status = SyncAttemptStatus.SUCCESS.name,
+                readEventCount = 2,
+                insertedEventCount = 2,
+                deviceStateObservedAtMillis = observation,
+                screenInteractive = true,
+                keyguardHidden = true,
+            ),
+        )
+
+        val summaries = repository().ensureUpToDate(
+            calibration = Calibration(cover = configuration),
+            syncedThroughMillis = end,
+            syncQueryBeginMillis = start,
+            checkpointRevision = 0L,
+            zoneId = zoneId,
+            collectionGapStarts = emptyList(),
+        )
+        val appUsage = repository().loadAggregatedAppUsage(start, end).single()
+
+        assertEquals(2, summaries.size)
+        assertEquals(
+            LocalDate.of(2024, 1, 31).atStartOfDay(zoneId).toInstant().toEpochMilli(),
+            summaries[0].dayStartMillis,
+        )
+        assertEquals(TimeUnit.HOURS.toMillis(12), summaries[0].coverMillis)
+        assertEquals(TimeUnit.HOURS.toMillis(24), summaries[1].coverMillis)
+        assertEquals(TimeUnit.HOURS.toMillis(36), summaries.sumOf { it.coverMillis })
+        assertEquals(TimeUnit.HOURS.toMillis(36), appUsage.coverMillis)
+        assertEquals(0L, summaries.sumOf { it.innerMillis })
+        assertEquals(0, summaries.sumOf { it.openedCount + it.closedCount })
+    }
+
+    @Test
+    fun startupBeforeChunkBoundaryInvalidatesAllEarlierSeedState() = runBlocking {
+        val start = LocalDate.of(2024, 1, 1)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        val startup = LocalDate.of(2024, 1, 15)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        val laterConfiguration = LocalDate.of(2024, 1, 20)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        val end = LocalDate.of(2024, 2, 2)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        database.usageEventDao().insertEvents(
+            listOf(
+                event(
+                    key = "reset-configuration-before",
+                    timestampMillis = start,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    withConfiguration = true,
+                ),
+                event(
+                    key = "reset-screen-on",
+                    timestampMillis = start,
+                    sequence = 1,
+                    rawEventType = UsageEvents.Event.SCREEN_INTERACTIVE,
+                ),
+                event(
+                    key = "reset-unlocked",
+                    timestampMillis = start,
+                    sequence = 2,
+                    rawEventType = UsageEvents.Event.KEYGUARD_HIDDEN,
+                ),
+                event(
+                    key = "reset-app-resumed",
+                    timestampMillis = start,
+                    sequence = 3,
+                    rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                    packageName = "app.example",
+                ),
+                event(
+                    key = "reset-startup",
+                    timestampMillis = startup,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.DEVICE_STARTUP,
+                ),
+                event(
+                    key = "reset-configuration-after",
+                    timestampMillis = laterConfiguration,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    withConfiguration = true,
+                ),
+            ),
+        )
+
+        val summaries = repository().ensureUpToDate(
+            calibration = Calibration(cover = configuration),
+            syncedThroughMillis = end,
+            syncQueryBeginMillis = start,
+            checkpointRevision = 0L,
+            zoneId = zoneId,
+            collectionGapStarts = emptyList(),
+        )
+
+        assertEquals(TimeUnit.DAYS.toMillis(14), summaries.sumOf { it.coverMillis })
+        assertEquals(0L, summaries.sumOf { it.innerMillis })
+        assertEquals(0L, summaries.filter { it.dayStartMillis >= startup }.sumOf { it.coverMillis })
+    }
+
+    @Test
+    fun carriesInnerSessionAndDeviceStateAcrossThirtyOneDayAggregationChunk() = runBlocking {
         val start = LocalDate.of(2024, 1, 1)
             .atStartOfDay(zoneId)
             .toInstant()
@@ -187,21 +333,9 @@ class LongTermDatabaseTest {
                     eventConfiguration = configuration,
                 ),
                 event(
-                    key = "screen-on",
-                    timestampMillis = start,
-                    sequence = 1,
-                    rawEventType = UsageEvents.Event.SCREEN_INTERACTIVE,
-                ),
-                event(
-                    key = "unlocked",
-                    timestampMillis = start,
-                    sequence = 2,
-                    rawEventType = UsageEvents.Event.KEYGUARD_HIDDEN,
-                ),
-                event(
                     key = "app-resumed",
                     timestampMillis = start,
-                    sequence = 3,
+                    sequence = 1,
                     rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
                     packageName = "app.example",
                 ),
@@ -219,6 +353,19 @@ class LongTermDatabaseTest {
                     rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
                     eventConfiguration = configuration,
                 ),
+            ),
+        )
+        database.usageEventDao().insertSyncHistory(
+            SyncHistoryEntity(
+                attemptedAtMillis = start + 1L,
+                queryBeginMillis = start,
+                queryEndMillis = start + 1L,
+                status = SyncAttemptStatus.SUCCESS.name,
+                readEventCount = 2,
+                insertedEventCount = 2,
+                deviceStateObservedAtMillis = start,
+                screenInteractive = true,
+                keyguardHidden = true,
             ),
         )
         val repository = repository()
@@ -394,7 +541,7 @@ class LongTermDatabaseTest {
                     "cover=443,994,443,1,420|inner=852,883,852,1,420",
                 zoneId = zoneId.id,
                 checkpointRevision = 0L,
-                aggregationVersion = 1,
+                aggregationVersion = 2,
             ),
         )
 
@@ -410,7 +557,7 @@ class LongTermDatabaseTest {
         val sessions = repository().loadCompleteInnerSessions(start, end)
         assertEquals(listOf(openedAt), sessions.map { it.openedAtMillis })
         assertEquals(1_000L, sessions.single().innerActiveMillis)
-        assertEquals(2, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
+        assertEquals(3, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
         assertEquals(1, database.dailyPostureSummaryDao().loadAll().single().openedCount)
     }
 

@@ -40,6 +40,45 @@ class InnerDisplaySessionAnalyzerTest {
     }
 
     @Test
+    fun deviceStateCheckpointProvidesScreenAndLockBaseline() {
+        val analyzer = analyzer()
+
+        analyzer.processChunk(
+            records = listOf(
+                record(
+                    0,
+                    UsageEventKind.CONFIGURATION_CHANGED,
+                    configuration = cover,
+                    sequenceAtTimestamp = 0,
+                ),
+                record(
+                    0,
+                    UsageEventKind.ACTIVITY_RESUMED,
+                    packageName = "app.a",
+                    className = "A",
+                    sequenceAtTimestamp = 1,
+                ),
+                record(1_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+                record(6_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            ),
+            checkpoints = emptyList(),
+            deviceStateCheckpoints = listOf(
+                DeviceStateCheckpoint(
+                    observedAtMillis = 0,
+                    screenInteractive = true,
+                    keyguardHidden = true,
+                ),
+            ),
+            collectionGapStarts = emptyList(),
+            chunkEndMillis = 7_000,
+        )
+
+        val session = analyzer.sessionsAtEnd().single()
+        assertEquals(5_000L, session.innerActiveMillis)
+        assertEquals("app.a", session.startPackageName)
+    }
+
+    @Test
     fun screenOffAndLockIntervalsPauseTimeWithoutEndingTheSession() {
         val analyzer = analyzer()
 

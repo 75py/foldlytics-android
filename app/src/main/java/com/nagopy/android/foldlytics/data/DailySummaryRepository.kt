@@ -58,12 +58,15 @@ class DailySummaryRepository(
             StoredUsageEventTypes.all,
         )
         val earliestCheckpoint = checkpointDao.earliestTimestamp()
+        val earliestDeviceStateCheckpoint =
+            usageEventDao.earliestDeviceStateCheckpointTimestamp()
         val earliestGap = collectionGapStarts.asSequence()
             .filter { it < rangeEnd }
             .minOrNull()
         val earliestEvidence = listOfNotNull(
             earliestEvent,
             earliestCheckpoint,
+            earliestDeviceStateCheckpoint,
             earliestGap,
         ).minOrNull()
         val checkpointChanged = existingState?.checkpointRevision != checkpointRevision
@@ -169,31 +172,20 @@ class DailySummaryRepository(
             )
             check(chunkEnd > chunkStart) { "Daily aggregation chunk did not advance" }
 
-            val seedRecords = mutableListOf<UsageEventEntity>()
-            StoredUsageEventTypes.deviceStateGroups.forEach { eventTypes ->
-                seedRecords += usageEventDao.loadLatestDeviceEventsBefore(
-                    endMillis = chunkStart,
-                    rawEventTypes = eventTypes,
-                )
-            }
-            seedRecords += usageEventDao.loadLatestActivityEventsBefore(
-                endMillis = chunkStart,
-                rawEventTypes = StoredUsageEventTypes.activity,
-            )
-            val currentRecordEntities = usageEventDao.loadDeviceEvents(
-                beginMillis = chunkStart,
-                endMillis = chunkEnd,
-                rawEventTypes = StoredUsageEventTypes.all,
-            )
-            val records = (
-                seedRecords.distinctBy(UsageEventEntity::eventKey) +
-                    currentRecordEntities
-                ).map(UsageEventEntity::toModel)
+            val records = usageEventDao.loadUsageEventsForAnalysis(chunkStart, chunkEnd)
+                .map(UsageEventEntity::toModel)
+            val currentRecords = records.filter { it.timestampMillis >= chunkStart }
             val currentCheckpoints = checkpointDao.load(chunkStart, chunkEnd)
                 .map(PostureCheckpointEntity::toModel)
             val checkpoints = buildList {
                 checkpointDao.latestBefore(chunkStart)?.let { add(it.toModel()) }
                 addAll(currentCheckpoints)
+            }
+            val deviceStateCheckpoints =
+                usageEventDao.loadDeviceStateCheckpointsForAnalysis(chunkStart, chunkEnd)
+                    .mapNotNull(SyncHistoryEntity::toDeviceStateCheckpoint)
+            val currentDeviceStateCheckpoints = deviceStateCheckpoints.filter {
+                it.observedAtMillis >= chunkStart
             }
             val currentGaps = orderedGapStarts.filter { it in chunkStart until chunkEnd }
             val gaps = buildList {
@@ -208,6 +200,7 @@ class DailySummaryRepository(
                 checkpoints = checkpoints,
                 zoneId = zoneId,
                 collectionGapStarts = gaps,
+                deviceStateCheckpoints = deviceStateCheckpoints,
             )
             summaries += analysis.dailySummaries
             appUsage += analysis.dailyAppSummaries
@@ -215,9 +208,14 @@ class DailySummaryRepository(
                 records = if (firstChunk) {
                     records
                 } else {
-                    currentRecordEntities.map(UsageEventEntity::toModel)
+                    currentRecords
                 },
                 checkpoints = if (firstChunk) checkpoints else currentCheckpoints,
+                deviceStateCheckpoints = if (firstChunk) {
+                    deviceStateCheckpoints
+                } else {
+                    currentDeviceStateCheckpoints
+                },
                 collectionGapStarts = if (firstChunk) gaps else currentGaps,
                 chunkEndMillis = chunkEnd,
             )
@@ -245,7 +243,7 @@ class DailySummaryRepository(
     } ?: "none"
 
     private companion object {
-        const val AGGREGATION_VERSION = 2
+        const val AGGREGATION_VERSION = 3
         const val AGGREGATION_CHUNK_DAYS = 31L
     }
 

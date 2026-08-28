@@ -213,7 +213,10 @@ data class DailySummaryStateEntity(
 
 @Entity(
     tableName = "sync_history",
-    indices = [Index(value = ["attempted_at_millis"])],
+    indices = [
+        Index(value = ["attempted_at_millis"]),
+        Index(value = ["device_state_observed_at_millis"]),
+    ],
 )
 data class SyncHistoryEntity(
     @PrimaryKey(autoGenerate = true)
@@ -231,6 +234,12 @@ data class SyncHistoryEntity(
     val readEventCount: Int,
     @ColumnInfo(name = "inserted_event_count")
     val insertedEventCount: Int,
+    @ColumnInfo(name = "device_state_observed_at_millis")
+    val deviceStateObservedAtMillis: Long? = null,
+    @ColumnInfo(name = "screen_interactive")
+    val screenInteractive: Boolean? = null,
+    @ColumnInfo(name = "keyguard_hidden")
+    val keyguardHidden: Boolean? = null,
 )
 
 @Dao
@@ -301,6 +310,21 @@ interface UsageEventDao {
         rawEventTypes: List<Int>,
     ): List<UsageEventEntity>
 
+    @Transaction
+    suspend fun loadUsageEventsForAnalysis(
+        beginMillis: Long,
+        endMillis: Long,
+    ): List<UsageEventEntity> {
+        val seeds = buildList {
+            StoredUsageEventTypes.deviceStateGroups.forEach { eventTypes ->
+                addAll(loadLatestDeviceEventsBefore(beginMillis, eventTypes))
+            }
+            addAll(loadLatestActivityEventsBefore(beginMillis, StoredUsageEventTypes.activity))
+        }
+        return seeds.distinctBy(UsageEventEntity::eventKey) +
+            loadDeviceEvents(beginMillis, endMillis, StoredUsageEventTypes.all)
+    }
+
     @Query("SELECT MIN(timestamp_millis) FROM usage_events")
     suspend fun earliestEventTimestamp(): Long?
 
@@ -341,6 +365,54 @@ interface UsageEventDao {
         """,
     )
     suspend fun loadSyncHistory(beginMillis: Long, endMillis: Long): List<SyncHistoryEntity>
+
+    @Query(
+        """
+        SELECT * FROM sync_history
+        WHERE device_state_observed_at_millis >= :beginMillis
+            AND device_state_observed_at_millis < :endMillis
+            AND status = 'SUCCESS'
+            AND screen_interactive IS NOT NULL
+            AND keyguard_hidden IS NOT NULL
+        ORDER BY device_state_observed_at_millis ASC, id ASC
+        """,
+    )
+    suspend fun loadDeviceStateCheckpoints(
+        beginMillis: Long,
+        endMillis: Long,
+    ): List<SyncHistoryEntity>
+
+    @Query(
+        """
+        SELECT * FROM sync_history
+        WHERE device_state_observed_at_millis < :endMillis
+            AND status = 'SUCCESS'
+            AND screen_interactive IS NOT NULL
+            AND keyguard_hidden IS NOT NULL
+        ORDER BY device_state_observed_at_millis DESC, id DESC
+        LIMIT 1
+        """,
+    )
+    suspend fun loadLatestDeviceStateCheckpointBefore(endMillis: Long): SyncHistoryEntity?
+
+    @Transaction
+    suspend fun loadDeviceStateCheckpointsForAnalysis(
+        beginMillis: Long,
+        endMillis: Long,
+    ): List<SyncHistoryEntity> = buildList {
+        loadLatestDeviceStateCheckpointBefore(beginMillis)?.let(::add)
+        addAll(loadDeviceStateCheckpoints(beginMillis, endMillis))
+    }
+
+    @Query(
+        """
+        SELECT MIN(device_state_observed_at_millis) FROM sync_history
+        WHERE status = 'SUCCESS'
+            AND screen_interactive IS NOT NULL
+            AND keyguard_hidden IS NOT NULL
+        """,
+    )
+    suspend fun earliestDeviceStateCheckpointTimestamp(): Long?
 
     @Transaction
     suspend fun persistSuccessfulSync(
@@ -540,7 +612,7 @@ interface DailyPostureSummaryDao {
         DailySummaryStateEntity::class,
         SyncHistoryEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class FoldlyticsDatabase : RoomDatabase() {
@@ -561,7 +633,7 @@ abstract class FoldlyticsDatabase : RoomDatabase() {
                     FoldlyticsDatabase::class.java,
                     "foldlytics.db",
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { instance = it }
             }
@@ -584,6 +656,19 @@ internal val MIGRATION_1_2 = object : Migration(1, 2) {
 }
 
 internal val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE sync_history ADD COLUMN device_state_observed_at_millis INTEGER")
+        db.execSQL("ALTER TABLE sync_history ADD COLUMN screen_interactive INTEGER")
+        db.execSQL("ALTER TABLE sync_history ADD COLUMN keyguard_hidden INTEGER")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS " +
+                "index_sync_history_device_state_observed_at_millis " +
+                "ON sync_history (device_state_observed_at_millis)",
+        )
+    }
+}
+
+internal val MIGRATION_3_4 = object : Migration(3, 4) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(
             """
@@ -630,15 +715,23 @@ class RoomUsageEventStore(
         dao.insertSyncHistory(attempt.toEntity())
     }
 
-    override suspend fun loadRecords(
+    override suspend fun loadRecordsForAnalysis(
         beginMillis: Long,
         endMillis: Long,
-    ): List<UsageRecord> = dao.loadEvents(beginMillis, endMillis).map(UsageEventEntity::toModel)
+    ): List<UsageRecord> =
+        dao.loadUsageEventsForAnalysis(beginMillis, endMillis).map(UsageEventEntity::toModel)
 
     override suspend fun loadSyncAttempts(
         beginMillis: Long,
         endMillis: Long,
     ): List<SyncAttempt> = dao.loadSyncHistory(beginMillis, endMillis).map(SyncHistoryEntity::toModel)
+
+    override suspend fun loadDeviceStateCheckpointsForAnalysis(
+        beginMillis: Long,
+        endMillis: Long,
+    ): List<DeviceStateCheckpoint> =
+        dao.loadDeviceStateCheckpointsForAnalysis(beginMillis, endMillis)
+            .mapNotNull(SyncHistoryEntity::toDeviceStateCheckpoint)
 }
 
 internal fun UsageRecord.toEntity(): UsageEventEntity {
@@ -710,6 +803,9 @@ internal fun SyncAttempt.toEntity(): SyncHistoryEntity = SyncHistoryEntity(
     status = status.name,
     readEventCount = readEventCount,
     insertedEventCount = insertedEventCount,
+    deviceStateObservedAtMillis = deviceStateCheckpoint?.observedAtMillis,
+    screenInteractive = deviceStateCheckpoint?.screenInteractive,
+    keyguardHidden = deviceStateCheckpoint?.keyguardHidden,
 )
 
 internal fun SyncHistoryEntity.toModel(): SyncAttempt = SyncAttempt(
@@ -720,7 +816,19 @@ internal fun SyncHistoryEntity.toModel(): SyncAttempt = SyncAttempt(
         .getOrDefault(SyncAttemptStatus.FAILED),
     readEventCount = readEventCount,
     insertedEventCount = insertedEventCount,
+    deviceStateCheckpoint = toDeviceStateCheckpoint(),
 )
+
+internal fun SyncHistoryEntity.toDeviceStateCheckpoint(): DeviceStateCheckpoint? {
+    val observedAtMillis = deviceStateObservedAtMillis ?: return null
+    val interactive = screenInteractive ?: return null
+    val hidden = keyguardHidden ?: return null
+    return DeviceStateCheckpoint(
+        observedAtMillis = observedAtMillis,
+        screenInteractive = interactive,
+        keyguardHidden = hidden,
+    )
+}
 
 internal fun PostureCheckpoint.toEntity(): PostureCheckpointEntity = PostureCheckpointEntity(
     checkpointKey = stableKey(

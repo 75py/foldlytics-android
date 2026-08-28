@@ -665,7 +665,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 periodHours = request.period.diagnosticHours,
                                 syncedThroughMillis = syncState.lastSuccessfulEndMillis,
                             )
-                            val records = syncRepository.loadRecords(
+                            val records = syncRepository.loadRecordsForAnalysis(
                                 window.seedStartMillis,
                                 window.rangeEndMillis,
                             )
@@ -673,6 +673,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 window.seedStartMillis,
                                 window.rangeEndMillis,
                             )
+                            val deviceStateCheckpoints =
+                                syncRepository.loadDeviceStateCheckpointsForAnalysis(
+                                    window.seedStartMillis,
+                                    window.rangeEndMillis,
+                                )
                             val zoneId = ZoneId.systemDefault()
                             val allSyncAttempts = syncRepository.loadSyncAttempts(
                                 beginMillis = 0L,
@@ -721,6 +726,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 collectionGapStarts = collectionGaps.map(
                                     CollectionGap::startMillis,
                                 ),
+                                deviceStateCheckpoints = deviceStateCheckpoints,
                             )
                             val longTermInsights = if (effectivePeriod == AnalysisPeriod.CUSTOM) {
                                 val range = requireNotNull(validCustomRange)

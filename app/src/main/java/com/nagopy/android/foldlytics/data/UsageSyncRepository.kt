@@ -16,6 +16,12 @@ data class UsageSyncState(
     val lastInsertedEventCount: Int,
 )
 
+data class DeviceStateCheckpoint(
+    val observedAtMillis: Long,
+    val screenInteractive: Boolean,
+    val keyguardHidden: Boolean,
+)
+
 enum class SyncAttemptStatus {
     SUCCESS,
     PERMISSION_DENIED,
@@ -31,6 +37,7 @@ data class SyncAttempt(
     val status: SyncAttemptStatus,
     val readEventCount: Int,
     val insertedEventCount: Int = 0,
+    val deviceStateCheckpoint: DeviceStateCheckpoint? = null,
 )
 
 interface UsageEventStore {
@@ -46,9 +53,14 @@ interface UsageEventStore {
 
     suspend fun recordSyncAttempt(attempt: SyncAttempt)
 
-    suspend fun loadRecords(beginMillis: Long, endMillis: Long): List<UsageRecord>
+    suspend fun loadRecordsForAnalysis(beginMillis: Long, endMillis: Long): List<UsageRecord>
 
     suspend fun loadSyncAttempts(beginMillis: Long, endMillis: Long): List<SyncAttempt>
+
+    suspend fun loadDeviceStateCheckpointsForAnalysis(
+        beginMillis: Long,
+        endMillis: Long,
+    ): List<DeviceStateCheckpoint>
 }
 
 sealed interface UsageSyncResult {
@@ -74,9 +86,13 @@ class UsageSyncRepository(
 
     suspend fun sync(): UsageSyncResult = syncMutex.withLock {
         withContext(ioDispatcher) {
-            val endMillis = currentTimeMillis()
             try {
                 val previousState = eventStore.loadSyncState()
+                val deviceStateCheckpoint = observeDeviceStateSafely()
+                val endMillis = maxOf(
+                    currentTimeMillis(),
+                    deviceStateCheckpoint?.observedAtMillis ?: 0L,
+                ).coerceAtLeast(0L)
                 val beginMillis = previousState
                     ?.lastSuccessfulEndMillis
                     ?.coerceAtMost(endMillis)
@@ -101,6 +117,7 @@ class UsageSyncRepository(
                                 queryEndMillis = endMillis,
                                 status = SyncAttemptStatus.SUCCESS,
                                 readEventCount = readResult.records.size,
+                                deviceStateCheckpoint = deviceStateCheckpoint,
                             ),
                         )
                         UsageSyncResult.Success(
@@ -149,11 +166,24 @@ class UsageSyncRepository(
 
     fun observeSyncState(): Flow<UsageSyncState?> = eventStore.observeSyncState()
 
-    suspend fun loadRecords(beginMillis: Long, endMillis: Long): List<UsageRecord> =
-        eventStore.loadRecords(beginMillis, endMillis)
+    suspend fun loadRecordsForAnalysis(beginMillis: Long, endMillis: Long): List<UsageRecord> =
+        eventStore.loadRecordsForAnalysis(beginMillis, endMillis)
 
     suspend fun loadSyncAttempts(beginMillis: Long, endMillis: Long): List<SyncAttempt> =
         eventStore.loadSyncAttempts(beginMillis, endMillis)
+
+    suspend fun loadDeviceStateCheckpointsForAnalysis(
+        beginMillis: Long,
+        endMillis: Long,
+    ): List<DeviceStateCheckpoint> =
+        eventStore.loadDeviceStateCheckpointsForAnalysis(beginMillis, endMillis)
+
+    private fun observeDeviceStateSafely(): DeviceStateCheckpoint? = try {
+        eventSource.observeDeviceState()
+    } catch (_: Exception) {
+        // Current state is optional evidence; UsageEvents remain authoritative if it is unavailable.
+        null
+    }
 
     private suspend fun recordSyncAttemptSafely(attempt: SyncAttempt) {
         try {
@@ -164,7 +194,6 @@ class UsageSyncRepository(
             // The original read result remains authoritative when audit persistence fails.
         }
     }
-
 }
 
 private fun UsageReadUnavailableReason.toSyncAttemptStatus(): SyncAttemptStatus = when (this) {

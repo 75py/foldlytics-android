@@ -38,6 +38,20 @@ class DatabaseModelMappingTest {
     }
 
     @Test
+    fun legacySyncAttemptWithoutDeviceStateStillRoundTrips() {
+        val entity = SyncHistoryEntity(
+            attemptedAtMillis = 3_000L,
+            queryBeginMillis = 1_000L,
+            queryEndMillis = 3_000L,
+            status = SyncAttemptStatus.SUCCESS.name,
+            readEventCount = 12,
+            insertedEventCount = 5,
+        )
+
+        assertEquals(null, entity.toModel().deviceStateCheckpoint)
+    }
+
+    @Test
     fun innerSessionRoundTripsThroughRoomEntity() {
         val session = InnerDisplaySession(
             openedAtMillis = 1_000L,
