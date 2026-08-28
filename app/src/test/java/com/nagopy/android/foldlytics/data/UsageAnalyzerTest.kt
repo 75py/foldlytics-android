@@ -133,6 +133,302 @@ class UsageAnalyzerTest {
     }
 
     @Test
+    fun unlockedObservationSuppliesMissingKeyguardBaseline() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+        )
+
+        val result = analyzer.analyze(
+            records = records,
+            rangeStartMillis = 0,
+            rangeEndMillis = 10_000,
+            calibration = calibration,
+            deviceStateCheckpoints = listOf(
+                DeviceStateCheckpoint(
+                    observedAtMillis = 2_000,
+                    screenInteractive = true,
+                    keyguardHidden = true,
+                ),
+            ),
+        )
+
+        assertEquals(8_000, result.coverMillis)
+        assertEquals(8_000, result.apps.single().coverMillis)
+    }
+
+    @Test
+    fun interactiveObservationSuppliesMissingScreenBaseline() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+        )
+
+        val result = analyzer.analyze(
+            records = records,
+            rangeStartMillis = 0,
+            rangeEndMillis = 10_000,
+            calibration = calibration,
+            deviceStateCheckpoints = listOf(
+                DeviceStateCheckpoint(2_000, screenInteractive = true, keyguardHidden = true),
+            ),
+        )
+
+        assertEquals(8_000, result.coverMillis)
+        assertEquals(8_000, result.apps.single().coverMillis)
+    }
+
+    @Test
+    fun keyguardShownAfterUnlockedObservationStopsUsage() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(3_000, UsageEventKind.KEYGUARD_SHOWN),
+        )
+
+        val result = analyzer.analyze(
+            records = records,
+            rangeStartMillis = 0,
+            rangeEndMillis = 10_000,
+            calibration = calibration,
+            deviceStateCheckpoints = listOf(
+                DeviceStateCheckpoint(0, screenInteractive = true, keyguardHidden = true),
+            ),
+        )
+
+        assertEquals(3_000, result.coverMillis)
+        assertEquals(3_000, result.apps.single().coverMillis)
+    }
+
+    @Test
+    fun keyguardHiddenAfterShownResumesUsageFromTheEventTime() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(3_000, UsageEventKind.KEYGUARD_SHOWN),
+            record(7_000, UsageEventKind.KEYGUARD_HIDDEN),
+        )
+
+        val result = analyzer.analyze(
+            records = records,
+            rangeStartMillis = 0,
+            rangeEndMillis = 10_000,
+            calibration = calibration,
+            deviceStateCheckpoints = listOf(
+                DeviceStateCheckpoint(0, screenInteractive = true, keyguardHidden = true),
+            ),
+        )
+
+        assertEquals(6_000, result.coverMillis)
+        assertEquals(6_000, result.apps.single().coverMillis)
+    }
+
+    @Test
+    fun matchingDeviceStateCheckpointDoesNotChangeNormalEventResult() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(2_000, UsageEventKind.KEYGUARD_HIDDEN),
+            record(4_000, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(7_000, UsageEventKind.KEYGUARD_SHOWN),
+            record(9_000, UsageEventKind.KEYGUARD_HIDDEN),
+            record(11_000, UsageEventKind.SCREEN_NON_INTERACTIVE),
+        )
+        val original = analyzer.analyze(records, 0, 15_000, calibration)
+
+        val withCheckpoint = analyzer.analyze(
+            records = records,
+            rangeStartMillis = 0,
+            rangeEndMillis = 15_000,
+            calibration = calibration,
+            deviceStateCheckpoints = listOf(
+                DeviceStateCheckpoint(5_000, screenInteractive = true, keyguardHidden = true),
+            ),
+        )
+
+        assertEquals(original, withCheckpoint)
+    }
+
+    @Test
+    fun checkpointAtRangeEndDoesNotBackfillEarlierHistory() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+        )
+        val checkpoint = DeviceStateCheckpoint(
+            observedAtMillis = 5_000,
+            screenInteractive = true,
+            keyguardHidden = true,
+        )
+
+        val beforeObservation = analyzer.analyze(
+            records = records,
+            rangeStartMillis = 0,
+            rangeEndMillis = 5_000,
+            calibration = calibration,
+            deviceStateCheckpoints = listOf(checkpoint),
+        )
+        val afterObservation = analyzer.analyze(
+            records = records,
+            rangeStartMillis = 0,
+            rangeEndMillis = 10_000,
+            calibration = calibration,
+            deviceStateCheckpoints = listOf(checkpoint),
+        )
+
+        assertEquals(0, beforeObservation.coverMillis)
+        assertEquals(5_000, afterObservation.coverMillis)
+    }
+
+    @Test
+    fun nonInteractiveCheckpointWaitsForScreenInteractiveEvent() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(4_000, UsageEventKind.SCREEN_INTERACTIVE),
+        )
+
+        val result = analyzer.analyze(
+            records = records,
+            rangeStartMillis = 0,
+            rangeEndMillis = 10_000,
+            calibration = calibration,
+            deviceStateCheckpoints = listOf(
+                DeviceStateCheckpoint(0, screenInteractive = false, keyguardHidden = true),
+            ),
+        )
+
+        assertEquals(6_000, result.coverMillis)
+        assertEquals(6_000, result.apps.single().coverMillis)
+    }
+
+    @Test
+    fun startupAndShutdownInvalidateEarlierDeviceStateObservations() {
+        listOf(UsageEventKind.DEVICE_STARTUP, UsageEventKind.DEVICE_SHUTDOWN).forEach { reset ->
+            val records = listOf(
+                record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+                record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+                record(3_000, reset),
+                record(4_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            )
+
+            val result = analyzer.analyze(
+                records = records,
+                rangeStartMillis = 0,
+                rangeEndMillis = 10_000,
+                calibration = calibration,
+                deviceStateCheckpoints = listOf(
+                    DeviceStateCheckpoint(0, screenInteractive = true, keyguardHidden = true),
+                ),
+            )
+
+            assertEquals(reset.name, 3_000, result.coverMillis)
+            assertEquals(reset.name, 3_000, result.apps.single().coverMillis)
+        }
+    }
+
+    @Test
+    fun collectionGapInvalidatesEarlierDeviceStateObservation() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+        )
+
+        val result = analyzer.analyze(
+            records = records,
+            rangeStartMillis = 0,
+            rangeEndMillis = 10_000,
+            calibration = calibration,
+            collectionGapStarts = listOf(3_000),
+            deviceStateCheckpoints = listOf(
+                DeviceStateCheckpoint(0, screenInteractive = true, keyguardHidden = true),
+            ),
+        )
+
+        assertEquals(3_000, result.coverMillis)
+        assertEquals(3_000, result.apps.single().coverMillis)
+    }
+
+    @Test
+    fun observationAfterStartupResumesOnlyFromItsObservationTime() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(3_000, UsageEventKind.DEVICE_STARTUP),
+            record(4_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(5_000, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+        )
+
+        val result = analyzer.analyze(
+            records = records,
+            rangeStartMillis = 0,
+            rangeEndMillis = 10_000,
+            calibration = calibration,
+            deviceStateCheckpoints = listOf(
+                DeviceStateCheckpoint(0, screenInteractive = true, keyguardHidden = true),
+                DeviceStateCheckpoint(5_000, screenInteractive = true, keyguardHidden = true),
+            ),
+        )
+
+        assertEquals(8_000, result.coverMillis)
+        assertEquals(8_000, result.apps.single().coverMillis)
+    }
+
+    @Test
+    fun rawScreenOffAndLockEventsWinOverObservationAtTheSameTimestamp() {
+        listOf(UsageEventKind.SCREEN_NON_INTERACTIVE, UsageEventKind.KEYGUARD_SHOWN)
+            .forEach { event ->
+                val records = listOf(
+                    record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+                    record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+                    record(2_000, event),
+                )
+
+                val result = analyzer.analyze(
+                    records = records,
+                    rangeStartMillis = 0,
+                    rangeEndMillis = 10_000,
+                    calibration = calibration,
+                    deviceStateCheckpoints = listOf(
+                        DeviceStateCheckpoint(
+                            2_000,
+                            screenInteractive = true,
+                            keyguardHidden = true,
+                        ),
+                    ),
+                )
+
+                assertEquals(event.name, 0, result.coverMillis)
+                assertEquals(event.name, 0, result.apps.size)
+            }
+    }
+
+    @Test
+    fun collectionGapWinsOverObservationAtTheSameTimestamp() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+        )
+
+        val result = analyzer.analyze(
+            records = records,
+            rangeStartMillis = 0,
+            rangeEndMillis = 10_000,
+            calibration = calibration,
+            collectionGapStarts = listOf(3_000),
+            deviceStateCheckpoints = listOf(
+                DeviceStateCheckpoint(0, screenInteractive = true, keyguardHidden = true),
+                DeviceStateCheckpoint(3_000, screenInteractive = true, keyguardHidden = true),
+            ),
+        )
+
+        assertEquals(3_000, result.coverMillis)
+        assertEquals(3_000, result.apps.single().coverMillis)
+    }
+
+    @Test
     fun countsMultiResumeButDoesNotDoubleCountDeviceTime() {
         val records = listOf(
             record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),

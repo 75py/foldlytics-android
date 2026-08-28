@@ -50,12 +50,15 @@ class DailySummaryRepository(
             StoredUsageEventTypes.all,
         )
         val earliestCheckpoint = checkpointDao.earliestTimestamp()
+        val earliestDeviceStateCheckpoint =
+            usageEventDao.earliestDeviceStateCheckpointTimestamp()
         val earliestGap = collectionGapStarts.asSequence()
             .filter { it < rangeEnd }
             .minOrNull()
         val earliestEvidence = listOfNotNull(
             earliestEvent,
             earliestCheckpoint,
+            earliestDeviceStateCheckpoint,
             earliestGap,
         ).minOrNull()
         val checkpointChanged = existingState?.checkpointRevision != checkpointRevision
@@ -139,25 +142,8 @@ class DailySummaryRepository(
             )
             check(chunkEnd > chunkStart) { "Daily aggregation chunk did not advance" }
 
-            val seedRecords = mutableListOf<UsageEventEntity>()
-            StoredUsageEventTypes.deviceStateGroups.forEach { eventTypes ->
-                seedRecords += usageEventDao.loadLatestDeviceEventsBefore(
-                    endMillis = chunkStart,
-                    rawEventTypes = eventTypes,
-                )
-            }
-            seedRecords += usageEventDao.loadLatestActivityEventsBefore(
-                endMillis = chunkStart,
-                rawEventTypes = StoredUsageEventTypes.activity,
-            )
-            val records = (
-                seedRecords.distinctBy(UsageEventEntity::eventKey) +
-                    usageEventDao.loadDeviceEvents(
-                        beginMillis = chunkStart,
-                        endMillis = chunkEnd,
-                        rawEventTypes = StoredUsageEventTypes.all,
-                    )
-                ).map(UsageEventEntity::toModel)
+            val records = usageEventDao.loadUsageEventsForAnalysis(chunkStart, chunkEnd)
+                .map(UsageEventEntity::toModel)
             val checkpoints = buildList {
                 checkpointDao.latestBefore(chunkStart)?.let { add(it.toModel()) }
                 addAll(
@@ -165,6 +151,9 @@ class DailySummaryRepository(
                         .map(PostureCheckpointEntity::toModel),
                 )
             }
+            val deviceStateCheckpoints =
+                usageEventDao.loadDeviceStateCheckpointsForAnalysis(chunkStart, chunkEnd)
+                    .mapNotNull(SyncHistoryEntity::toDeviceStateCheckpoint)
             val gaps = buildList {
                 orderedGapStarts.lastOrNull { it < chunkStart }?.let(::add)
                 addAll(orderedGapStarts.filter { it in chunkStart until chunkEnd })
@@ -177,6 +166,7 @@ class DailySummaryRepository(
                 checkpoints = checkpoints,
                 zoneId = zoneId,
                 collectionGapStarts = gaps,
+                deviceStateCheckpoints = deviceStateCheckpoints,
             )
             summaries += analysis.dailySummaries
             appUsage += analysis.dailyAppSummaries
@@ -199,7 +189,7 @@ class DailySummaryRepository(
     } ?: "none"
 
     private companion object {
-        const val AGGREGATION_VERSION = 1
+        const val AGGREGATION_VERSION = 2
         const val AGGREGATION_CHUNK_DAYS = 31L
     }
 

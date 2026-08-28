@@ -9,6 +9,7 @@ internal object StoredUsageEventTypes {
         SCREEN_STATE,
         KEYGUARD_STATE,
         POSTURE_STATE,
+        RESET,
     }
 
     private data class Definition(
@@ -61,12 +62,12 @@ internal object StoredUsageEventTypes {
         Definition(
             UsageEvents.Event.DEVICE_STARTUP,
             UsageEventKind.DEVICE_STARTUP,
-            Group.POSTURE_STATE,
+            Group.RESET,
         ),
         Definition(
             UsageEvents.Event.DEVICE_SHUTDOWN,
             UsageEventKind.DEVICE_SHUTDOWN,
-            Group.POSTURE_STATE,
+            Group.RESET,
         ),
     )
     private val definitionsByRawEventType = definitions.associateBy(Definition::rawEventType)
@@ -76,10 +77,12 @@ internal object StoredUsageEventTypes {
     private val screenState: List<Int> = rawEventTypes(Group.SCREEN_STATE)
     private val keyguardState: List<Int> = rawEventTypes(Group.KEYGUARD_STATE)
     private val postureState: List<Int> = rawEventTypes(Group.POSTURE_STATE)
+    private val resets: List<Int> = rawEventTypes(Group.RESET)
     val deviceStateGroups: List<List<Int>> = listOf(
         screenState,
         keyguardState,
         postureState,
+        resets,
     )
 
     init {

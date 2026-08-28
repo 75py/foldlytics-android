@@ -30,21 +30,24 @@ class UsageEventCleanupTest {
     @Before
     fun setUp() {
         context = InstrumentationRegistry.getInstrumentation().targetContext
-        require(MIGRATION_DATABASE_NAME != "foldlytics.db")
+        require(LEGACY_CLEANUP_DATABASE_NAME != "foldlytics.db")
+        require(DEVICE_STATE_MIGRATION_DATABASE_NAME != "foldlytics.db")
         require(FRESH_DATABASE_NAME != "foldlytics.db")
-        context.deleteDatabase(MIGRATION_DATABASE_NAME)
+        context.deleteDatabase(LEGACY_CLEANUP_DATABASE_NAME)
+        context.deleteDatabase(DEVICE_STATE_MIGRATION_DATABASE_NAME)
         context.deleteDatabase(FRESH_DATABASE_NAME)
     }
 
     @After
     fun tearDown() {
-        context.deleteDatabase(MIGRATION_DATABASE_NAME)
+        context.deleteDatabase(LEGACY_CLEANUP_DATABASE_NAME)
+        context.deleteDatabase(DEVICE_STATE_MIGRATION_DATABASE_NAME)
         context.deleteDatabase(FRESH_DATABASE_NAME)
     }
 
     @Test
     fun migrationFromOneToTwoRemovesOnlyUnstoredUsageEvents() {
-        val versionOne = migrationHelper.createDatabase(MIGRATION_DATABASE_NAME, 1)
+        val versionOne = migrationHelper.createDatabase(LEGACY_CLEANUP_DATABASE_NAME, 1)
         try {
             seedVersionOneDatabase(versionOne)
         } finally {
@@ -52,7 +55,7 @@ class UsageEventCleanupTest {
         }
 
         val migrated = migrationHelper.runMigrationsAndValidate(
-            MIGRATION_DATABASE_NAME,
+            LEGACY_CLEANUP_DATABASE_NAME,
             2,
             true,
             MIGRATION_1_2,
@@ -70,10 +73,99 @@ class UsageEventCleanupTest {
     }
 
     @Test
-    fun reopeningFreshVersionTwoDatabaseDoesNotRunLegacyCleanup() = runBlocking {
+    fun migrationFromTwoToThreePreservesHistoryAndAddsDeviceStateStorage() {
+        val versionTwo = migrationHelper.createDatabase(DEVICE_STATE_MIGRATION_DATABASE_NAME, 2)
+        try {
+            versionTwo.execSQL(
+                """
+                INSERT INTO sync_history (
+                    id,
+                    attempted_at_millis,
+                    query_begin_millis,
+                    query_end_millis,
+                    status,
+                    read_event_count,
+                    inserted_event_count
+                ) VALUES (1, 3000, 1000, 3000, 'SUCCESS', 12, 5)
+                """.trimIndent(),
+            )
+        } finally {
+            versionTwo.close()
+        }
+
+        val migrated = migrationHelper.runMigrationsAndValidate(
+            DEVICE_STATE_MIGRATION_DATABASE_NAME,
+            3,
+            true,
+            MIGRATION_2_3,
+        )
+        try {
+            assertEquals(3, migrated.version)
+            migrated.query(
+                """
+                SELECT
+                    attempted_at_millis,
+                    query_begin_millis,
+                    query_end_millis,
+                    read_event_count,
+                    inserted_event_count,
+                    device_state_observed_at_millis,
+                    screen_interactive,
+                    keyguard_hidden
+                FROM sync_history
+                WHERE id = 1
+                """.trimIndent(),
+            ).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(3_000L, cursor.getLong(0))
+                assertEquals(1_000L, cursor.getLong(1))
+                assertEquals(3_000L, cursor.getLong(2))
+                assertEquals(12, cursor.getInt(3))
+                assertEquals(5, cursor.getInt(4))
+                assertTrue(cursor.isNull(5))
+                assertTrue(cursor.isNull(6))
+                assertTrue(cursor.isNull(7))
+                assertFalse(cursor.moveToNext())
+            }
+
+            migrated.execSQL(
+                """
+                INSERT INTO sync_history (
+                    attempted_at_millis,
+                    query_begin_millis,
+                    query_end_millis,
+                    status,
+                    read_event_count,
+                    inserted_event_count,
+                    device_state_observed_at_millis,
+                    screen_interactive,
+                    keyguard_hidden
+                ) VALUES (4000, 2000, 4000, 'SUCCESS', 0, 0, 3900, 1, 0)
+                """.trimIndent(),
+            )
+            migrated.query(
+                """
+                SELECT device_state_observed_at_millis, screen_interactive, keyguard_hidden
+                FROM sync_history
+                WHERE device_state_observed_at_millis IS NOT NULL
+                """.trimIndent(),
+            ).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(3_900L, cursor.getLong(0))
+                assertEquals(1, cursor.getInt(1))
+                assertEquals(0, cursor.getInt(2))
+                assertFalse(cursor.moveToNext())
+            }
+        } finally {
+            migrated.close()
+        }
+    }
+
+    @Test
+    fun reopeningFreshVersionThreeDatabaseDoesNotRunLegacyCleanup() = runBlocking {
         var database = openLatestDatabase(FRESH_DATABASE_NAME)
         try {
-            assertEquals(2, database.openHelper.writableDatabase.version)
+            assertEquals(3, database.openHelper.writableDatabase.version)
             database.usageEventDao().insertEvents(
                 listOf(
                     event(
@@ -208,7 +300,7 @@ class UsageEventCleanupTest {
 
     private fun openLatestDatabase(name: String): FoldlyticsDatabase =
         Room.databaseBuilder(context, FoldlyticsDatabase::class.java, name)
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .build()
 
     private fun event(eventKey: String, rawEventType: Int): UsageEventEntity = UsageEventEntity(
@@ -227,7 +319,9 @@ class UsageEventCleanupTest {
     )
 
     private companion object {
-        const val MIGRATION_DATABASE_NAME = "foldlytics-usage-event-migration-test.db"
-        const val FRESH_DATABASE_NAME = "foldlytics-usage-event-fresh-v2-test.db"
+        const val LEGACY_CLEANUP_DATABASE_NAME = "foldlytics-usage-event-migration-test.db"
+        const val DEVICE_STATE_MIGRATION_DATABASE_NAME =
+            "foldlytics-device-state-migration-test.db"
+        const val FRESH_DATABASE_NAME = "foldlytics-usage-event-fresh-v3-test.db"
     }
 }

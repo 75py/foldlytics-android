@@ -29,6 +29,7 @@ class UsageAnalyzer(
         checkpoints: List<PostureCheckpoint> = emptyList(),
         zoneId: ZoneId = ZoneId.systemDefault(),
         collectionGapStarts: List<Long> = emptyList(),
+        deviceStateCheckpoints: List<DeviceStateCheckpoint> = emptyList(),
     ): UsageAnalysis {
         val orderedRecords = records
             .asSequence()
@@ -43,6 +44,9 @@ class UsageAnalyzer(
             checkpoints.asSequence()
                 .filter { it.timestampMillis < rangeEndMillis }
                 .forEach { add(TimelineEntry.Checkpoint(it)) }
+            deviceStateCheckpoints.asSequence()
+                .filter { it.observedAtMillis < rangeEndMillis }
+                .forEach { add(TimelineEntry.DeviceState(it)) }
             collectionGapStarts.asSequence()
                 .filter { it < rangeEndMillis }
                 .forEach { add(TimelineEntry.CollectionGap(it)) }
@@ -243,6 +247,13 @@ class UsageAnalyzer(
                 return@forEach
             }
 
+            if (entry is TimelineEntry.DeviceState) {
+                screenInteractive = entry.checkpoint.screenInteractive
+                keyguardHidden = entry.checkpoint.keyguardHidden
+                lastTimestamp = entry.timestampMillis
+                return@forEach
+            }
+
             val record = (entry as TimelineEntry.Usage).record
 
             when (record.kind) {
@@ -395,18 +406,24 @@ class UsageAnalyzer(
 
         data class Usage(val record: UsageRecord) : TimelineEntry {
             override val timestampMillis: Long = record.timestampMillis
-            override val order: Int = 0
+            override val order: Int = 1
         }
 
         data class Checkpoint(val checkpoint: PostureCheckpoint) : TimelineEntry {
             override val timestampMillis: Long = checkpoint.timestampMillis
-            override val order: Int = 1
+            override val order: Int = 2
+        }
+
+        data class DeviceState(val checkpoint: DeviceStateCheckpoint) : TimelineEntry {
+            override val timestampMillis: Long = checkpoint.observedAtMillis
+            // The observation precedes the query end. Raw events at the same millisecond win.
+            override val order: Int = 0
         }
 
         data class CollectionGap(
             override val timestampMillis: Long,
         ) : TimelineEntry {
-            override val order: Int = 2
+            override val order: Int = 3
         }
     }
 }
