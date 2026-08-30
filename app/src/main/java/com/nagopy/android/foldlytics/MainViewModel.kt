@@ -669,7 +669,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 window.seedStartMillis,
                                 window.rangeEndMillis,
                             )
-                            val checkpoints = checkpointRepository.load(
+                            val checkpoints = checkpointRepository.loadForAnalysis(
                                 window.seedStartMillis,
                                 window.rangeEndMillis,
                             )

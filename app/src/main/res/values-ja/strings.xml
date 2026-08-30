@@ -77,6 +77,7 @@
     <string name="selected_date_range">選択中 %1$s〜%2$s</string>
     <string name="short_date_pattern">yyyy/M/d</string>
     <string name="time_pattern">MM/dd HH:mm:ss</string>
+    <string name="inner_session_start_time_pattern">yyyy/M/d HH:mm</string>
     <string name="report_date_time_pattern">yyyy-MM-dd HH:mm:ss</string>
     <string name="duration_hours_minutes">%1$d時間%2$d分</string>
     <string name="duration_hours_only">%1$d時間</string>

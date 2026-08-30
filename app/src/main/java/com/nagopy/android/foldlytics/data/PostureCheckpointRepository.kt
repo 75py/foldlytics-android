@@ -14,6 +14,12 @@ class PostureCheckpointRepository(
     suspend fun load(beginMillis: Long, endMillis: Long): List<PostureCheckpoint> =
         dao.load(beginMillis, endMillis).map(PostureCheckpointEntity::toModel)
 
+    suspend fun loadForAnalysis(
+        beginMillis: Long,
+        endMillis: Long,
+    ): List<PostureCheckpoint> = dao.loadForAnalysis(beginMillis, endMillis)
+        .map(PostureCheckpointEntity::toModel)
+
     suspend fun latest(source: PostureCheckpointSource): PostureCheckpoint? =
         dao.latest(source.name)?.toModel()
 

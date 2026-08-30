@@ -187,12 +187,9 @@ class DailySummaryRepository(
             val records = usageEventDao.loadUsageEventsForAnalysis(chunkStart, chunkEnd)
                 .map(UsageEventEntity::toModel)
             val currentRecords = records.filter { it.timestampMillis >= chunkStart }
-            val currentCheckpoints = checkpointDao.load(chunkStart, chunkEnd)
+            val checkpoints = checkpointDao.loadForAnalysis(chunkStart, chunkEnd)
                 .map(PostureCheckpointEntity::toModel)
-            val checkpoints = buildList {
-                checkpointDao.latestBefore(chunkStart)?.let { add(it.toModel()) }
-                addAll(currentCheckpoints)
-            }
+            val currentCheckpoints = checkpoints.filter { it.timestampMillis >= chunkStart }
             val deviceStateCheckpoints =
                 usageEventDao.loadDeviceStateCheckpointsForAnalysis(chunkStart, chunkEnd)
                     .mapNotNull(SyncHistoryEntity::toDeviceStateCheckpoint)

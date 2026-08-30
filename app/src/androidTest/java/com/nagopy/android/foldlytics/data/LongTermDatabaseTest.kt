@@ -7,6 +7,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nagopy.android.foldlytics.model.Calibration
 import com.nagopy.android.foldlytics.model.DisplayConfiguration
+import com.nagopy.android.foldlytics.model.PostureCheckpoint
+import com.nagopy.android.foldlytics.model.PostureCheckpointSource
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
@@ -56,6 +58,79 @@ class LongTermDatabaseTest {
     @Test
     fun createsFreshVersionFourDatabase() {
         assertEquals(4, database.openHelper.readableDatabase.version)
+    }
+
+    @Test
+    fun periodAnalysisAndPersistedSessionsShareThePostureBaselineBeforeSeed() = runBlocking {
+        val rangeEnd = LocalDate.of(2026, 1, 4)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        val window = createUsageAnalysisWindow(
+            periodHours = 24,
+            syncedThroughMillis = rangeEnd,
+        )
+        val openedAt = window.rangeStartMillis + TimeUnit.HOURS.toMillis(1L)
+        val closedAt = openedAt + TimeUnit.HOURS.toMillis(1L)
+        database.postureCheckpointDao().insert(
+            PostureCheckpoint(
+                timestampMillis = window.seedStartMillis - 1L,
+                configuration = configuration,
+                source = PostureCheckpointSource.MANUAL_REFRESH,
+            ).toEntity(),
+        )
+        database.usageEventDao().insertEvents(
+            listOf(
+                event(
+                    key = "opened",
+                    timestampMillis = openedAt,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = innerConfiguration,
+                ),
+                event(
+                    key = "closed",
+                    timestampMillis = closedAt,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = configuration,
+                ),
+            ),
+        )
+
+        val checkpoints = PostureCheckpointRepository(database.postureCheckpointDao())
+            .loadForAnalysis(window.seedStartMillis, window.rangeEndMillis)
+        assertEquals(
+            listOf(window.seedStartMillis - 1L),
+            checkpoints.map(PostureCheckpoint::timestampMillis),
+        )
+        val analysis = UsageAnalyzer(packageLabel = { it }).analyze(
+            records = database.usageEventDao()
+                .loadUsageEventsForAnalysis(window.seedStartMillis, window.rangeEndMillis)
+                .map(UsageEventEntity::toModel),
+            rangeStartMillis = window.rangeStartMillis,
+            rangeEndMillis = window.rangeEndMillis,
+            calibration = Calibration(cover = configuration, inner = innerConfiguration),
+            checkpoints = checkpoints,
+            zoneId = zoneId,
+        )
+        val summaryRepository = repository()
+        summaryRepository.ensureUpToDate(
+            calibration = Calibration(cover = configuration, inner = innerConfiguration),
+            syncedThroughMillis = window.rangeEndMillis,
+            syncQueryBeginMillis = window.seedStartMillis,
+            checkpointRevision = 0L,
+            zoneId = zoneId,
+            collectionGapStarts = emptyList(),
+        )
+        val sessions = summaryRepository.loadCompleteInnerSessions(
+            window.rangeStartMillis,
+            window.rangeEndMillis,
+        )
+
+        assertEquals(1, analysis.openedCount)
+        assertEquals(1, sessions.size)
+        assertEquals(analysis.openedCount, sessions.size)
     }
 
     @Test

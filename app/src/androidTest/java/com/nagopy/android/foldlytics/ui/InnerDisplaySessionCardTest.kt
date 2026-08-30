@@ -19,19 +19,35 @@ import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nagopy.android.foldlytics.MainUiState
 import com.nagopy.android.foldlytics.R
-import com.nagopy.android.foldlytics.toTimeText
+import com.nagopy.android.foldlytics.toInnerSessionStartText
 import com.nagopy.android.foldlytics.model.AnalysisPeriod
 import com.nagopy.android.foldlytics.model.InnerSessionAppUsage
 import com.nagopy.android.foldlytics.model.InnerSessionDetail
 import com.nagopy.android.foldlytics.model.InnerSessionSummary
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
+import java.time.Instant
 import java.util.Locale
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
 class InnerDisplaySessionCardTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun includesYearAndStopsAtMinutesInSessionStartForJapaneseAndEnglish() {
+        val timestampMillis = Instant.parse("2026-08-16T12:00:00Z").toEpochMilli()
+
+        assertTrue(
+            timestampMillis.toInnerSessionStartText(localizedContext(Locale.ENGLISH).resources)
+                .matches(Regex("\\d{1,2}/\\d{1,2}/2026 \\d{2}:\\d{2}")),
+        )
+        assertTrue(
+            timestampMillis.toInnerSessionStartText(localizedContext(Locale.JAPANESE).resources)
+                .matches(Regex("2026/\\d{1,2}/\\d{1,2} \\d{2}:\\d{2}")),
+        )
+    }
 
     @Test
     fun showsEnglishMetricsLongSessionsTopThreeAppsAndOther() {
@@ -91,7 +107,7 @@ class InnerDisplaySessionCardTest {
         composeRule.onNodeWithContentDescription(
             context.getString(
                 R.string.content_desc_inner_session_detail,
-                1_000L.toTimeText(context.resources),
+                1_000L.toInnerSessionStartText(context.resources),
                 context.getString(R.string.duration_seconds, 4),
                 listOf(
                     context.getString(
@@ -211,7 +227,7 @@ class InnerDisplaySessionCardTest {
         composeRule.onNodeWithContentDescription(
             context.getString(
                 R.string.content_desc_inner_session_detail,
-                1_000L.toTimeText(context.resources),
+                1_000L.toInnerSessionStartText(context.resources),
                 context.getString(R.string.duration_seconds, 1),
                 context.getString(R.string.content_desc_inner_session_no_apps),
                 context.getString(R.string.duration_seconds, 1),

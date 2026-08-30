@@ -99,6 +99,7 @@ import com.nagopy.android.foldlytics.model.PeriodUsageSummary
 import com.nagopy.android.foldlytics.model.customAnalysisRangeDayCount
 import com.nagopy.android.foldlytics.model.recordedCalendarDayCount
 import com.nagopy.android.foldlytics.toDurationText
+import com.nagopy.android.foldlytics.toInnerSessionStartText
 import com.nagopy.android.foldlytics.toShortDateText
 import com.nagopy.android.foldlytics.toTimeText
 import java.time.Instant
@@ -1360,7 +1361,7 @@ private fun InnerSessionDetailContent(
     color: Color,
 ) {
     val resources = LocalResources.current
-    val openedAtText = session.openedAtMillis.toTimeText(resources)
+    val openedAtText = session.openedAtMillis.toInnerSessionStartText(resources)
     val durationText = session.innerActiveMillis.toDurationText(resources)
     val appDescription = session.appUsages
         .map { app ->

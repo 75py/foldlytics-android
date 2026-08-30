@@ -81,10 +81,11 @@ Android 10以降の対応する折りたたみ端末向けです。
 スクリーンショット見出し候補:
 
 1. `外側と内側、それぞれの利用時間が分かる`
-2. `使い方の変化を週・月・年単位で確認`
-3. `検出した開閉回数を期間ごとに振り返る`
-4. `画面ごとによく使うアプリを比較`
-5. `利用履歴は端末内だけに保存`
+2. `開いてから閉じるまでの利用時間が分かる`
+3. `使い方の変化を週・月・年単位で確認`
+4. `検出した開閉回数を期間ごとに振り返る`
+5. `画面ごとによく使うアプリを比較`
+6. `利用履歴は端末内だけに保存`
 
 ## English (en-US)
 
@@ -144,10 +145,11 @@ How much do you use the inner display?
 Screenshot headline candidates:
 
 1. `See your cover and inner display time`
-2. `Follow your usage trends over weeks and months`
-3. `Track detected opens over time`
-4. `See which apps you use on each display`
-5. `Your usage history stays on your device`
+2. `See your inner-display time from opening to closing`
+3. `Follow your usage trends over weeks and months`
+4. `Track detected opens over time`
+5. `See which apps you use on each display`
+6. `Your usage history stays on your device`
 
 ## 表現上の統一ルール
 

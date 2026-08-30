@@ -23,6 +23,9 @@ import com.nagopy.android.foldlytics.model.AnalysisPeriod
 import com.nagopy.android.foldlytics.model.AppUsage
 import com.nagopy.android.foldlytics.model.DailyPostureSummary
 import com.nagopy.android.foldlytics.model.DisplayPosture
+import com.nagopy.android.foldlytics.model.InnerSessionAppUsage
+import com.nagopy.android.foldlytics.model.InnerSessionDetail
+import com.nagopy.android.foldlytics.model.InnerSessionSummary
 import com.nagopy.android.foldlytics.model.LongTermPeriod
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
 import java.io.File
@@ -133,22 +136,25 @@ class StoreScreenshotCaptureTest {
         scrollable.performScrollToIndex(SUMMARY_ITEM_INDEX)
         capture("01-summary", outputDirectory)
 
+        scrollable.performScrollToIndex(INNER_SESSION_ITEM_INDEX)
+        capture("02-inner-sessions", outputDirectory)
+
         scrollable.performScrollToIndex(TRENDS_ITEM_INDEX)
-        capture("02-trends", outputDirectory)
+        capture("03-trends", outputDirectory)
 
         scrollable.performScrollToIndex(OPEN_COUNT_ITEM_INDEX)
-        capture("03-open-count", outputDirectory)
+        capture("04-open-count", outputDirectory)
 
         scrollable.performScrollToIndex(APP_RANKING_ITEM_INDEX)
         composeRule.onNodeWithContentDescription(
             context.getString(R.string.content_desc_inner_app_ranking),
         ).performClick()
-        capture("04-app-ranking", outputDirectory)
+        capture("05-app-ranking", outputDirectory)
 
         composeRule.onNodeWithContentDescription(
             context.getString(R.string.content_desc_open_menu),
         ).performClick()
-        capture("05-on-device", outputDirectory)
+        capture("06-on-device", outputDirectory)
     }
 
     private fun representativeState(appLabels: AppLabels): MainUiState {
@@ -198,6 +204,12 @@ class StoreScreenshotCaptureTest {
             zoneId = zoneId,
         )
         val apps = representativeApps(insights.coverMillis, insights.innerMillis, appLabels)
+        val innerSessionSummary = representativeInnerSessionSummary(
+            rangeStartMillis = insights.rangeStartMillis,
+            rangeEndMillis = insights.rangeEndMillis,
+            detectedOpenCount = insights.openedCount,
+            labels = appLabels,
+        )
 
         return MainUiState(
             hasUsageAccess = true,
@@ -217,6 +229,7 @@ class StoreScreenshotCaptureTest {
                 closedCount = insights.closedCount,
                 apps = apps,
             ),
+            innerSessionSummary = innerSessionSummary,
             longTermInsights = insights,
             lastSuccessfulSyncMillis = recordEndMillis - minutes(2L),
         )
@@ -233,6 +246,86 @@ class StoreScreenshotCaptureTest {
         app("demo.photos", labels.photos, coverMillis, 11, innerMillis, 14),
         app("demo.reader", labels.reading, coverMillis, 7, innerMillis, 27),
     )
+
+    private fun representativeInnerSessionSummary(
+        rangeStartMillis: Long,
+        rangeEndMillis: Long,
+        detectedOpenCount: Int,
+        labels: AppLabels,
+    ): InnerSessionSummary {
+        val dayMillis = minutes(24L * 60L)
+        val completeSessionCount = detectedOpenCount - 15
+        return InnerSessionSummary(
+            rangeStartMillis = rangeStartMillis,
+            rangeEndMillis = rangeEndMillis,
+            detectedOpenCount = detectedOpenCount,
+            completeSessionCount = completeSessionCount,
+            medianInnerActiveMillis = minutes(18L),
+            averageInnerActiveMillis = minutes(22L),
+            longestInnerActiveMillis = minutes(42L),
+            longSessions = listOf(
+                InnerSessionDetail(
+                    openedAtMillis = rangeStartMillis + dayMillis * 5L + minutes(9L * 60L + 15L),
+                    openedSequenceAtTimestamp = 0,
+                    innerActiveMillis = minutes(42L),
+                    appUsages = listOf(
+                        InnerSessionAppUsage(
+                            packageName = "demo.reader",
+                            label = labels.reading,
+                            innerActiveMillis = minutes(21L),
+                        ),
+                        InnerSessionAppUsage(
+                            packageName = "demo.browser",
+                            label = labels.browser,
+                            innerActiveMillis = minutes(12L),
+                        ),
+                        InnerSessionAppUsage(
+                            packageName = "demo.photos",
+                            label = labels.photos,
+                            innerActiveMillis = minutes(5L),
+                        ),
+                    ),
+                    otherInnerActiveMillis = minutes(4L),
+                ),
+                InnerSessionDetail(
+                    openedAtMillis = rangeStartMillis + dayMillis * 22L + minutes(14L * 60L + 40L),
+                    openedSequenceAtTimestamp = 0,
+                    innerActiveMillis = minutes(34L),
+                    appUsages = listOf(
+                        InnerSessionAppUsage(
+                            packageName = "demo.browser",
+                            label = labels.browser,
+                            innerActiveMillis = minutes(14L),
+                        ),
+                        InnerSessionAppUsage(
+                            packageName = "demo.messages",
+                            label = labels.messages,
+                            innerActiveMillis = minutes(9L),
+                        ),
+                    ),
+                    otherInnerActiveMillis = minutes(11L),
+                ),
+                InnerSessionDetail(
+                    openedAtMillis = rangeStartMillis + dayMillis * 47L + minutes(18L * 60L + 5L),
+                    openedSequenceAtTimestamp = 0,
+                    innerActiveMillis = minutes(27L),
+                    appUsages = listOf(
+                        InnerSessionAppUsage(
+                            packageName = "demo.maps",
+                            label = labels.maps,
+                            innerActiveMillis = minutes(12L),
+                        ),
+                        InnerSessionAppUsage(
+                            packageName = "demo.reader",
+                            label = labels.reading,
+                            innerActiveMillis = minutes(7L),
+                        ),
+                    ),
+                    otherInnerActiveMillis = minutes(8L),
+                ),
+            ),
+        )
+    }
 
     private fun app(
         packageName: String,
@@ -284,9 +377,10 @@ class StoreScreenshotCaptureTest {
         private const val RECORD_DAY_COUNT = 365L
         private const val TREND_DAY_COUNT = 90L
         private const val SUMMARY_ITEM_INDEX = 2
-        private const val TRENDS_ITEM_INDEX = 3
-        private const val OPEN_COUNT_ITEM_INDEX = 5
-        private const val APP_RANKING_ITEM_INDEX = 6
+        private const val INNER_SESSION_ITEM_INDEX = 3
+        private const val TRENDS_ITEM_INDEX = 4
+        private const val OPEN_COUNT_ITEM_INDEX = 6
+        private const val APP_RANKING_ITEM_INDEX = 7
         private const val JAPANESE_OUTPUT_DIRECTORY = "store-screenshots"
         private const val ENGLISH_OUTPUT_DIRECTORY = "store-screenshots-en"
     }

@@ -6,6 +6,8 @@ japanese_raw_dir="$script_dir/raw-ja"
 english_raw_dir="$script_dir/raw-en"
 japanese_output_dir="$script_dir/ja-JP/phone"
 english_output_dir="$script_dir/en-US/phone"
+japanese_preview_file="$script_dir/previews/ja-JP-phone-contact-sheet.png"
+english_preview_file="$script_dir/previews/en-US-phone-contact-sheet.png"
 font_path="${FOLDLYTICS_STORE_FONT:-/System/Library/Fonts/ヒラギノ角ゴシック W6.ttc}"
 work_dir="$(mktemp -d /private/tmp/foldlytics-store-screenshots.XXXXXX)"
 
@@ -19,7 +21,7 @@ if [[ ! -f "$font_path" ]]; then
     exit 1
 fi
 
-mkdir -p "$japanese_output_dir" "$english_output_dir"
+mkdir -p "$japanese_output_dir" "$english_output_dir" "$script_dir/previews"
 
 render_screenshot() {
     local raw_dir="$1"
@@ -89,8 +91,17 @@ render_screenshot \
 render_screenshot \
     "$japanese_raw_dir" \
     "$japanese_output_dir" \
-    "02-trends.png" \
-    "02-long-term-trends.png" \
+    "02-inner-sessions.png" \
+    "02-inner-sessions.png" \
+    $'開いてから閉じるまでの\n利用時間が分かる' \
+    '#0067A5' \
+    54
+
+render_screenshot \
+    "$japanese_raw_dir" \
+    "$japanese_output_dir" \
+    "03-trends.png" \
+    "03-long-term-trends.png" \
     $'使い方の変化を\n週・月・年単位で確認' \
     '#C44E00' \
     54
@@ -98,8 +109,8 @@ render_screenshot \
 render_screenshot \
     "$japanese_raw_dir" \
     "$japanese_output_dir" \
-    "03-open-count.png" \
-    "03-open-count.png" \
+    "04-open-count.png" \
+    "04-open-count.png" \
     $'検出した開閉回数を\n期間ごとに振り返る' \
     '#0067A5' \
     54
@@ -107,8 +118,8 @@ render_screenshot \
 render_screenshot \
     "$japanese_raw_dir" \
     "$japanese_output_dir" \
-    "04-app-ranking.png" \
-    "04-app-ranking.png" \
+    "05-app-ranking.png" \
+    "05-app-ranking.png" \
     $'画面ごとによく使う\nアプリを比較' \
     '#C44E00' \
     54
@@ -116,8 +127,8 @@ render_screenshot \
 render_screenshot \
     "$japanese_raw_dir" \
     "$japanese_output_dir" \
-    "05-on-device.png" \
-    "05-on-device.png" \
+    "06-on-device.png" \
+    "06-on-device.png" \
     $'利用履歴は\n端末内だけに保存' \
     '#0067A5' \
     54
@@ -134,8 +145,17 @@ render_screenshot \
 render_screenshot \
     "$english_raw_dir" \
     "$english_output_dir" \
-    "02-trends.png" \
-    "02-long-term-trends.png" \
+    "02-inner-sessions.png" \
+    "02-inner-sessions.png" \
+    $'See your inner-display use\nfrom opening to closing' \
+    '#0067A5' \
+    50
+
+render_screenshot \
+    "$english_raw_dir" \
+    "$english_output_dir" \
+    "03-trends.png" \
+    "03-long-term-trends.png" \
     $'Follow your usage trends\nover weeks and months' \
     '#C44E00' \
     50
@@ -143,8 +163,8 @@ render_screenshot \
 render_screenshot \
     "$english_raw_dir" \
     "$english_output_dir" \
-    "03-open-count.png" \
-    "03-open-count.png" \
+    "04-open-count.png" \
+    "04-open-count.png" \
     $'Track detected opens\nover time' \
     '#0067A5' \
     50
@@ -152,8 +172,8 @@ render_screenshot \
 render_screenshot \
     "$english_raw_dir" \
     "$english_output_dir" \
-    "04-app-ranking.png" \
-    "04-app-ranking.png" \
+    "05-app-ranking.png" \
+    "05-app-ranking.png" \
     $'See which apps you use\non each display' \
     '#C44E00' \
     50
@@ -161,8 +181,30 @@ render_screenshot \
 render_screenshot \
     "$english_raw_dir" \
     "$english_output_dir" \
-    "05-on-device.png" \
-    "05-on-device.png" \
+    "06-on-device.png" \
+    "06-on-device.png" \
     $'Your usage history\nstays on your device' \
     '#0067A5' \
     50
+
+build_contact_sheet() {
+    local output_dir="$1"
+    local output_file="$2"
+
+    magick montage \
+        -font "$font_path" \
+        -tile 6x1 \
+        -geometry 216x384+0+0 \
+        -strip \
+        -depth 8 \
+        "$output_dir/01-display-time.png" \
+        "$output_dir/02-inner-sessions.png" \
+        "$output_dir/03-long-term-trends.png" \
+        "$output_dir/04-open-count.png" \
+        "$output_dir/05-app-ranking.png" \
+        "$output_dir/06-on-device.png" \
+        "PNG24:$output_file"
+}
+
+build_contact_sheet "$japanese_output_dir" "$japanese_preview_file"
+build_contact_sheet "$english_output_dir" "$english_preview_file"

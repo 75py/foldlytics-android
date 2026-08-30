@@ -474,6 +474,15 @@ interface PostureCheckpointDao {
     )
     suspend fun load(beginMillis: Long, endMillis: Long): List<PostureCheckpointEntity>
 
+    @Transaction
+    suspend fun loadForAnalysis(
+        beginMillis: Long,
+        endMillis: Long,
+    ): List<PostureCheckpointEntity> = buildList {
+        latestBefore(beginMillis)?.let(::add)
+        addAll(load(beginMillis, endMillis))
+    }
+
     @Query(
         """
         SELECT * FROM posture_checkpoints
