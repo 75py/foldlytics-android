@@ -103,6 +103,85 @@ class InnerDisplaySessionAnalyzerTest {
     }
 
     @Test
+    fun doesNotCountUnobservedScreenAndLockStateAsZeroTime() {
+        val analyzer = analyzer()
+
+        analyzer.processChunk(
+            records = listOf(
+                record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+                record(1_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+                record(61_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            ),
+            checkpoints = emptyList(),
+            collectionGapStarts = emptyList(),
+            chunkEndMillis = 62_000,
+        )
+
+        assertTrue(analyzer.sessionsAtEnd().isEmpty())
+    }
+
+    @Test
+    fun excludesScreenOnIntervalWhenLockStateIsUnobserved() {
+        val analyzer = analyzer()
+
+        analyzer.processChunk(
+            records = listOf(
+                record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+                record(0, UsageEventKind.SCREEN_INTERACTIVE),
+                record(1_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+                record(61_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            ),
+            checkpoints = emptyList(),
+            collectionGapStarts = emptyList(),
+            chunkEndMillis = 62_000,
+        )
+
+        assertTrue(analyzer.sessionsAtEnd().isEmpty())
+    }
+
+    @Test
+    fun confirmedScreenOffWithUnknownLockStateCountsAsZeroTime() {
+        val analyzer = analyzer()
+
+        analyzer.processChunk(
+            records = listOf(
+                record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+                record(500, UsageEventKind.SCREEN_NON_INTERACTIVE),
+                record(1_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+                record(61_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            ),
+            checkpoints = emptyList(),
+            collectionGapStarts = emptyList(),
+            chunkEndMillis = 62_000,
+        )
+
+        val session = analyzer.sessionsAtEnd().single()
+        assertTrue(session.isComplete)
+        assertEquals(0L, session.innerActiveMillis)
+    }
+
+    @Test
+    fun discardsWholeSessionWhenUnknownTimePrecedesKnownState() {
+        val analyzer = analyzer()
+
+        analyzer.processChunk(
+            records = listOf(
+                record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+                record(0, UsageEventKind.SCREEN_INTERACTIVE),
+                record(1_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+                // Screen-on is known, but lock state is still unknown for this interval.
+                record(2_000, UsageEventKind.KEYGUARD_HIDDEN),
+                record(4_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            ),
+            checkpoints = emptyList(),
+            collectionGapStarts = emptyList(),
+            chunkEndMillis = 5_000,
+        )
+
+        assertTrue(analyzer.sessionsAtEnd().isEmpty())
+    }
+
+    @Test
     fun restartUnknownPostureAndCollectionGapInvalidatePendingSessions() {
         val restartAnalyzer = analyzer()
         restartAnalyzer.processChunk(

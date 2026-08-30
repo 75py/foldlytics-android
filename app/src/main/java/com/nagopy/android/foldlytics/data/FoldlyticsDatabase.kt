@@ -20,7 +20,6 @@ import com.nagopy.android.foldlytics.model.DailyAppUsageSummary
 import com.nagopy.android.foldlytics.model.DailyPostureSummary
 import com.nagopy.android.foldlytics.model.DisplayConfiguration
 import com.nagopy.android.foldlytics.model.InnerDisplaySession
-import com.nagopy.android.foldlytics.model.InnerDisplaySessionAppUsage
 import com.nagopy.android.foldlytics.model.PostureCheckpoint
 import com.nagopy.android.foldlytics.model.PostureCheckpointSource
 import com.nagopy.android.foldlytics.model.UsageRecord
@@ -1055,12 +1054,6 @@ internal fun InnerDisplaySessionEntity.toModel(
         closedAtMillis = closedAtMillis,
         innerActiveMillis = innerActiveMillis,
         appUsageMillis = appUsages.associate { it.packageName to it.innerActiveMillis },
-    )
-
-internal fun InnerDisplaySessionAppUsageEntity.toModel(): InnerDisplaySessionAppUsage =
-    InnerDisplaySessionAppUsage(
-        packageName = packageName,
-        innerActiveMillis = innerActiveMillis,
     )
 
 private fun stableKey(vararg fields: String?): String {

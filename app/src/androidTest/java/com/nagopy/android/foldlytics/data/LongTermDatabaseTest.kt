@@ -89,6 +89,18 @@ class LongTermDatabaseTest {
                     eventConfiguration = innerConfiguration,
                 ),
                 event(
+                    key = "screen-on",
+                    timestampMillis = openedAt - 2L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.SCREEN_INTERACTIVE,
+                ),
+                event(
+                    key = "unlocked",
+                    timestampMillis = openedAt - 1L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.KEYGUARD_HIDDEN,
+                ),
+                event(
                     key = "closed",
                     timestampMillis = closedAt,
                     sequence = 0,
@@ -161,7 +173,7 @@ class LongTermDatabaseTest {
             calibrationKey = "calibration",
             zoneId = zoneId.id,
             checkpointRevision = 0L,
-            aggregationVersion = 4,
+            aggregationVersion = 5,
         )
         val first = session(1_000L, 100L)
         val second = session(5_000L, 200L)
@@ -711,7 +723,8 @@ class LongTermDatabaseTest {
                     "cover=443,994,443,1,420|inner=852,883,852,1,420",
                 zoneId = zoneId.id,
                 checkpointRevision = 0L,
-                aggregationVersion = 2,
+                // Version 4 is the previous cache format; version 5 must rebuild it.
+                aggregationVersion = 4,
             ),
         )
 
@@ -727,7 +740,7 @@ class LongTermDatabaseTest {
         val sessions = repository().loadCompleteInnerSessions(start, end)
         assertEquals(listOf(openedAt), sessions.map { it.openedAtMillis })
         assertEquals(1_000L, sessions.single().innerActiveMillis)
-        assertEquals(4, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
+        assertEquals(5, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
         assertEquals(1, database.dailyPostureSummaryDao().loadAll().single().openedCount)
     }
 

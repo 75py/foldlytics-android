@@ -2,7 +2,6 @@ package com.nagopy.android.foldlytics.data
 
 import com.nagopy.android.foldlytics.model.DailyPostureSummary
 import com.nagopy.android.foldlytics.model.InnerDisplaySession
-import com.nagopy.android.foldlytics.model.InnerDisplaySessionAppUsage
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -72,12 +71,5 @@ class DatabaseModelMappingTest {
             childEntities.map { it.packageName },
         )
         assertEquals(listOf(1_000L, 500L), childEntities.map { it.innerActiveMillis })
-        assertEquals(
-            listOf(
-                InnerDisplaySessionAppUsage("app.example", 1_000L),
-                InnerDisplaySessionAppUsage("app.other", 500L),
-            ),
-            childEntities.map(InnerDisplaySessionAppUsageEntity::toModel),
-        )
     }
 }

@@ -8,8 +8,11 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -64,24 +67,24 @@ class InnerDisplaySessionCardTest {
                 detail(
                     openedAtMillis = 1_000L,
                     innerActiveMillis = 4_000L,
-                    apps = listOf(
+                    appUsages = listOf(
                         app("one", "One", 2_000L),
                         app("two", "Two", 1_000L),
                         app("three", "Three", 500L),
                     ),
-                    otherMillis = 500L,
+                    otherInnerActiveMillis = 500L,
                 ),
                 detail(
                     openedAtMillis = 2_000L,
                     innerActiveMillis = 3_000L,
-                    apps = listOf(app("four", "Four", 2_000L)),
-                    otherMillis = 1_000L,
+                    appUsages = listOf(app("four", "Four", 2_000L)),
+                    otherInnerActiveMillis = 1_000L,
                 ),
                 detail(
                     openedAtMillis = 3_000L,
                     innerActiveMillis = 2_500L,
-                    apps = emptyList(),
-                    otherMillis = 2_500L,
+                    appUsages = emptyList(),
+                    otherInnerActiveMillis = 2_500L,
                 ),
             ),
         )
@@ -93,6 +96,9 @@ class InnerDisplaySessionCardTest {
         composeRule.onNodeWithText(context.getString(R.string.inner_sessions_description))
             .assertExists()
         composeRule.onNodeWithTag(INNER_SESSION_COUNT_TAG).assertExists()
+        composeRule.onNodeWithText(
+            "Inner-display uses summarized: 4. Openings detected: 5.",
+        ).assertExists()
         composeRule.onNodeWithTag(INNER_SESSION_METRICS_TAG).assertExists()
         composeRule.onNodeWithContentDescription(
             context.getString(
@@ -104,36 +110,48 @@ class InnerDisplaySessionCardTest {
                 context.getString(R.string.duration_seconds, 4),
             ),
         ).assertExists()
-        composeRule.onNodeWithContentDescription(
-            context.getString(
-                R.string.content_desc_inner_session_detail,
-                1_000L.toInnerSessionStartText(context.resources),
-                context.getString(R.string.duration_seconds, 4),
-                listOf(
-                    context.getString(
-                        R.string.content_desc_inner_session_app,
-                        "One",
-                        context.getString(R.string.duration_seconds, 2),
-                    ),
-                    context.getString(
-                        R.string.content_desc_inner_session_app,
-                        "Two",
-                        context.getString(R.string.duration_seconds, 1),
-                    ),
-                    context.getString(
-                        R.string.content_desc_inner_session_app,
-                        "Three",
-                        context.getString(R.string.duration_seconds, 0),
-                    ),
-                ).joinToString(
-                    context.getString(R.string.content_desc_inner_session_app_separator),
+        val firstDetailDescription = context.getString(
+            R.string.content_desc_inner_session_detail,
+            1_000L.toInnerSessionStartText(context.resources),
+            context.getString(R.string.duration_seconds, 4),
+            listOf(
+                context.getString(
+                    R.string.content_desc_inner_session_app,
+                    "One",
+                    context.getString(R.string.duration_seconds, 2),
                 ),
-                context.getString(R.string.duration_seconds, 0),
+                context.getString(
+                    R.string.content_desc_inner_session_app,
+                    "Two",
+                    context.getString(R.string.duration_seconds, 1),
+                ),
+                context.getString(
+                    R.string.content_desc_inner_session_app,
+                    "Three",
+                    context.getString(R.string.duration_seconds, 0),
+                ),
+            ).joinToString(
+                context.getString(R.string.content_desc_inner_session_app_separator),
             ),
-            useUnmergedTree = true,
-        ).assertExists()
+            context.getString(R.string.duration_seconds, 0),
+        )
+        composeRule.onAllNodes(
+            hasContentDescription(firstDetailDescription),
+            useUnmergedTree = false,
+        ).assertCountEquals(1)
+        composeRule.onAllNodes(
+            hasText("One"),
+            useUnmergedTree = false,
+        ).assertCountEquals(0)
+        composeRule.onAllNodes(
+            hasText(context.getString(R.string.inner_session_other)),
+            useUnmergedTree = false,
+        ).assertCountEquals(0)
         composeRule.onNodeWithText(context.getString(R.string.long_inner_sessions_title))
             .assertExists()
+        composeRule.onNodeWithText(
+            context.getString(R.string.inner_session_other_description),
+        ).assertExists()
         composeRule.onNodeWithTag(
             "${INNER_SESSION_APP_TAG_PREFIX}one",
             useUnmergedTree = true,
@@ -201,8 +219,8 @@ class InnerDisplaySessionCardTest {
                 detail(
                     openedAtMillis = 1_000L,
                     innerActiveMillis = 1_000L,
-                    apps = emptyList(),
-                    otherMillis = 1_000L,
+                    appUsages = emptyList(),
+                    otherInnerActiveMillis = 1_000L,
                 ),
             ),
         )
@@ -232,7 +250,7 @@ class InnerDisplaySessionCardTest {
                 context.getString(R.string.content_desc_inner_session_no_apps),
                 context.getString(R.string.duration_seconds, 1),
             ),
-            useUnmergedTree = true,
+            useUnmergedTree = false,
         ).assertExists()
         composeRule.onNodeWithTag(
             "${INNER_SESSION_OTHER_TAG_PREFIX}1000_0",
@@ -258,18 +276,64 @@ class InnerDisplaySessionCardTest {
         scrollToSessionCard()
 
         composeRule.onNodeWithTag(INNER_SESSION_METRICS_TAG).assertExists()
+        composeRule.onNodeWithText(
+            "Inner-display uses summarized: 1. Openings detected: 1.",
+        ).assertExists()
         composeRule.onNodeWithContentDescription(
-            context.getString(
-                R.string.content_desc_inner_session_metrics,
-                1,
-                1,
-                context.getString(R.string.duration_seconds, 0),
-                context.getString(R.string.duration_seconds, 0),
-                context.getString(R.string.duration_seconds, 0),
-            ),
+            "Inner-display uses summarized: 1. Openings detected: 1. " +
+                "Median ${context.getString(R.string.duration_seconds, 0)}. " +
+                "Average ${context.getString(R.string.duration_seconds, 0)}. " +
+                "Longest ${context.getString(R.string.duration_seconds, 0)}.",
         ).assertExists()
         composeRule.onNodeWithText(context.getString(R.string.long_inner_sessions_empty))
             .assertExists()
+    }
+
+    @Test
+    fun hidesAndOmitsOtherWhenNoTimeRemainsAfterDisplayedApps() {
+        val context = localizedContext(Locale.ENGLISH)
+        val sessionSummary = InnerSessionSummary(
+            rangeStartMillis = 0L,
+            rangeEndMillis = 10_000L,
+            detectedOpenCount = 1,
+            completeSessionCount = 1,
+            medianInnerActiveMillis = 1_000L,
+            averageInnerActiveMillis = 1_000L,
+            longestInnerActiveMillis = 1_000L,
+            longSessions = listOf(
+                detail(
+                    openedAtMillis = 1_000L,
+                    innerActiveMillis = 1_000L,
+                    appUsages = listOf(app("one", "One", 1_000L)),
+                    otherInnerActiveMillis = 0L,
+                ),
+            ),
+        )
+
+        setContent(context, sessionSummary)
+        scrollToSessionCard()
+
+        composeRule.onNodeWithTag(
+            "${INNER_SESSION_OTHER_TAG_PREFIX}1000_0",
+            useUnmergedTree = true,
+        ).assertDoesNotExist()
+        composeRule.onNodeWithTag(
+            INNER_SESSION_OTHER_DESCRIPTION_TAG,
+            useUnmergedTree = true,
+        ).assertDoesNotExist()
+        composeRule.onNodeWithContentDescription(
+            context.getString(
+                R.string.content_desc_inner_session_detail_without_other,
+                1_000L.toInnerSessionStartText(context.resources),
+                context.getString(R.string.duration_seconds, 1),
+                context.getString(
+                    R.string.content_desc_inner_session_app,
+                    "One",
+                    context.getString(R.string.duration_seconds, 1),
+                ),
+            ),
+            useUnmergedTree = false,
+        ).assertExists()
     }
 
     @Test
@@ -287,8 +351,8 @@ class InnerDisplaySessionCardTest {
                 detail(
                     openedAtMillis = 1_000L,
                     innerActiveMillis = 2_000L,
-                    apps = listOf(app("narrow.app", "Narrow app", 1_000L)),
-                    otherMillis = 1_000L,
+                    appUsages = listOf(app("narrow.app", "Narrow app", 1_000L)),
+                    otherInnerActiveMillis = 1_000L,
                 ),
             ),
         )
@@ -378,14 +442,14 @@ class InnerDisplaySessionCardTest {
     private fun detail(
         openedAtMillis: Long,
         innerActiveMillis: Long,
-        apps: List<InnerSessionAppUsage>,
-        otherMillis: Long,
+        appUsages: List<InnerSessionAppUsage>,
+        otherInnerActiveMillis: Long,
     ) = InnerSessionDetail(
         openedAtMillis = openedAtMillis,
         openedSequenceAtTimestamp = 0,
         innerActiveMillis = innerActiveMillis,
-        appUsages = apps,
-        otherInnerActiveMillis = otherMillis,
+        appUsages = appUsages,
+        otherInnerActiveMillis = otherInnerActiveMillis,
     )
 
     private fun app(

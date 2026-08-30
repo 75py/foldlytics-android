@@ -93,7 +93,7 @@ render_screenshot \
     "$japanese_output_dir" \
     "02-inner-sessions.png" \
     "02-inner-sessions.png" \
-    $'開いてから閉じるまでの\n利用時間が分かる' \
+    $'1回の内側画面利用時間が\n分かる' \
     '#0067A5' \
     54
 
@@ -147,7 +147,7 @@ render_screenshot \
     "$english_output_dir" \
     "02-inner-sessions.png" \
     "02-inner-sessions.png" \
-    $'See your inner-display use\nfrom opening to closing' \
+    $'See inner-display use\nfor each opening' \
     '#0067A5' \
     50
 

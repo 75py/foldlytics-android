@@ -19,8 +19,8 @@ class InnerDisplaySessionAnalyzer(
     private val analysisStartMillis: Long,
 ) {
     private var lastTimestampMillis: Long? = null
-    private var screenInteractive = false
-    private var keyguardHidden = false
+    private var screenInteractive = EvidenceState.UNKNOWN
+    private var keyguardHidden = EvidenceState.UNKNOWN
     private var posture = DisplayPosture.UNKNOWN
     private val resumedActivities = linkedMapOf<String, String>()
     private var pendingSession: PendingSession? = null
@@ -57,8 +57,8 @@ class InnerDisplaySessionAnalyzer(
             when (entry) {
                 is TimelineEntry.CollectionGap -> resetEvidence()
                 is TimelineEntry.DeviceState -> {
-                    screenInteractive = entry.checkpoint.screenInteractive
-                    keyguardHidden = entry.checkpoint.keyguardHidden
+                    screenInteractive = entry.checkpoint.screenInteractive.toEvidenceState()
+                    keyguardHidden = entry.checkpoint.keyguardHidden.toEvidenceState()
                 }
 
                 is TimelineEntry.Checkpoint -> applyConfiguration(
@@ -76,7 +76,9 @@ class InnerDisplaySessionAnalyzer(
 
     fun sessionsAtEnd(): List<InnerDisplaySession> = buildList {
         addAll(completedSessions)
-        pendingSession?.let { add(it.toModel(closedAtMillis = null)) }
+        pendingSession
+            ?.takeUnless(PendingSession::hasUnknownEvidence)
+            ?.let { add(it.toModel(closedAtMillis = null)) }
     }
 
     private fun advanceTo(timestampMillis: Long) {
@@ -90,21 +92,32 @@ class InnerDisplaySessionAnalyzer(
         }
         val duration = timestampMillis - previousTimestamp
         val pending = pendingSession
-        if (
-            duration > 0L &&
-            pending != null &&
-            screenInteractive &&
-            keyguardHidden &&
-            posture == DisplayPosture.INNER
-        ) {
-            pending.innerActiveMillis += duration
-            val packageName = resumedActivities.values.toSet().singleOrNull()
-            if (packageName != null) {
-                pending.appUsageMillis[packageName] =
-                    pending.appUsageMillis.getOrDefault(packageName, 0L) + duration
+        if (duration > 0L && pending != null && posture == DisplayPosture.INNER) {
+            when (innerIntervalState()) {
+                InnerIntervalState.ACTIVE -> {
+                    pending.innerActiveMillis += duration
+                    val packageName = resumedActivities.values.toSet().singleOrNull()
+                    if (packageName != null) {
+                        pending.appUsageMillis[packageName] =
+                            pending.appUsageMillis.getOrDefault(packageName, 0L) + duration
+                    }
+                }
+
+                InnerIntervalState.INACTIVE -> Unit
+                InnerIntervalState.UNKNOWN -> pending.hasUnknownEvidence = true
             }
         }
         lastTimestampMillis = timestampMillis
+    }
+
+    private fun innerIntervalState(): InnerIntervalState = when {
+        screenInteractive == EvidenceState.FALSE || keyguardHidden == EvidenceState.FALSE ->
+            InnerIntervalState.INACTIVE
+
+        screenInteractive == EvidenceState.TRUE && keyguardHidden == EvidenceState.TRUE ->
+            InnerIntervalState.ACTIVE
+
+        else -> InnerIntervalState.UNKNOWN
     }
 
     private fun applyUsageRecord(record: UsageRecord) {
@@ -126,10 +139,10 @@ class InnerDisplaySessionAnalyzer(
                 sequenceAtTimestamp = record.sequenceAtTimestamp,
             )
 
-            UsageEventKind.SCREEN_INTERACTIVE -> screenInteractive = true
-            UsageEventKind.SCREEN_NON_INTERACTIVE -> screenInteractive = false
-            UsageEventKind.KEYGUARD_HIDDEN -> keyguardHidden = true
-            UsageEventKind.KEYGUARD_SHOWN -> keyguardHidden = false
+            UsageEventKind.SCREEN_INTERACTIVE -> screenInteractive = EvidenceState.TRUE
+            UsageEventKind.SCREEN_NON_INTERACTIVE -> screenInteractive = EvidenceState.FALSE
+            UsageEventKind.KEYGUARD_HIDDEN -> keyguardHidden = EvidenceState.TRUE
+            UsageEventKind.KEYGUARD_SHOWN -> keyguardHidden = EvidenceState.FALSE
             UsageEventKind.DEVICE_STARTUP,
             UsageEventKind.DEVICE_SHUTDOWN,
             -> resetEvidence()
@@ -153,7 +166,9 @@ class InnerDisplaySessionAnalyzer(
         pendingSession?.let { pending ->
             when {
                 confirmsClose -> {
-                    completedSessions += pending.toModel(closedAtMillis = timestampMillis)
+                    if (!pending.hasUnknownEvidence) {
+                        completedSessions += pending.toModel(closedAtMillis = timestampMillis)
+                    }
                     pendingSession = null
                 }
 
@@ -176,8 +191,8 @@ class InnerDisplaySessionAnalyzer(
     }
 
     private fun resetEvidence() {
-        screenInteractive = false
-        keyguardHidden = false
+        screenInteractive = EvidenceState.UNKNOWN
+        keyguardHidden = EvidenceState.UNKNOWN
         posture = DisplayPosture.UNKNOWN
         resumedActivities.clear()
         pendingSession = null
@@ -191,6 +206,7 @@ class InnerDisplaySessionAnalyzer(
         val openedSequenceAtTimestamp: Int,
         var innerActiveMillis: Long = 0L,
         val appUsageMillis: LinkedHashMap<String, Long> = linkedMapOf(),
+        var hasUnknownEvidence: Boolean = false,
     ) {
         fun toModel(closedAtMillis: Long?): InnerDisplaySession = InnerDisplaySession(
             openedAtMillis = openedAtMillis,
@@ -200,6 +216,21 @@ class InnerDisplaySessionAnalyzer(
             appUsageMillis = appUsageMillis.toMap(),
         )
     }
+
+    private enum class EvidenceState {
+        TRUE,
+        FALSE,
+        UNKNOWN,
+    }
+
+    private enum class InnerIntervalState {
+        ACTIVE,
+        INACTIVE,
+        UNKNOWN,
+    }
+
+    private fun Boolean.toEvidenceState(): EvidenceState =
+        if (this) EvidenceState.TRUE else EvidenceState.FALSE
 
     private sealed interface TimelineEntry {
         val timestampMillis: Long

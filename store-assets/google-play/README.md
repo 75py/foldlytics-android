@@ -44,7 +44,7 @@ least four portrait app screenshots at 1080 px or higher. The added headline are
 
 - Feature graphic: `橙色の外側と青色の内側が折り重なる抽象図と、Foldlyticsの利用目的を示すコピー。`
 - 01: `90日間の外側・内側の利用時間、内側割合、データ充足率、検出した開閉回数を表示した利用サマリー。`
-- 02: `開いてから閉じるまでの利用カードで、中央値・平均値・最長時間と長く使った回のアプリ内訳を表示した画面。`
+- 02: `1回の内側画面利用カードで、中央値・平均値・最長時間と長く使った回のアプリ内訳を表示した画面。`
 - 03: `90日間の内側利用割合と開いた回数を折れ線グラフで表示した利用傾向。`
 - 04: `検出した開いた回数の推移と期間合計、その下に続く画面別アプリランキング。`
 - 05: `内側ディスプレイでの表示時間を基準に、読書やブラウザなどを並べたアプリランキング。`
@@ -54,7 +54,7 @@ least four portrait app screenshots at 1080 px or higher. The added headline are
 
 - Feature graphic: `An abstract orange outer surface folds over a blue inner surface beside the Foldlytics name and tagline.`
 - 01: `A 90-day Foldlytics usage summary showing cover and inner display time, a 64% inner share, 98% data coverage, and 945 detected opens and closes.`
-- 02: `The opening-to-closing inner-display session card showing median, average, longest time, and app breakdowns for the three longest sessions.`
+- 02: `The opening-to-closing inner-display use card showing median, average, longest time, and app breakdowns for the three longest uses.`
 - 03: `Foldlytics line charts showing inner-display share and detected open count across a 90-day period.`
 - 04: `The detected-open trend chart with a total of 945, followed by the app ranking section.`
 - 05: `The inner-display app ranking led by Reading, Browser, Photos, and Messages.`
@@ -71,9 +71,9 @@ in the release APK and never changes a user's database.
 - Cover display: 145 hours 26 minutes.
 - Inner display: 259 hours 1 minute (64%).
 - Data coverage: 98%.
-- Detected opens and closes: 945 each; complete sessions recorded through closing: 930.
+- Detected opens and closes: 945 each; openings summarized through closing: 930.
 - Recent 30-day inner-display share: 7.8 points above the first 30 days.
-- Inner-display sessions: three positive-time sessions of 42, 34, and 27 minutes, with launchable app breakdowns and remaining time grouped as Other.
+- Inner-display uses: three long uses of 42, 34, and 27 minutes, with app breakdowns and remaining time grouped as Other.
 - App names and package names are generic fixtures, so no user data or third-party app marks are
   present.
 

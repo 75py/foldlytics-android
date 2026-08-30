@@ -121,6 +121,7 @@ internal const val INNER_SESSION_CARD_TAG = "inner_session_card"
 internal const val INNER_SESSION_METRICS_TAG = "inner_session_metrics"
 internal const val INNER_SESSION_EMPTY_TAG = "inner_session_empty"
 internal const val INNER_SESSION_COUNT_TAG = "inner_session_count"
+internal const val INNER_SESSION_OTHER_DESCRIPTION_TAG = "inner_session_other_description"
 internal const val INNER_SESSION_DETAIL_TAG_PREFIX = "inner_session_detail_"
 internal const val INNER_SESSION_OTHER_TAG_PREFIX = "inner_session_other_"
 internal const val INNER_SESSION_APP_TAG_PREFIX = "inner_session_app_"
@@ -1234,8 +1235,8 @@ private fun InnerDisplaySessionCard(summary: InnerSessionSummary) {
 
         val countText = stringResource(
             R.string.value_complete_inner_sessions,
-            summary.detectedOpenCount,
             summary.completeSessionCount,
+            summary.detectedOpenCount,
         )
         Text(
             countText,
@@ -1345,6 +1346,14 @@ private fun InnerDisplaySessionCard(summary: InnerSessionSummary) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
+            if (longSessions.any { it.otherInnerActiveMillis > 0L }) {
+                Text(
+                    stringResource(R.string.inner_session_other_description),
+                    modifier = Modifier.testTag(INNER_SESSION_OTHER_DESCRIPTION_TAG),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             longSessions.forEach { session ->
                 InnerSessionDetailContent(
                     session = session,
@@ -1375,13 +1384,22 @@ private fun InnerSessionDetailContent(
             listOf(resources.getString(R.string.content_desc_inner_session_no_apps))
         }
         .joinToString(resources.getString(R.string.content_desc_inner_session_app_separator))
-    val detailDescription = stringResource(
-        R.string.content_desc_inner_session_detail,
-        openedAtText,
-        durationText,
-        appDescription,
-        session.otherInnerActiveMillis.toDurationText(resources),
-    )
+    val detailDescription = if (session.otherInnerActiveMillis > 0L) {
+        stringResource(
+            R.string.content_desc_inner_session_detail,
+            openedAtText,
+            durationText,
+            appDescription,
+            session.otherInnerActiveMillis.toDurationText(resources),
+        )
+    } else {
+        stringResource(
+            R.string.content_desc_inner_session_detail_without_other,
+            openedAtText,
+            durationText,
+            appDescription,
+        )
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1390,7 +1408,7 @@ private fun InnerSessionDetailContent(
                 "$INNER_SESSION_DETAIL_TAG_PREFIX" +
                     "${session.openedAtMillis}_${session.openedSequenceAtTimestamp}",
             )
-            .semantics(mergeDescendants = true) {
+            .clearAndSetSemantics {
                 contentDescription = detailDescription
             },
         verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -1417,10 +1435,12 @@ private fun InnerSessionDetailContent(
         session.appUsages.forEach { app ->
             InnerSessionAppRow(app)
         }
-        InnerSessionOtherRow(
-            session = session,
-            resources = resources,
-        )
+        if (session.otherInnerActiveMillis > 0L) {
+            InnerSessionOtherRow(
+                session = session,
+                resources = resources,
+            )
+        }
     }
 }
 
