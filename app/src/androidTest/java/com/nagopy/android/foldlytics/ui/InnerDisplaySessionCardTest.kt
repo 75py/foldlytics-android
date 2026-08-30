@@ -2,7 +2,10 @@ package com.nagopy.android.foldlytics.ui
 
 import android.content.Context
 import android.content.res.Configuration
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.hasScrollAction
@@ -12,11 +15,14 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nagopy.android.foldlytics.MainUiState
 import com.nagopy.android.foldlytics.R
+import com.nagopy.android.foldlytics.toTimeText
 import com.nagopy.android.foldlytics.model.AnalysisPeriod
-import com.nagopy.android.foldlytics.model.InnerSessionAppSummary
+import com.nagopy.android.foldlytics.model.InnerSessionAppUsage
+import com.nagopy.android.foldlytics.model.InnerSessionDetail
 import com.nagopy.android.foldlytics.model.InnerSessionSummary
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
 import java.util.Locale
@@ -28,7 +34,7 @@ class InnerDisplaySessionCardTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun showsMetricsTopThreeAppsAndUnclassifiedStartsInEnglish() {
+    fun showsEnglishMetricsLongSessionsTopThreeAppsAndOther() {
         val context = localizedContext(Locale.ENGLISH)
         val sessionSummary = InnerSessionSummary(
             rangeStartMillis = 0L,
@@ -36,19 +42,41 @@ class InnerDisplaySessionCardTest {
             detectedOpenCount = 5,
             completeSessionCount = 4,
             medianInnerActiveMillis = 2_000L,
+            averageInnerActiveMillis = 2_500L,
             longestInnerActiveMillis = 4_000L,
-            startApps = listOf(
-                app("one", "One", 2, 4_000L),
-                app("two", "Two", 1, 2_000L),
-                app("three", "Three", 1, 1_000L),
-                app("four", "Four", 1, 500L),
+            longSessions = listOf(
+                detail(
+                    openedAtMillis = 1_000L,
+                    innerActiveMillis = 4_000L,
+                    apps = listOf(
+                        app("one", "One", 2_000L),
+                        app("two", "Two", 1_000L),
+                        app("three", "Three", 500L),
+                    ),
+                    otherMillis = 500L,
+                ),
+                detail(
+                    openedAtMillis = 2_000L,
+                    innerActiveMillis = 3_000L,
+                    apps = listOf(app("four", "Four", 2_000L)),
+                    otherMillis = 1_000L,
+                ),
+                detail(
+                    openedAtMillis = 3_000L,
+                    innerActiveMillis = 2_500L,
+                    apps = emptyList(),
+                    otherMillis = 2_500L,
+                ),
             ),
-            unclassifiedStartCount = 1,
         )
 
         setContent(context, sessionSummary)
         scrollToSessionCard()
 
+        composeRule.onNodeWithText(context.getString(R.string.inner_sessions_title)).assertExists()
+        composeRule.onNodeWithText(context.getString(R.string.inner_sessions_description))
+            .assertExists()
+        composeRule.onNodeWithTag(INNER_SESSION_COUNT_TAG).assertExists()
         composeRule.onNodeWithTag(INNER_SESSION_METRICS_TAG).assertExists()
         composeRule.onNodeWithContentDescription(
             context.getString(
@@ -56,15 +84,60 @@ class InnerDisplaySessionCardTest {
                 4,
                 5,
                 context.getString(R.string.duration_seconds, 2),
+                context.getString(R.string.duration_seconds, 2),
                 context.getString(R.string.duration_seconds, 4),
             ),
         ).assertExists()
-        composeRule.onNodeWithTag("${INNER_SESSION_APP_TAG_PREFIX}one").assertExists()
-        composeRule.onNodeWithTag("${INNER_SESSION_APP_TAG_PREFIX}two").assertExists()
-        composeRule.onNodeWithTag("${INNER_SESSION_APP_TAG_PREFIX}three").assertExists()
-        composeRule.onNodeWithTag("${INNER_SESSION_APP_TAG_PREFIX}four").assertDoesNotExist()
-        composeRule.onNodeWithText(context.getString(R.string.label_unclassified_session_starts))
+        composeRule.onNodeWithContentDescription(
+            context.getString(
+                R.string.content_desc_inner_session_detail,
+                1_000L.toTimeText(context.resources),
+                context.getString(R.string.duration_seconds, 4),
+                listOf(
+                    context.getString(
+                        R.string.content_desc_inner_session_app,
+                        "One",
+                        context.getString(R.string.duration_seconds, 2),
+                    ),
+                    context.getString(
+                        R.string.content_desc_inner_session_app,
+                        "Two",
+                        context.getString(R.string.duration_seconds, 1),
+                    ),
+                    context.getString(
+                        R.string.content_desc_inner_session_app,
+                        "Three",
+                        context.getString(R.string.duration_seconds, 0),
+                    ),
+                ).joinToString(
+                    context.getString(R.string.content_desc_inner_session_app_separator),
+                ),
+                context.getString(R.string.duration_seconds, 0),
+            ),
+            useUnmergedTree = true,
+        ).assertExists()
+        composeRule.onNodeWithText(context.getString(R.string.long_inner_sessions_title))
             .assertExists()
+        composeRule.onNodeWithTag(
+            "${INNER_SESSION_APP_TAG_PREFIX}one",
+            useUnmergedTree = true,
+        ).assertExists()
+        composeRule.onNodeWithTag(
+            "${INNER_SESSION_APP_TAG_PREFIX}two",
+            useUnmergedTree = true,
+        ).assertExists()
+        composeRule.onNodeWithTag(
+            "${INNER_SESSION_APP_TAG_PREFIX}three",
+            useUnmergedTree = true,
+        ).assertExists()
+        composeRule.onNodeWithTag(
+            "${INNER_SESSION_APP_TAG_PREFIX}four",
+            useUnmergedTree = true,
+        ).assertExists()
+        composeRule.onNodeWithTag(
+            "${INNER_SESSION_OTHER_TAG_PREFIX}1000_0",
+            useUnmergedTree = true,
+        ).assertExists()
     }
 
     @Test
@@ -98,7 +171,61 @@ class InnerDisplaySessionCardTest {
     }
 
     @Test
-    fun showsZeroSecondsForACompleteZeroTimeSession() {
+    fun showsJapaneseSummaryLabelsAndOtherTime() {
+        val context = localizedContext(Locale.JAPANESE)
+        val sessionSummary = InnerSessionSummary(
+            rangeStartMillis = 0L,
+            rangeEndMillis = 10_000L,
+            detectedOpenCount = 2,
+            completeSessionCount = 1,
+            medianInnerActiveMillis = 1_000L,
+            averageInnerActiveMillis = 1_000L,
+            longestInnerActiveMillis = 1_000L,
+            longSessions = listOf(
+                detail(
+                    openedAtMillis = 1_000L,
+                    innerActiveMillis = 1_000L,
+                    apps = emptyList(),
+                    otherMillis = 1_000L,
+                ),
+            ),
+        )
+
+        setContent(context, sessionSummary)
+        scrollToSessionCard()
+
+        composeRule.onNodeWithText(context.getString(R.string.inner_sessions_title)).assertExists()
+        composeRule.onNodeWithText(context.getString(R.string.inner_sessions_description))
+            .assertExists()
+        composeRule.onNodeWithTag(INNER_SESSION_METRICS_TAG).assertExists()
+        composeRule.onNodeWithContentDescription(
+            context.getString(
+                R.string.content_desc_inner_session_metrics,
+                1,
+                2,
+                context.getString(R.string.duration_seconds, 1),
+                context.getString(R.string.duration_seconds, 1),
+                context.getString(R.string.duration_seconds, 1),
+            ),
+        ).assertExists()
+        composeRule.onNodeWithContentDescription(
+            context.getString(
+                R.string.content_desc_inner_session_detail,
+                1_000L.toTimeText(context.resources),
+                context.getString(R.string.duration_seconds, 1),
+                context.getString(R.string.content_desc_inner_session_no_apps),
+                context.getString(R.string.duration_seconds, 1),
+            ),
+            useUnmergedTree = true,
+        ).assertExists()
+        composeRule.onNodeWithTag(
+            "${INNER_SESSION_OTHER_TAG_PREFIX}1000_0",
+            useUnmergedTree = true,
+        ).assertExists()
+    }
+
+    @Test
+    fun showsZeroSecondsForACompleteZeroTimeSessionWithoutLongSession() {
         val context = localizedContext(Locale.ENGLISH)
         val sessionSummary = InnerSessionSummary(
             rangeStartMillis = 0L,
@@ -106,9 +233,9 @@ class InnerDisplaySessionCardTest {
             detectedOpenCount = 1,
             completeSessionCount = 1,
             medianInnerActiveMillis = 0L,
+            averageInnerActiveMillis = 0L,
             longestInnerActiveMillis = 0L,
-            startApps = emptyList(),
-            unclassifiedStartCount = 1,
+            longSessions = emptyList(),
         )
 
         setContent(context, sessionSummary)
@@ -122,9 +249,49 @@ class InnerDisplaySessionCardTest {
                 1,
                 context.getString(R.string.duration_seconds, 0),
                 context.getString(R.string.duration_seconds, 0),
+                context.getString(R.string.duration_seconds, 0),
             ),
         ).assertExists()
-        composeRule.onNodeWithTag(INNER_SESSION_EMPTY_TAG).assertDoesNotExist()
+        composeRule.onNodeWithText(context.getString(R.string.long_inner_sessions_empty))
+            .assertExists()
+    }
+
+    @Test
+    fun stacksSessionMetricsAtNarrowWidthWithoutDroppingBreakdown() {
+        val context = localizedContext(Locale.ENGLISH)
+        val sessionSummary = InnerSessionSummary(
+            rangeStartMillis = 0L,
+            rangeEndMillis = 10_000L,
+            detectedOpenCount = 1,
+            completeSessionCount = 1,
+            medianInnerActiveMillis = 2_000L,
+            averageInnerActiveMillis = 2_000L,
+            longestInnerActiveMillis = 2_000L,
+            longSessions = listOf(
+                detail(
+                    openedAtMillis = 1_000L,
+                    innerActiveMillis = 2_000L,
+                    apps = listOf(app("narrow.app", "Narrow app", 1_000L)),
+                    otherMillis = 1_000L,
+                ),
+            ),
+        )
+
+        setContent(context, sessionSummary, widthDp = 320)
+        scrollToSessionCard()
+
+        composeRule.onNodeWithText(
+            context.getString(R.string.label_median_inner_session_time),
+            useUnmergedTree = true,
+        ).assertExists()
+        composeRule.onNodeWithTag(
+            "${INNER_SESSION_APP_TAG_PREFIX}narrow.app",
+            useUnmergedTree = true,
+        ).assertExists()
+        composeRule.onNodeWithText(
+            context.getString(R.string.inner_session_other),
+            useUnmergedTree = true,
+        ).assertExists()
     }
 
     private fun scrollToSessionCard() {
@@ -133,41 +300,49 @@ class InnerDisplaySessionCardTest {
         )
     }
 
-    private fun setContent(context: Context, sessionSummary: InnerSessionSummary) {
+    private fun setContent(
+        context: Context,
+        sessionSummary: InnerSessionSummary,
+        widthDp: Int? = null,
+    ) {
         composeRule.setContent {
             CompositionLocalProvider(
                 LocalContext provides context,
                 LocalConfiguration provides context.resources.configuration,
             ) {
                 FoldlyticsTheme {
-                    FoldlyticsScreen(
-                        state = MainUiState(
-                            hasUsageAccess = true,
-                            periodSummary = PeriodUsageSummary(
-                                period = AnalysisPeriod.HOURS_24,
-                                rangeStartMillis = sessionSummary.rangeStartMillis,
-                                rangeEndMillis = sessionSummary.rangeEndMillis,
-                                coverMillis = 1_000L,
-                                innerMillis = 1_000L,
-                                excludedMillis = 0L,
-                                openedCount = sessionSummary.detectedOpenCount,
-                                closedCount = sessionSummary.completeSessionCount,
-                                apps = emptyList(),
+                    Box(
+                        modifier = widthDp?.let { Modifier.width(it.dp) } ?: Modifier,
+                    ) {
+                        FoldlyticsScreen(
+                            state = MainUiState(
+                                hasUsageAccess = true,
+                                periodSummary = PeriodUsageSummary(
+                                    period = AnalysisPeriod.HOURS_24,
+                                    rangeStartMillis = sessionSummary.rangeStartMillis,
+                                    rangeEndMillis = sessionSummary.rangeEndMillis,
+                                    coverMillis = 1_000L,
+                                    innerMillis = 1_000L,
+                                    excludedMillis = 0L,
+                                    openedCount = sessionSummary.detectedOpenCount,
+                                    closedCount = sessionSummary.completeSessionCount,
+                                    apps = emptyList(),
+                                ),
+                                innerSessionSummary = sessionSummary,
                             ),
-                            innerSessionSummary = sessionSummary,
-                        ),
-                        onOpenUsageAccess = {},
-                        onSaveCover = {},
-                        onSaveInner = {},
-                        onClearCalibration = {},
-                        onPeriodChanged = {},
-                        onCustomPeriodChanged = { _, _ -> },
-                        onRefresh = {},
-                        onShare = {},
-                        onExportCsv = {},
-                        onOpenPrivacyPolicy = {},
-                        onOpenOssLicenses = {},
-                    )
+                            onOpenUsageAccess = {},
+                            onSaveCover = {},
+                            onSaveInner = {},
+                            onClearCalibration = {},
+                            onPeriodChanged = {},
+                            onCustomPeriodChanged = { _, _ -> },
+                            onRefresh = {},
+                            onShare = {},
+                            onExportCsv = {},
+                            onOpenPrivacyPolicy = {},
+                            onOpenOssLicenses = {},
+                        )
+                    }
                 }
             }
         }
@@ -179,22 +354,32 @@ class InnerDisplaySessionCardTest {
         detectedOpenCount = detectedOpenCount,
         completeSessionCount = 0,
         medianInnerActiveMillis = null,
+        averageInnerActiveMillis = null,
         longestInnerActiveMillis = null,
-        startApps = emptyList(),
-        unclassifiedStartCount = 0,
+        longSessions = emptyList(),
+    )
+
+    private fun detail(
+        openedAtMillis: Long,
+        innerActiveMillis: Long,
+        apps: List<InnerSessionAppUsage>,
+        otherMillis: Long,
+    ) = InnerSessionDetail(
+        openedAtMillis = openedAtMillis,
+        openedSequenceAtTimestamp = 0,
+        innerActiveMillis = innerActiveMillis,
+        appUsages = apps,
+        otherInnerActiveMillis = otherMillis,
     )
 
     private fun app(
         packageName: String,
         label: String,
-        sessionCount: Int,
-        totalMillis: Long,
-    ) = InnerSessionAppSummary(
+        innerActiveMillis: Long,
+    ) = InnerSessionAppUsage(
         packageName = packageName,
         label = label,
-        completeSessionCount = sessionCount,
-        totalInnerActiveMillis = totalMillis,
-        isLauncherApp = true,
+        innerActiveMillis = innerActiveMillis,
     )
 
     private fun localizedContext(locale: Locale): Context {

@@ -18,8 +18,9 @@ Download: [https://play.google.com/store/apps/details?id=com.nagopy.android.fold
 
 - Cover and inner display time, plus the inner-display ratio.
 - Detected open and close counts.
-- Complete inner-display sessions, including median and longest active time per
-  session and the apps shown when sessions began.
+- Use from opening to closing: complete inner-display sessions with median,
+  average, and longest active time, plus the three longest sessions and their
+  top app usage.
 - Average detected opens per observed day.
 - Days with recorded data and days on which the inner display was used.
 - Inner-display ratio and detected-open trends over longer periods.
@@ -30,9 +31,13 @@ Download: [https://play.google.com/store/apps/details?id=com.nagopy.android.fold
 - Data coverage and collection status.
 - Daily CSV export for all saved history, to a destination you choose.
 
-Inner-display session analysis uses the same usage events already stored on the
-device. It adds no permission or automatic data transfer; its derived cache can
-be regenerated from the saved source events.
+Inner-display sessions treat each detected opening followed by a detected close
+as one session. The session statistics include zero-time complete sessions. For
+the three longest positive-time sessions, the app breakdown shows at most three
+launchable apps; non-launchable apps, fourth and later apps, and intervals that
+cannot be assigned to one package are shown as Other. The same usage events
+already stored on the device are used, with no new permission or automatic data
+transfer; the derived cache can be regenerated from the saved source events.
 
 ## Build and test
 

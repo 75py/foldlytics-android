@@ -43,7 +43,7 @@ Foldlytics：折りたたみ利用分析
 
 ### 詳しい説明
 
-812 / 4,000文字
+1,035 / 4,000文字
 
 ```text
 折りたたみスマホを、実際どれくらい開いて使っていますか？
@@ -53,7 +53,8 @@ Foldlyticsは、対応する折りたたみAndroid端末で、外側と内側の
 確認できること
 ・外側／内側ディスプレイごとの利用時間と割合
 ・検出した「開いた」「閉じた」回数
-・完全に観測できた内側利用セッションの回数、中央値、最長時間、開始時のアプリ
+・「開いてから閉じるまでの利用」の完全セッション数、中央値、平均値、最長時間
+・長く使った最大3回の開始日時、内側利用時間、アプリ別上位3件、その他の時間
 ・内側利用割合と開いた回数の推移
 ・外側／内側それぞれでよく使うアプリのランキング
 ・プリセット期間と、日付を指定した任意期間の集計
@@ -64,7 +65,7 @@ Foldlyticsは、対応する折りたたみAndroid端末で、外側と内側の
 
 データは、アプリのデータを消去するかアンインストールするまで端末内に保存されます。内側利用セッションも、同じ利用状況イベントから端末内で集計します。この機能のために新しい権限やデータの外部送信を追加しません。広告・分析SDKは使用せず、外部サーバーへ自動送信しません。CSV保存と診断レポートの共有は、ユーザーが操作した場合にだけ実行します。
 
-開閉回数は、Androidから取得できた画面構成イベントに基づく検出値です。物理ヒンジの絶対カウンターではありません。根拠のない区間は推測せず、外側・内側の統計から除外してデータ充足率に反映します。取得できるイベントは、機種やAndroidバージョンによって異なる場合があります。
+開閉回数は、Androidから取得できた画面構成イベントに基づく検出値です。物理ヒンジの絶対カウンターではありません。完全セッションは、選択期間内に「開いた」とその後の「閉じた」の両方を検出できた回だけです。0秒の完全セッションも中央値・平均値・最長時間に含めますが、長く使った最大3回には表示しません。対象区間の`ACTIVITY_RESUMED`が異なるpackageが1件のときだけアプリへ時間を配分し、0件・複数件・非ランチャーアプリ・4件目以降の時間は「その他」にまとめます。根拠のない区間は推測せず、外側・内側の統計から除外してデータ充足率に反映します。取得できるイベントは、機種やAndroidバージョンによって異なる場合があります。
 
 Android 10以降の対応する折りたたみ端末向けです。
 ```
@@ -105,7 +106,7 @@ Track display time, detected opens and closes, and app usage on your device.
 
 ### Full description
 
-1,746 / 4,000 characters
+2,342 / 4,000 characters
 
 ```text
 How often do you actually unfold your phone?
@@ -115,7 +116,8 @@ Foldlytics records how you use the cover and inner displays on a compatible fold
 What you can review
 • Time spent on the cover and inner displays
 • Detected open and close counts
-• Complete inner-display sessions, median and longest active time, and start apps
+• Complete inner-display sessions from opening to closing, with median, average, and longest active time
+• The three longest positive-time sessions, with start time, inner-display active time, top three apps, and Other time
 • Trends for inner display use and detected opens
 • App rankings for each display
 • Preset periods and custom date ranges
@@ -126,7 +128,7 @@ Foldlytics requires Android Usage Access. It reads which apps were displayed, wh
 
 Your data stays on your device until you clear the app's data or uninstall it. Inner-display sessions are calculated on-device from the same usage events. This feature adds no permission or external data transfer. Foldlytics does not use advertising or analytics SDKs and does not automatically send data to an external server. CSV export and diagnostic report sharing occur only when you choose them.
 
-Open and close counts come from display configuration events provided by Android. They are detections, not an absolute physical hinge counter. Foldlytics does not fill missing intervals with estimates. It leaves uncertain time out of the cover and inner display totals and reflects it in data coverage. Available events can vary by device and Android version.
+Open and close counts come from display configuration events provided by Android. They are detections, not an absolute physical hinge counter. A complete inner-display session includes only an opening and its following close within the selected period; sessions with zero active time still count in the median, average, and longest values, but are not shown among the three longest sessions. During an eligible interval, time is assigned to a package only when exactly one distinct resumed package is present. Missing, multi-resume, non-launchable, and fourth-or-later app time is shown as Other. Foldlytics does not fill missing intervals with estimates. It leaves uncertain time out of the cover and inner display totals and reflects it in data coverage. Available events can vary by device and Android version.
 
 Requires Android 10 or later and a compatible foldable device.
 ```

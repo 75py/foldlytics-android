@@ -98,9 +98,10 @@ class InnerDisplaySessionAnalyzer(
             posture == DisplayPosture.INNER
         ) {
             pending.innerActiveMillis += duration
-            if (!pending.startAppResolved) {
-                pending.startPackageName = resumedActivities.values.toSet().singleOrNull()
-                pending.startAppResolved = true
+            val packageName = resumedActivities.values.toSet().singleOrNull()
+            if (packageName != null) {
+                pending.appUsageMillis[packageName] =
+                    pending.appUsageMillis.getOrDefault(packageName, 0L) + duration
             }
         }
         lastTimestampMillis = timestampMillis
@@ -189,15 +190,14 @@ class InnerDisplaySessionAnalyzer(
         val openedAtMillis: Long,
         val openedSequenceAtTimestamp: Int,
         var innerActiveMillis: Long = 0L,
-        var startAppResolved: Boolean = false,
-        var startPackageName: String? = null,
+        val appUsageMillis: LinkedHashMap<String, Long> = linkedMapOf(),
     ) {
         fun toModel(closedAtMillis: Long?): InnerDisplaySession = InnerDisplaySession(
             openedAtMillis = openedAtMillis,
             openedSequenceAtTimestamp = openedSequenceAtTimestamp,
             closedAtMillis = closedAtMillis,
             innerActiveMillis = innerActiveMillis,
-            startPackageName = startPackageName,
+            appUsageMillis = appUsageMillis.toMap(),
         )
     }
 

@@ -38,9 +38,9 @@ An inner-display session starts only when a display configuration event confirms
 
 Foldlytics includes a session in the selected period only when both its detected open and detected close are inside that period. A session is invalidated if display configuration becomes unknown, a device startup or shutdown is observed, collection is interrupted, or other evidence moves the state away from the inner display without a confirmed close. Screen-off and locked intervals pause active-time accumulation but do not end the session.
 
-Inner active time includes only intervals when the screen is interactive, the device is unlocked, and the inner display remains confirmed. A completely observed session with no such interval is retained with an active time of zero. Foldlytics shows the number of complete sessions relative to detected opens, the median active time, and the longest active time. For an even number of sessions, the median is the midpoint of the two middle durations.
+Inner active time includes only intervals when the screen is interactive, the device is unlocked, and the inner display remains confirmed. A completely observed session with no such interval is retained with an active time of zero. Foldlytics shows the number of complete sessions relative to detected opens, the median, arithmetic average, and longest active time. Zero-time complete sessions are included in all three statistics; the average is calculated with integer milliseconds without overflowing `Long`. For an even number of sessions, the median is the midpoint of the two middle durations.
 
-The session-start app is resolved once, at the first positive-duration inner active interval. Foldlytics assigns an app only when the `ACTIVITY_RESUMED` activities at that point identify exactly one package. If no app or multiple apps are resumed, the session remains unclassified; it does not guess from a later interval. The ranking shows launchable apps only and orders them by complete-session count, then total inner active time, then app name. Unclassified and non-launchable starts still remain part of the complete-session statistics.
+Each session also retains inner active time by package. When exactly one distinct package has a resumed activity during an eligible interval, that package receives the interval's time. Intervals with no resumed package or multiple distinct resumed packages are kept as unallocated time. For the three longest complete sessions with positive inner active time, Foldlytics shows the start time, inner active time, the top three launchable apps by time, and the remaining time as Other. Non-launchable apps, fourth and later apps, and unallocated time are included in Other. Ties between sessions are ordered by newer start time and then by the recorded event sequence.
 
 ## Inner display share and data coverage
 
@@ -54,7 +54,7 @@ Data coverage reports how much of the observed device use Foldlytics could class
 
 Foldlytics counts an app's display time while its activity is `ACTIVITY_RESUMED`, the screen is interactive, and the device is unlocked. An interval with an unknown display does not contribute to the app's cover or inner display time.
 
-In split screen and other multi-resume situations, more than one app can be `ACTIVITY_RESUMED` at the same time. The sum of per-app display time can therefore exceed device use time. The ranking on the home screen includes only apps that can be launched from the device launcher.
+In split screen and other multi-resume situations, more than one app can be `ACTIVITY_RESUMED` at the same time. The existing display-specific app ranking can therefore have app totals that exceed device use time. The per-session breakdown assigns such intervals to Other, so the displayed app total for a session never exceeds that session's inner active time. Both the existing ranking and session breakdown show only apps that can be launched from the device launcher.
 
 ## Privacy impact of session analysis
 

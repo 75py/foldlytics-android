@@ -142,23 +142,132 @@ data class AppUsage(
     val observedMillis: Long = classifiedMillis + excludedMillis
 }
 
+data class InnerDisplaySessionAppUsage(
+    val packageName: String,
+    val innerActiveMillis: Long,
+) {
+    val usageMillis: Long
+        get() = innerActiveMillis
+}
+
+/**
+ * A session between a detected cover-to-inner transition and the following inner-to-cover
+ * transition.
+ *
+ * The package map contains only time for intervals that had exactly one distinct resumed package.
+ * The difference between [innerActiveMillis] and the map total is intentionally retained as
+ * unallocated time and is presented as "Other".
+ */
 data class InnerDisplaySession(
     val openedAtMillis: Long,
     val openedSequenceAtTimestamp: Int,
     val closedAtMillis: Long?,
     val innerActiveMillis: Long,
-    val startPackageName: String?,
+    val appUsageMillis: Map<String, Long> = emptyMap(),
 ) {
     val isComplete: Boolean = closedAtMillis != null
+
+    /** Package usage in a stable order for persistence and presentation. */
+    val appUsages: List<InnerDisplaySessionAppUsage>
+        get() = appUsageMillis
+            .asSequence()
+            .filter { it.value > 0L }
+            .sortedBy { it.key }
+            .map { (packageName, millis) ->
+                InnerDisplaySessionAppUsage(
+                    packageName = packageName,
+                    innerActiveMillis = millis,
+                )
+            }
+            .toList()
+
+    val packageUsageMillis: Map<String, Long>
+        get() = appUsageMillis
+
+    val appUsage: Map<String, Long>
+        get() = appUsageMillis
+
+    constructor(
+        openedAtMillis: Long,
+        openedSequenceAtTimestamp: Int,
+        closedAtMillis: Long?,
+        innerActiveMillis: Long,
+        appUsages: List<InnerDisplaySessionAppUsage>,
+    ) : this(
+        openedAtMillis = openedAtMillis,
+        openedSequenceAtTimestamp = openedSequenceAtTimestamp,
+        closedAtMillis = closedAtMillis,
+        innerActiveMillis = innerActiveMillis,
+        appUsageMillis = appUsages.toUsageMap(),
+    )
+
+    constructor(
+        openedAtMillis: Long,
+        openedSequenceAtTimestamp: Int,
+        closedAtMillis: Long?,
+        innerActiveMillis: Long,
+        appUsages: Map<String, Long>,
+        @Suppress("UNUSED_PARAMETER") compatibility: Unit = Unit,
+    ) : this(
+        openedAtMillis = openedAtMillis,
+        openedSequenceAtTimestamp = openedSequenceAtTimestamp,
+        closedAtMillis = closedAtMillis,
+        innerActiveMillis = innerActiveMillis,
+        appUsageMillis = appUsages,
+    )
 }
 
-data class InnerSessionAppSummary(
+private fun List<InnerDisplaySessionAppUsage>.toUsageMap(): Map<String, Long> =
+    groupingBy(InnerDisplaySessionAppUsage::packageName)
+        .fold(0L) { total, usage -> total + usage.innerActiveMillis }
+
+data class InnerSessionAppUsage(
     val packageName: String,
     val label: String,
-    val completeSessionCount: Int,
-    val totalInnerActiveMillis: Long,
-    val isLauncherApp: Boolean,
-)
+    val innerActiveMillis: Long,
+    val isLauncherApp: Boolean = true,
+) {
+    val usageMillis: Long
+        get() = innerActiveMillis
+}
+
+typealias InnerSessionAppUsageSummary = InnerSessionAppUsage
+
+data class InnerSessionDetail(
+    val openedAtMillis: Long,
+    val openedSequenceAtTimestamp: Int,
+    val innerActiveMillis: Long,
+    val appUsages: List<InnerSessionAppUsage>,
+    val otherInnerActiveMillis: Long,
+) {
+    val apps: List<InnerSessionAppUsage>
+        get() = appUsages
+
+    val otherMillis: Long
+        get() = otherInnerActiveMillis
+
+    val startedAtMillis: Long
+        get() = openedAtMillis
+
+    constructor(
+        openedAtMillis: Long,
+        openedSequenceAtTimestamp: Int,
+        innerActiveMillis: Long,
+        apps: List<InnerSessionAppUsage>,
+        otherMillis: Long,
+        @Suppress("UNUSED_PARAMETER") compatibility: Unit = Unit,
+    ) : this(
+        openedAtMillis = openedAtMillis,
+        openedSequenceAtTimestamp = openedSequenceAtTimestamp,
+        innerActiveMillis = innerActiveMillis,
+        appUsages = apps,
+        otherInnerActiveMillis = otherMillis,
+    )
+}
+
+typealias InnerSessionSummarySession = InnerSessionDetail
+typealias InnerSessionLongSession = InnerSessionDetail
+typealias InnerDisplaySessionSummary = InnerSessionDetail
 
 data class InnerSessionSummary(
     val rangeStartMillis: Long,
@@ -166,10 +275,37 @@ data class InnerSessionSummary(
     val detectedOpenCount: Int,
     val completeSessionCount: Int,
     val medianInnerActiveMillis: Long?,
+    val averageInnerActiveMillis: Long?,
     val longestInnerActiveMillis: Long?,
-    val startApps: List<InnerSessionAppSummary>,
-    val unclassifiedStartCount: Int,
-)
+    val longSessions: List<InnerSessionDetail> = emptyList(),
+) {
+    val longestSessions: List<InnerSessionDetail>
+        get() = longSessions
+
+    val sessions: List<InnerSessionDetail>
+        get() = longSessions
+
+    constructor(
+        rangeStartMillis: Long,
+        rangeEndMillis: Long,
+        detectedOpenCount: Int,
+        completeSessionCount: Int,
+        medianInnerActiveMillis: Long?,
+        averageInnerActiveMillis: Long?,
+        longestInnerActiveMillis: Long?,
+        longestSessions: List<InnerSessionDetail>,
+        @Suppress("UNUSED_PARAMETER") compatibility: Unit = Unit,
+    ) : this(
+        rangeStartMillis = rangeStartMillis,
+        rangeEndMillis = rangeEndMillis,
+        detectedOpenCount = detectedOpenCount,
+        completeSessionCount = completeSessionCount,
+        medianInnerActiveMillis = medianInnerActiveMillis,
+        averageInnerActiveMillis = averageInnerActiveMillis,
+        longestInnerActiveMillis = longestInnerActiveMillis,
+        longSessions = longestSessions,
+    )
+}
 
 enum class PostureEventSource {
     CONFIGURATION_CHANGE,

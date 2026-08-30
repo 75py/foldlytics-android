@@ -1,7 +1,8 @@
 package com.nagopy.android.foldlytics.data
 
 import com.nagopy.android.foldlytics.model.InnerDisplaySession
-import com.nagopy.android.foldlytics.model.InnerSessionAppSummary
+import com.nagopy.android.foldlytics.model.InnerSessionAppUsage
+import com.nagopy.android.foldlytics.model.InnerSessionDetail
 import com.nagopy.android.foldlytics.model.InnerSessionSummary
 
 class InnerSessionSummarizer(
@@ -15,33 +16,26 @@ class InnerSessionSummarizer(
         detectedOpenCount: Int,
     ): InnerSessionSummary {
         val completeSessions = sessions.filter { session ->
+            val closedAtMillis = session.closedAtMillis
             session.openedAtMillis >= rangeStartMillis &&
-                session.closedAtMillis != null &&
-                session.closedAtMillis < rangeEndMillis
+                closedAtMillis != null &&
+                closedAtMillis >= session.openedAtMillis &&
+                closedAtMillis < rangeEndMillis
         }
-        val durations = completeSessions.map(InnerDisplaySession::innerActiveMillis).sorted()
-        val appSummaries = completeSessions
-            .mapNotNull { session ->
-                session.startPackageName?.let { packageName -> packageName to session }
-            }
-            .groupBy(keySelector = { it.first }, valueTransform = { it.second })
-            .map { (packageName, values) ->
-                InnerSessionAppSummary(
-                    packageName = packageName,
-                    label = packageLabel(packageName),
-                    completeSessionCount = values.size,
-                    totalInnerActiveMillis = values.sumOf(InnerDisplaySession::innerActiveMillis),
-                    isLauncherApp = isLauncherApp(packageName),
-                )
-            }
+        val durations = completeSessions
+            .map { it.innerActiveMillis.coerceAtLeast(0L) }
+            .sorted()
+        val longSessions = completeSessions
             .asSequence()
-            .filter(InnerSessionAppSummary::isLauncherApp)
+            .filter { it.innerActiveMillis > 0L }
             .sortedWith(
-                compareByDescending<InnerSessionAppSummary> { it.completeSessionCount }
-                    .thenByDescending { it.totalInnerActiveMillis }
-                    .thenBy { it.label }
-                    .thenBy { it.packageName },
+                compareByDescending<InnerDisplaySession> { it.innerActiveMillis }
+                    .thenByDescending { it.openedAtMillis }
+                    // Sequence is a deterministic tie-breaker for same-time opens.
+                    .thenBy { it.openedSequenceAtTimestamp },
             )
+            .take(MAX_LONG_SESSIONS)
+            .map(::toDetail)
             .toList()
 
         return InnerSessionSummary(
@@ -50,11 +44,69 @@ class InnerSessionSummarizer(
             detectedOpenCount = detectedOpenCount,
             completeSessionCount = completeSessions.size,
             medianInnerActiveMillis = durations.medianOrNull(),
+            averageInnerActiveMillis = durations.averageMillisOrNull(),
             longestInnerActiveMillis = durations.maxOrNull(),
-            startApps = appSummaries,
-            unclassifiedStartCount = completeSessions.count { it.startPackageName == null },
+            longSessions = longSessions,
         )
     }
+
+    private fun toDetail(session: InnerDisplaySession): InnerSessionDetail {
+        val sessionMillis = session.innerActiveMillis.coerceAtLeast(0L)
+        val apps = session.appUsageMillis
+            .asSequence()
+            .filter { (_, millis) -> millis > 0L }
+            .filter { (packageName, _) -> isLauncherApp(packageName) }
+            .map { (packageName, millis) ->
+                InnerSessionAppUsage(
+                    packageName = packageName,
+                    label = packageLabel(packageName),
+                    innerActiveMillis = millis,
+                )
+            }
+            .sortedWith(
+                compareByDescending<InnerSessionAppUsage> { it.innerActiveMillis }
+                    .thenBy { it.label }
+                    .thenBy { it.packageName },
+            )
+            .take(MAX_APPS_PER_SESSION)
+            .toList()
+        val displayedAppMillis = apps.fold(0L) { total, app ->
+            total + app.innerActiveMillis
+        }
+        return InnerSessionDetail(
+            openedAtMillis = session.openedAtMillis,
+            openedSequenceAtTimestamp = session.openedSequenceAtTimestamp,
+            innerActiveMillis = sessionMillis,
+            appUsages = apps,
+            otherInnerActiveMillis = (sessionMillis - displayedAppMillis).coerceAtLeast(0L),
+        )
+    }
+
+    private companion object {
+        const val MAX_LONG_SESSIONS = 3
+        const val MAX_APPS_PER_SESSION = 3
+    }
+}
+
+/**
+ * Calculates the floor of the arithmetic mean without summing the input values. All session
+ * durations are non-negative, so quotient and remainder accumulation cannot overflow Long.
+ */
+internal fun List<Long>.averageMillisOrNull(): Long? {
+    if (isEmpty()) return null
+    val count = size.toLong()
+    var quotient = 0L
+    var remainder = 0L
+    for (value in this) {
+        require(value >= 0L) { "Session durations must not be negative" }
+        quotient += value / count
+        remainder += value % count
+        if (remainder >= count) {
+            quotient += remainder / count
+            remainder %= count
+        }
+    }
+    return quotient + remainder / count
 }
 
 internal fun List<Long>.medianOrNull(): Long? {

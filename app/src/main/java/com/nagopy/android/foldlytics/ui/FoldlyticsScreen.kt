@@ -90,7 +90,8 @@ import com.nagopy.android.foldlytics.labelRes
 import com.nagopy.android.foldlytics.model.AnalysisPeriod
 import com.nagopy.android.foldlytics.model.AppUsage
 import com.nagopy.android.foldlytics.model.DisplayPosture
-import com.nagopy.android.foldlytics.model.InnerSessionAppSummary
+import com.nagopy.android.foldlytics.model.InnerSessionAppUsage
+import com.nagopy.android.foldlytics.model.InnerSessionDetail
 import com.nagopy.android.foldlytics.model.InnerSessionSummary
 import com.nagopy.android.foldlytics.model.LongTermInsights
 import com.nagopy.android.foldlytics.model.MAX_CUSTOM_RANGE_DAYS
@@ -118,6 +119,9 @@ internal const val SUMMARY_SHARE_BUTTON_TAG = "summary_share_button"
 internal const val INNER_SESSION_CARD_TAG = "inner_session_card"
 internal const val INNER_SESSION_METRICS_TAG = "inner_session_metrics"
 internal const val INNER_SESSION_EMPTY_TAG = "inner_session_empty"
+internal const val INNER_SESSION_COUNT_TAG = "inner_session_count"
+internal const val INNER_SESSION_DETAIL_TAG_PREFIX = "inner_session_detail_"
+internal const val INNER_SESSION_OTHER_TAG_PREFIX = "inner_session_other_"
 internal const val INNER_SESSION_APP_TAG_PREFIX = "inner_session_app_"
 private val MaxContentWidth = 720.dp
 
@@ -1214,10 +1218,30 @@ private fun SummaryCard(
 private fun InnerDisplaySessionCard(summary: InnerSessionSummary) {
     val resources = LocalResources.current
     val innerColor = postureColors().inner
+    val longSessions = summary.longSessions
+    val description = stringResource(R.string.inner_sessions_description)
     LabCard(
         title = stringResource(R.string.inner_sessions_title),
         modifier = Modifier.testTag(INNER_SESSION_CARD_TAG),
     ) {
+        Text(
+            description,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+
+        val countText = stringResource(
+            R.string.value_complete_inner_sessions,
+            summary.detectedOpenCount,
+            summary.completeSessionCount,
+        )
+        Text(
+            countText,
+            modifier = Modifier.testTag(INNER_SESSION_COUNT_TAG),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+        )
         if (summary.completeSessionCount == 0) {
             Text(
                 text = if (summary.detectedOpenCount == 0) {
@@ -1239,6 +1263,9 @@ private fun InnerDisplaySessionCard(summary: InnerSessionSummary) {
         val medianText = summary.medianInnerActiveMillis
             ?.toDurationText(resources)
             ?: stringResource(R.string.label_no_data)
+        val averageText = summary.averageInnerActiveMillis
+            ?.toDurationText(resources)
+            ?: stringResource(R.string.label_no_data)
         val longestText = summary.longestInnerActiveMillis
             ?.toDurationText(resources)
             ?: stringResource(R.string.label_no_data)
@@ -1247,6 +1274,7 @@ private fun InnerDisplaySessionCard(summary: InnerSessionSummary) {
             summary.completeSessionCount,
             summary.detectedOpenCount,
             medianText,
+            averageText,
             longestText,
         )
         Box(Modifier.testTag(INNER_SESSION_METRICS_TAG)) {
@@ -1255,14 +1283,6 @@ private fun InnerDisplaySessionCard(summary: InnerSessionSummary) {
                     .fillMaxWidth()
                     .clearAndSetSemantics { contentDescription = metricsDescription },
             ) {
-                InfoLine(
-                    stringResource(R.string.label_complete_inner_sessions),
-                    stringResource(
-                        R.string.value_complete_inner_sessions,
-                        summary.completeSessionCount,
-                        summary.detectedOpenCount,
-                    ),
-                )
                 BoxWithConstraints(Modifier.fillMaxWidth()) {
                     if (maxWidth >= 420.dp) {
                         Row(
@@ -1272,6 +1292,12 @@ private fun InnerDisplaySessionCard(summary: InnerSessionSummary) {
                             Metric(
                                 stringResource(R.string.label_median_inner_session_time),
                                 medianText,
+                                innerColor,
+                                Modifier.weight(1f),
+                            )
+                            Metric(
+                                stringResource(R.string.label_average_inner_session_time),
+                                averageText,
                                 innerColor,
                                 Modifier.weight(1f),
                             )
@@ -1290,6 +1316,11 @@ private fun InnerDisplaySessionCard(summary: InnerSessionSummary) {
                                 innerColor,
                             )
                             Metric(
+                                stringResource(R.string.label_average_inner_session_time),
+                                averageText,
+                                innerColor,
+                            )
+                            Metric(
                                 stringResource(R.string.label_longest_inner_session_time),
                                 longestText,
                                 innerColor,
@@ -1302,80 +1333,149 @@ private fun InnerDisplaySessionCard(summary: InnerSessionSummary) {
 
         HorizontalDivider(Modifier.padding(vertical = 10.dp))
         Text(
-            stringResource(R.string.session_start_apps_title),
+            stringResource(R.string.long_inner_sessions_title),
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
         )
-        val displayedApps = summary.startApps.take(3)
-        if (displayedApps.isEmpty()) {
+        if (longSessions.isEmpty()) {
             Text(
-                stringResource(R.string.session_start_apps_empty),
+                stringResource(R.string.long_inner_sessions_empty),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
-            displayedApps.forEachIndexed { index, app ->
-                InnerSessionStartAppRow(
-                    app = app,
-                    rank = index + 1,
+            longSessions.forEach { session ->
+                InnerSessionDetailContent(
+                    session = session,
                     color = innerColor,
                 )
             }
-        }
-        if (summary.unclassifiedStartCount > 0) {
-            InfoLine(
-                stringResource(R.string.label_unclassified_session_starts),
-                resources.getString(
-                    R.string.value_item_count,
-                    summary.unclassifiedStartCount,
-                ),
-            )
         }
     }
 }
 
 @Composable
-private fun InnerSessionStartAppRow(
-    app: InnerSessionAppSummary,
-    rank: Int,
+private fun InnerSessionDetailContent(
+    session: InnerSessionDetail,
     color: Color,
 ) {
     val resources = LocalResources.current
-    Row(
+    val openedAtText = session.openedAtMillis.toTimeText(resources)
+    val durationText = session.innerActiveMillis.toDurationText(resources)
+    val appDescription = session.appUsages
+        .map { app ->
+            resources.getString(
+                R.string.content_desc_inner_session_app,
+                app.label,
+                app.innerActiveMillis.toDurationText(resources),
+            )
+        }
+        .ifEmpty {
+            listOf(resources.getString(R.string.content_desc_inner_session_no_apps))
+        }
+        .joinToString(resources.getString(R.string.content_desc_inner_session_app_separator))
+    val detailDescription = stringResource(
+        R.string.content_desc_inner_session_detail,
+        openedAtText,
+        durationText,
+        appDescription,
+        session.otherInnerActiveMillis.toDurationText(resources),
+    )
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp)
-            .testTag("$INNER_SESSION_APP_TAG_PREFIX${app.packageName}")
-            .semantics(mergeDescendants = true) {},
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(vertical = 8.dp)
+            .testTag(
+                "$INNER_SESSION_DETAIL_TAG_PREFIX" +
+                    "${session.openedAtMillis}_${session.openedSequenceAtTimestamp}",
+            )
+            .semantics(mergeDescendants = true) {
+                contentDescription = detailDescription
+            },
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(
-            resources.getString(R.string.value_rank, rank),
-            modifier = Modifier.width(32.dp),
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold,
-            color = color,
-        )
-        ApplicationIcon(app.packageName, app.label)
-        Column(modifier = Modifier.weight(1f)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Text(
-                app.label,
+                openedAtText,
+                modifier = Modifier.weight(1f),
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                pluralStringResource(
-                    R.plurals.inner_session_app_summary,
-                    app.completeSessionCount,
-                    app.completeSessionCount,
-                    app.totalInnerActiveMillis.toDurationText(resources),
-                ),
+                stringResource(R.string.inner_session_duration, durationText),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.SemiBold,
+                color = color,
             )
         }
+        session.appUsages.forEach { app ->
+            InnerSessionAppRow(app)
+        }
+        InnerSessionOtherRow(
+            session = session,
+            resources = resources,
+        )
+    }
+}
+
+@Composable
+private fun InnerSessionAppRow(app: InnerSessionAppUsage) {
+    val resources = LocalResources.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("$INNER_SESSION_APP_TAG_PREFIX${app.packageName}")
+            .semantics(mergeDescendants = true) {},
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        ApplicationIcon(app.packageName, app.label)
+        Text(
+            app.label,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            app.innerActiveMillis.toDurationText(resources),
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+@Composable
+private fun InnerSessionOtherRow(
+    session: InnerSessionDetail,
+    resources: Resources,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(
+                "$INNER_SESSION_OTHER_TAG_PREFIX" +
+                    "${session.openedAtMillis}_${session.openedSequenceAtTimestamp}",
+            )
+            .semantics(mergeDescendants = true) {},
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            stringResource(R.string.inner_session_other),
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            session.otherInnerActiveMillis.toDurationText(resources),
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+        )
     }
 }
 

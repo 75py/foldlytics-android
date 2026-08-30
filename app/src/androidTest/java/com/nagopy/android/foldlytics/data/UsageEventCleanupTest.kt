@@ -165,7 +165,7 @@ class UsageEventCleanupTest {
     }
 
     @Test
-    fun migrationFromThreeToFourCreatesEmptySessionCacheAndPreservesCacheState() {
+    fun migrationFromThreeToFourCreatesSessionTablesAndPreservesCacheState() {
         val versionThree = migrationHelper.createDatabase(SESSION_MIGRATION_DATABASE_NAME, 3)
         try {
             versionThree.execSQL(
@@ -193,6 +193,41 @@ class UsageEventCleanupTest {
         try {
             assertEquals(4, migrated.version)
             migrated.query("SELECT COUNT(*) FROM inner_display_sessions").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(0, cursor.getInt(0))
+                assertFalse(cursor.moveToNext())
+            }
+            migrated.query("SELECT COUNT(*) FROM inner_display_session_app_usage").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(0, cursor.getInt(0))
+                assertFalse(cursor.moveToNext())
+            }
+            migrated.execSQL("PRAGMA foreign_keys = ON")
+            migrated.execSQL(
+                """
+                INSERT INTO inner_display_sessions (
+                    opened_at_millis,
+                    opened_sequence_at_timestamp,
+                    closed_at_millis,
+                    inner_active_millis
+                ) VALUES (1000, 2, 2000, 900)
+                """.trimIndent(),
+            )
+            migrated.execSQL(
+                """
+                INSERT INTO inner_display_session_app_usage (
+                    opened_at_millis,
+                    opened_sequence_at_timestamp,
+                    package_name,
+                    inner_active_millis
+                ) VALUES (1000, 2, 'app.example', 900)
+                """.trimIndent(),
+            )
+            migrated.execSQL(
+                "DELETE FROM inner_display_sessions " +
+                    "WHERE opened_at_millis = 1000 AND opened_sequence_at_timestamp = 2",
+            )
+            migrated.query("SELECT COUNT(*) FROM inner_display_session_app_usage").use { cursor ->
                 assertTrue(cursor.moveToFirst())
                 assertEquals(0, cursor.getInt(0))
                 assertFalse(cursor.moveToNext())

@@ -13,6 +13,8 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -54,6 +56,76 @@ class LongTermDatabaseTest {
     @Test
     fun createsFreshVersionFourDatabase() {
         assertEquals(4, database.openHelper.readableDatabase.version)
+    }
+
+    @Test
+    fun replaceAllAndReplaceFromKeepSessionAppUsageRowsInSync() = runBlocking {
+        fun session(
+            openedAtMillis: Long,
+            innerActiveMillis: Long,
+        ) = InnerDisplaySessionEntity(
+            openedAtMillis = openedAtMillis,
+            openedSequenceAtTimestamp = 0,
+            closedAtMillis = openedAtMillis + innerActiveMillis,
+            innerActiveMillis = innerActiveMillis,
+        )
+
+        fun appUsage(
+            openedAtMillis: Long,
+            packageName: String,
+            innerActiveMillis: Long,
+        ) = InnerDisplaySessionAppUsageEntity(
+            openedAtMillis = openedAtMillis,
+            openedSequenceAtTimestamp = 0,
+            packageName = packageName,
+            innerActiveMillis = innerActiveMillis,
+        )
+
+        val state = DailySummaryStateEntity(
+            lastAggregatedThroughMillis = 10_000L,
+            calibrationKey = "calibration",
+            zoneId = zoneId.id,
+            checkpointRevision = 0L,
+            aggregationVersion = 4,
+        )
+        val first = session(1_000L, 100L)
+        val second = session(5_000L, 200L)
+        database.dailyPostureSummaryDao().replaceAll(
+            summaries = emptyList(),
+            appUsage = emptyList(),
+            innerSessions = listOf(first, second),
+            innerSessionAppUsages = listOf(
+                appUsage(1_000L, "app.one", 100L),
+                appUsage(5_000L, "app.two", 200L),
+            ),
+            state = state,
+        )
+
+        val replacement = session(5_000L, 300L)
+        database.dailyPostureSummaryDao().replaceFrom(
+            beginMillis = 3_000L,
+            summaries = emptyList(),
+            appUsage = emptyList(),
+            innerSessions = listOf(replacement),
+            innerSessionAppUsages = listOf(appUsage(5_000L, "app.three", 300L)),
+            state = state,
+        )
+
+        val afterIncremental = repository().loadCompleteInnerSessions(0L, 10_000L)
+        assertEquals(listOf(1_000L, 5_000L), afterIncremental.map { it.openedAtMillis })
+        assertEquals(mapOf("app.one" to 100L), afterIncremental[0].appUsageMillis)
+        assertEquals(mapOf("app.three" to 300L), afterIncremental[1].appUsageMillis)
+
+        database.dailyPostureSummaryDao().replaceAll(
+            summaries = emptyList(),
+            appUsage = emptyList(),
+            innerSessions = listOf(first),
+            innerSessionAppUsages = listOf(appUsage(1_000L, "app.final", 100L)),
+            state = state,
+        )
+        val afterFull = repository().loadCompleteInnerSessions(0L, 10_000L)
+        assertEquals(listOf(1_000L), afterFull.map { it.openedAtMillis })
+        assertEquals(mapOf("app.final" to 100L), afterFull.single().appUsageMillis)
     }
 
     @Test
@@ -383,7 +455,7 @@ class LongTermDatabaseTest {
         assertEquals(chunkBoundary - 1_000L, session.openedAtMillis)
         assertEquals(chunkBoundary + 1_000L, session.closedAtMillis)
         assertEquals(2_000L, session.innerActiveMillis)
-        assertEquals("app.example", session.startPackageName)
+        assertEquals(mapOf("app.example" to 2_000L), session.appUsageMillis)
     }
 
     @Test
@@ -421,6 +493,13 @@ class LongTermDatabaseTest {
                     rawEventType = UsageEvents.Event.KEYGUARD_HIDDEN,
                 ),
                 event(
+                    key = "resumed",
+                    timestampMillis = start,
+                    sequence = 3,
+                    rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                    packageName = "app.example",
+                ),
+                event(
                     key = "opened",
                     timestampMillis = openedAt,
                     sequence = 0,
@@ -448,6 +527,14 @@ class LongTermDatabaseTest {
             collectionGapStarts = emptyList(),
         )
         assertEquals(emptyList<Any>(), repository.loadCompleteInnerSessions(start, initialEnd))
+        database.openHelper.readableDatabase.query(
+            "SELECT package_name, inner_active_millis FROM inner_display_session_app_usage",
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("app.example", cursor.getString(0))
+            assertEquals(initialEnd - openedAt, cursor.getLong(1))
+            assertFalse(cursor.moveToNext())
+        }
 
         repository.ensureUpToDate(
             calibration = calibration,
@@ -462,6 +549,15 @@ class LongTermDatabaseTest {
         assertEquals(openedAt, session.openedAtMillis)
         assertEquals(closedAt, session.closedAtMillis)
         assertEquals(closedAt - openedAt, session.innerActiveMillis)
+        assertEquals(mapOf("app.example" to closedAt - openedAt), session.appUsageMillis)
+        database.openHelper.readableDatabase.query(
+            "SELECT package_name, inner_active_millis FROM inner_display_session_app_usage",
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("app.example", cursor.getString(0))
+            assertEquals(closedAt - openedAt, cursor.getLong(1))
+            assertFalse(cursor.moveToNext())
+        }
     }
 
     @Test
@@ -532,7 +628,6 @@ class LongTermDatabaseTest {
                     openedSequenceAtTimestamp = 0,
                     closedAtMillis = null,
                     innerActiveMillis = 999L,
-                    startPackageName = "stale.app",
                 ),
             ),
             state = DailySummaryStateEntity(
@@ -557,7 +652,7 @@ class LongTermDatabaseTest {
         val sessions = repository().loadCompleteInnerSessions(start, end)
         assertEquals(listOf(openedAt), sessions.map { it.openedAtMillis })
         assertEquals(1_000L, sessions.single().innerActiveMillis)
-        assertEquals(3, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
+        assertEquals(4, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
         assertEquals(1, database.dailyPostureSummaryDao().loadAll().single().openedCount)
     }
 

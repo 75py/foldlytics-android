@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 4,
-    "identityHash": "3b89f74106d88c06408d3f3039bcfb49",
+    "identityHash": "225d4be6c5cd72ed354d1263dd63bf30",
     "entities": [
       {
         "tableName": "usage_events",
@@ -363,7 +363,7 @@
       },
       {
         "tableName": "inner_display_sessions",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`opened_at_millis` INTEGER NOT NULL, `opened_sequence_at_timestamp` INTEGER NOT NULL, `closed_at_millis` INTEGER, `inner_active_millis` INTEGER NOT NULL, `start_package_name` TEXT, PRIMARY KEY(`opened_at_millis`, `opened_sequence_at_timestamp`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`opened_at_millis` INTEGER NOT NULL, `opened_sequence_at_timestamp` INTEGER NOT NULL, `closed_at_millis` INTEGER, `inner_active_millis` INTEGER NOT NULL, PRIMARY KEY(`opened_at_millis`, `opened_sequence_at_timestamp`))",
         "fields": [
           {
             "fieldPath": "openedAtMillis",
@@ -387,11 +387,6 @@
             "columnName": "inner_active_millis",
             "affinity": "INTEGER",
             "notNull": true
-          },
-          {
-            "fieldPath": "startPackageName",
-            "columnName": "start_package_name",
-            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -410,15 +405,80 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_inner_display_sessions_closed_at_millis` ON `${TABLE_NAME}` (`closed_at_millis`)"
+          }
+        ]
+      },
+      {
+        "tableName": "inner_display_session_app_usage",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`opened_at_millis` INTEGER NOT NULL, `opened_sequence_at_timestamp` INTEGER NOT NULL, `package_name` TEXT NOT NULL, `inner_active_millis` INTEGER NOT NULL, PRIMARY KEY(`opened_at_millis`, `opened_sequence_at_timestamp`, `package_name`), FOREIGN KEY(`opened_at_millis`, `opened_sequence_at_timestamp`) REFERENCES `inner_display_sessions`(`opened_at_millis`, `opened_sequence_at_timestamp`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "openedAtMillis",
+            "columnName": "opened_at_millis",
+            "affinity": "INTEGER",
+            "notNull": true
           },
           {
-            "name": "index_inner_display_sessions_start_package_name",
+            "fieldPath": "openedSequenceAtTimestamp",
+            "columnName": "opened_sequence_at_timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "packageName",
+            "columnName": "package_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "innerActiveMillis",
+            "columnName": "inner_active_millis",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "opened_at_millis",
+            "opened_sequence_at_timestamp",
+            "package_name"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_inner_display_session_app_usage_opened_at_millis_opened_sequence_at_timestamp",
             "unique": false,
             "columnNames": [
-              "start_package_name"
+              "opened_at_millis",
+              "opened_sequence_at_timestamp"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_inner_display_sessions_start_package_name` ON `${TABLE_NAME}` (`start_package_name`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_inner_display_session_app_usage_opened_at_millis_opened_sequence_at_timestamp` ON `${TABLE_NAME}` (`opened_at_millis`, `opened_sequence_at_timestamp`)"
+          },
+          {
+            "name": "index_inner_display_session_app_usage_package_name",
+            "unique": false,
+            "columnNames": [
+              "package_name"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_inner_display_session_app_usage_package_name` ON `${TABLE_NAME}` (`package_name`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "inner_display_sessions",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "opened_at_millis",
+              "opened_sequence_at_timestamp"
+            ],
+            "referencedColumns": [
+              "opened_at_millis",
+              "opened_sequence_at_timestamp"
+            ]
           }
         ]
       },
@@ -562,7 +622,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3b89f74106d88c06408d3f3039bcfb49')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '225d4be6c5cd72ed354d1263dd63bf30')"
     ]
   }
 }

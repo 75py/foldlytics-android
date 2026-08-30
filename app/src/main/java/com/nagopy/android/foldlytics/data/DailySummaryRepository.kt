@@ -24,9 +24,19 @@ class DailySummaryRepository(
     suspend fun loadCompleteInnerSessions(
         beginMillis: Long,
         endMillis: Long,
-    ): List<InnerDisplaySession> =
-        summaryDao.loadCompleteInnerSessions(beginMillis, endMillis)
-            .map(InnerDisplaySessionEntity::toModel)
+    ): List<InnerDisplaySession> {
+        val sessions = summaryDao.loadCompleteInnerSessions(beginMillis, endMillis)
+        if (sessions.isEmpty()) return emptyList()
+        val appUsages = summaryDao.loadCompleteInnerSessionAppUsages(beginMillis, endMillis)
+            .groupBy { it.openedAtMillis to it.openedSequenceAtTimestamp }
+        return sessions.map { session ->
+            session.toModel(
+                appUsages = appUsages[
+                    session.openedAtMillis to session.openedSequenceAtTimestamp
+                ].orEmpty(),
+            )
+        }
+    }
 
     suspend fun ensureUpToDate(
         calibration: Calibration,
@@ -125,6 +135,7 @@ class DailySummaryRepository(
                 summaries = rebuilt.posture.map(DailyPostureSummary::toEntity),
                 appUsage = rebuilt.appUsage.map { it.toEntity() },
                 innerSessions = rebuilt.innerSessions.map(InnerDisplaySession::toEntity),
+                innerSessionAppUsages = rebuilt.innerSessionAppUsages,
                 state = state,
             )
         } else {
@@ -133,6 +144,7 @@ class DailySummaryRepository(
                 summaries = rebuilt.posture.map(DailyPostureSummary::toEntity),
                 appUsage = rebuilt.appUsage.map { it.toEntity() },
                 innerSessions = rebuilt.innerSessions.map(InnerDisplaySession::toEntity),
+                innerSessionAppUsages = rebuilt.innerSessionAppUsages,
                 state = state,
             )
         }
@@ -222,10 +234,14 @@ class DailySummaryRepository(
             firstChunk = false
             chunkStart = chunkEnd
         }
+        val innerSessions = sessionAnalyzer.sessionsAtEnd()
         return RebuiltDailySummaries(
             posture = summaries,
             appUsage = appUsage,
-            innerSessions = sessionAnalyzer.sessionsAtEnd(),
+            innerSessions = innerSessions,
+            innerSessionAppUsages = innerSessions.flatMap(
+                InnerDisplaySession::toAppUsageEntities,
+            ),
         )
     }
 
@@ -243,7 +259,7 @@ class DailySummaryRepository(
     } ?: "none"
 
     private companion object {
-        const val AGGREGATION_VERSION = 3
+        const val AGGREGATION_VERSION = 4
         const val AGGREGATION_CHUNK_DAYS = 31L
     }
 
@@ -251,6 +267,7 @@ class DailySummaryRepository(
         val posture: List<DailyPostureSummary> = emptyList(),
         val appUsage: List<DailyAppUsageSummary> = emptyList(),
         val innerSessions: List<InnerDisplaySession> = emptyList(),
+        val innerSessionAppUsages: List<InnerDisplaySessionAppUsageEntity> = emptyList(),
     )
 }
 

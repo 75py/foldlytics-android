@@ -32,7 +32,11 @@
     <string name="content_desc_cover_app_ranking">外側のアプリランキング</string>
     <string name="content_desc_inner_app_ranking">内側のアプリランキング</string>
     <string name="content_desc_summary">%1$sは外側%2$s、内側%3$s、内側%4$s</string>
-    <string name="content_desc_inner_session_metrics">検出した「開いた」%2$d回のうち、完全に観測できた内側利用セッション%1$d件。内側利用時間の中央値%3$s。最長の内側利用時間%4$s。</string>
+    <string name="content_desc_inner_session_metrics">検出した「開いた」%2$d回のうち、閉じるまで記録できた%1$d回を集計。中央値%3$s、平均値%4$s、最長%5$s。</string>
+    <string name="content_desc_inner_session_detail">%1$s開始、内側利用%2$s。アプリ内訳：%3$s。その他%4$s。</string>
+    <string name="content_desc_inner_session_app">%1$s、%2$s</string>
+    <string name="content_desc_inner_session_no_apps">表示対象アプリなし</string>
+    <string name="content_desc_inner_session_app_separator">、</string>
     <string name="content_desc_chart_no_data">%1$s データなし</string>
     <string name="content_desc_chart_inner_ratio">%1$s 内側%2$s</string>
     <plurals name="content_desc_chart_opened">
@@ -165,20 +169,19 @@
     <string name="label_period_total">期間合計</string>
 
     <!-- Inner-display sessions -->
-    <string name="inner_sessions_title">内側利用セッション</string>
-    <string name="label_complete_inner_sessions">完全に観測できたセッション</string>
-    <string name="value_complete_inner_sessions">検出した「開いた」%2$d回のうち%1$d件</string>
+    <string name="inner_sessions_title">開いてから閉じるまでの利用</string>
+    <string name="inner_sessions_description">端末を開いてから閉じるまでを1回として、内側画面を使った時間を集計します。</string>
+    <string name="value_complete_inner_sessions">検出した「開いた」%1$d回のうち、閉じるまで記録できた%2$d回を集計</string>
     <string name="label_median_inner_session_time">内側利用時間の中央値</string>
+    <string name="label_average_inner_session_time">内側利用時間の平均値</string>
     <string name="label_longest_inner_session_time">最長の内側利用時間</string>
-    <string name="session_start_apps_title">セッション開始時に表示していたアプリ</string>
-    <string name="label_unclassified_session_starts">開始時アプリ未分類</string>
+    <string name="long_inner_sessions_title">長く使った回（最大3件）</string>
+    <string name="long_inner_sessions_empty">この期間に、正の内側利用時間がある完全セッションはありません。</string>
+    <string name="inner_session_duration">内側利用 %1$s</string>
+    <string name="inner_session_other">その他</string>
     <string name="inner_sessions_empty_no_opens">この期間は「開いた」を検出していないため、完全に観測できた内側利用セッションはありません。</string>
     <plurals name="inner_sessions_empty_no_complete">
         <item quantity="other">「開いた」を%1$d回検出しましたが、対象期間内で、その後の「閉じた」まで根拠が途切れずに観測できたセッションはありません。</item>
-    </plurals>
-    <string name="session_start_apps_empty">ランキングに表示できる、セッション開始時のランチャーアプリはありません。</string>
-    <plurals name="inner_session_app_summary">
-        <item quantity="other">%1$d件 · 合計%2$s</item>
     </plurals>
 
     <!-- Summary image sharing -->
