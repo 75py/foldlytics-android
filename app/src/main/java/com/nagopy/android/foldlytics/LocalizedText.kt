@@ -113,6 +113,14 @@ internal fun Long.toTimeText(resources: Resources): String =
         .withZone(ZoneId.systemDefault())
         .format(Instant.ofEpochMilli(this))
 
+internal fun Long.toInnerSessionStartText(resources: Resources): String =
+    DateTimeFormatter.ofPattern(
+        resources.getString(R.string.inner_session_start_time_pattern),
+        resources.primaryLocale,
+    )
+        .withZone(ZoneId.systemDefault())
+        .format(Instant.ofEpochMilli(this))
+
 internal fun Long.toShortDateText(resources: Resources): String =
     DateTimeFormatter.ofPattern(
         resources.getString(R.string.short_date_pattern),

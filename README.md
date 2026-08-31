@@ -18,6 +18,8 @@ Download: [https://play.google.com/store/apps/details?id=com.nagopy.android.fold
 
 - Cover and inner display time, plus the inner-display ratio.
 - Detected open and close counts.
+- Inner-display use for each opening, with median, average, and longest time,
+  plus the three longest uses and their top app usage.
 - Average detected opens per observed day.
 - Days with recorded data and days on which the inner display was used.
 - Inner-display ratio and detected-open trends over longer periods.
@@ -27,6 +29,18 @@ Download: [https://play.google.com/store/apps/details?id=com.nagopy.android.fold
   shown with their icons.
 - Data coverage and collection status.
 - Daily CSV export for all saved history, to a destination you choose.
+
+Inner-display use treats each detected opening followed by a detected close as
+one use. The statistics include known zero-time uses. If any positive-length
+part of a use has screen or lock evidence that cannot establish either active or
+inactive use, that whole use is left out, even if later evidence is available.
+Confirmed screen-off or locked periods count as zero use, and an opening and
+closing at the same time can remain a valid zero-time use. For the three longest
+uses, the breakdown shows at most three launchable apps; non-launchable apps,
+fourth and later apps, and intervals that cannot be assigned to one app are
+shown as Other. The same usage events already stored on the device are used,
+with no new permission or automatic data transfer; the derived cache can be
+regenerated from the saved source events.
 
 ## Build and test
 

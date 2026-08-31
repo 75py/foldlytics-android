@@ -34,6 +34,12 @@
     <string name="content_desc_cover_app_ranking">Outer-display app ranking</string>
     <string name="content_desc_inner_app_ranking">Inner-display app ranking</string>
     <string name="content_desc_summary">%1$s: outer %2$s, inner %3$s, inner share %4$s</string>
+    <string name="content_desc_inner_session_metrics">Inner-display uses summarized: %1$d. Openings detected: %2$d. Median %3$s. Average %4$s. Longest %5$s.</string>
+    <string name="content_desc_inner_session_detail">Started %1$s. Inner-display use %2$s. Apps: %3$s. Other %4$s.</string>
+    <string name="content_desc_inner_session_detail_without_other">Started %1$s. Inner-display use %2$s. Apps: %3$s.</string>
+    <string name="content_desc_inner_session_app">%1$s, %2$s</string>
+    <string name="content_desc_inner_session_no_apps">No app details to show.</string>
+    <string name="content_desc_inner_session_app_separator">; </string>
     <string name="content_desc_chart_no_data">%1$s: no data</string>
     <string name="content_desc_chart_inner_ratio">%1$s: inner %2$s</string>
     <plurals name="content_desc_chart_opened">
@@ -76,6 +82,7 @@
     <string name="selected_date_range">Selected: %1$s – %2$s</string>
     <string name="short_date_pattern">M/d/yyyy</string>
     <string name="time_pattern">M/d HH:mm:ss</string>
+    <string name="inner_session_start_time_pattern">M/d/yyyy HH:mm</string>
     <string name="report_date_time_pattern">yyyy-MM-dd HH:mm:ss</string>
     <string name="duration_hours_minutes">%1$d hr %2$d min</string>
     <string name="duration_hours_only">%1$d hr</string>
@@ -166,6 +173,24 @@
     <string name="open_count_trend_title">Open count over time</string>
     <string name="legend_open_count">Open count</string>
     <string name="label_period_total">Period total</string>
+
+    <!-- Inner-display sessions -->
+    <string name="inner_sessions_title">Inner-display use per opening</string>
+    <string name="inner_sessions_description">Each opening is paired with its next closing, and inner-display use is totaled for that period.</string>
+    <string name="value_complete_inner_sessions">Inner-display uses summarized: %1$d. Openings detected: %2$d.</string>
+    <string name="label_median_inner_session_time">Median inner-display time</string>
+    <string name="label_average_inner_session_time">Average inner-display time</string>
+    <string name="label_longest_inner_session_time">Longest inner-display time</string>
+    <string name="long_inner_sessions_title">Longest inner-display uses (up to 3)</string>
+    <string name="long_inner_sessions_empty">There are no longer inner-display uses to show in this period.</string>
+    <string name="inner_session_duration">Inner use %1$s</string>
+    <string name="inner_session_other">Other</string>
+    <string name="inner_session_other_description">Other includes time from apps beyond the three shown, apps that cannot be launched from the launcher, and time that could not be matched to an app.</string>
+    <string name="inner_sessions_empty_no_opens">No opening records were detected in this period.</string>
+    <plurals name="inner_sessions_empty_no_complete">
+        <item quantity="one">%1$d opening was detected, but we could not confirm inner-display use through a closing.</item>
+        <item quantity="other">%1$d openings were detected, but we could not confirm inner-display use through a closing.</item>
+    </plurals>
 
     <!-- Summary image sharing -->
     <string name="share_summary_brand" translatable="false">Foldlytics</string>

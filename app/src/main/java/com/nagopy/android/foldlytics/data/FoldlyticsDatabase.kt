@@ -5,6 +5,7 @@ import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Entity
+import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -18,6 +19,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.nagopy.android.foldlytics.model.DailyAppUsageSummary
 import com.nagopy.android.foldlytics.model.DailyPostureSummary
 import com.nagopy.android.foldlytics.model.DisplayConfiguration
+import com.nagopy.android.foldlytics.model.InnerDisplaySession
 import com.nagopy.android.foldlytics.model.PostureCheckpoint
 import com.nagopy.android.foldlytics.model.PostureCheckpointSource
 import com.nagopy.android.foldlytics.model.UsageRecord
@@ -155,6 +157,55 @@ data class DailyAppUsageSummaryEntity(
     val innerMillis: Long,
     @ColumnInfo(name = "excluded_millis")
     val excludedMillis: Long,
+)
+
+@Entity(
+    tableName = "inner_display_sessions",
+    primaryKeys = ["opened_at_millis", "opened_sequence_at_timestamp"],
+    indices = [
+        Index(value = ["closed_at_millis"]),
+    ],
+)
+data class InnerDisplaySessionEntity(
+    @ColumnInfo(name = "opened_at_millis")
+    val openedAtMillis: Long,
+    @ColumnInfo(name = "opened_sequence_at_timestamp")
+    val openedSequenceAtTimestamp: Int,
+    @ColumnInfo(name = "closed_at_millis")
+    val closedAtMillis: Long?,
+    @ColumnInfo(name = "inner_active_millis")
+    val innerActiveMillis: Long,
+)
+
+@Entity(
+    tableName = "inner_display_session_app_usage",
+    primaryKeys = [
+        "opened_at_millis",
+        "opened_sequence_at_timestamp",
+        "package_name",
+    ],
+    foreignKeys = [
+        ForeignKey(
+            entity = InnerDisplaySessionEntity::class,
+            parentColumns = ["opened_at_millis", "opened_sequence_at_timestamp"],
+            childColumns = ["opened_at_millis", "opened_sequence_at_timestamp"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [
+        Index(value = ["opened_at_millis", "opened_sequence_at_timestamp"]),
+        Index(value = ["package_name"]),
+    ],
+)
+data class InnerDisplaySessionAppUsageEntity(
+    @ColumnInfo(name = "opened_at_millis")
+    val openedAtMillis: Long,
+    @ColumnInfo(name = "opened_sequence_at_timestamp")
+    val openedSequenceAtTimestamp: Int,
+    @ColumnInfo(name = "package_name")
+    val packageName: String,
+    @ColumnInfo(name = "inner_active_millis")
+    val innerActiveMillis: Long,
 )
 
 data class AggregatedAppUsage(
@@ -422,6 +473,15 @@ interface PostureCheckpointDao {
     )
     suspend fun load(beginMillis: Long, endMillis: Long): List<PostureCheckpointEntity>
 
+    @Transaction
+    suspend fun loadForAnalysis(
+        beginMillis: Long,
+        endMillis: Long,
+    ): List<PostureCheckpointEntity> = buildList {
+        latestBefore(beginMillis)?.let(::add)
+        addAll(load(beginMillis, endMillis))
+    }
+
     @Query(
         """
         SELECT * FROM posture_checkpoints
@@ -488,6 +548,47 @@ interface DailyPostureSummaryDao {
     ): List<AggregatedAppUsage>
 
     @Query(
+        """
+        SELECT * FROM inner_display_sessions
+        WHERE opened_at_millis >= :beginMillis
+            AND closed_at_millis IS NOT NULL
+            AND closed_at_millis < :endMillis
+        ORDER BY opened_at_millis ASC, opened_sequence_at_timestamp ASC
+        """,
+    )
+    suspend fun loadCompleteInnerSessions(
+        beginMillis: Long,
+        endMillis: Long,
+    ): List<InnerDisplaySessionEntity>
+
+    @Query(
+        """
+        SELECT app_usage.* FROM inner_display_session_app_usage AS app_usage
+        INNER JOIN inner_display_sessions AS session
+            ON session.opened_at_millis = app_usage.opened_at_millis
+            AND session.opened_sequence_at_timestamp = app_usage.opened_sequence_at_timestamp
+        WHERE session.opened_at_millis >= :beginMillis
+            AND session.closed_at_millis IS NOT NULL
+            AND session.closed_at_millis < :endMillis
+        ORDER BY session.opened_at_millis ASC,
+            session.opened_sequence_at_timestamp ASC,
+            app_usage.package_name ASC
+        """,
+    )
+    suspend fun loadCompleteInnerSessionAppUsages(
+        beginMillis: Long,
+        endMillis: Long,
+    ): List<InnerDisplaySessionAppUsageEntity>
+
+    @Query(
+        """
+        SELECT MIN(opened_at_millis) FROM inner_display_sessions
+        WHERE closed_at_millis IS NULL OR closed_at_millis >= :beginMillis
+        """,
+    )
+    suspend fun earliestInnerSessionStartOverlapping(beginMillis: Long): Long?
+
+    @Query(
         "SELECT * FROM daily_summary_state WHERE singleton_id = " +
             DailySummaryStateEntity.SINGLETON_ID,
     )
@@ -500,6 +601,14 @@ interface DailyPostureSummaryDao {
     suspend fun insertAllAppUsage(summaries: List<DailyAppUsageSummaryEntity>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllInnerSessions(sessions: List<InnerDisplaySessionEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllInnerSessionAppUsages(
+        appUsages: List<InnerDisplaySessionAppUsageEntity>,
+    )
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertState(state: DailySummaryStateEntity)
 
     @Query("DELETE FROM daily_posture_summary")
@@ -508,22 +617,76 @@ interface DailyPostureSummaryDao {
     @Query("DELETE FROM daily_app_usage_summary")
     suspend fun deleteAllAppUsage()
 
+    @Query("DELETE FROM inner_display_sessions")
+    suspend fun deleteAllInnerSessions()
+
+    @Query("DELETE FROM inner_display_session_app_usage")
+    suspend fun deleteAllInnerSessionAppUsages()
+
     @Query("DELETE FROM daily_posture_summary WHERE day_start_millis >= :beginMillis")
     suspend fun deleteFrom(beginMillis: Long)
 
     @Query("DELETE FROM daily_app_usage_summary WHERE day_start_millis >= :beginMillis")
     suspend fun deleteAppUsageFrom(beginMillis: Long)
 
+    @Query("DELETE FROM inner_display_sessions WHERE opened_at_millis >= :beginMillis")
+    suspend fun deleteInnerSessionsFrom(beginMillis: Long)
+
+    @Query(
+        "DELETE FROM inner_display_session_app_usage WHERE opened_at_millis >= :beginMillis",
+    )
+    suspend fun deleteInnerSessionAppUsagesFrom(beginMillis: Long)
+
     @Transaction
     suspend fun replaceAll(
         summaries: List<DailyPostureSummaryEntity>,
         appUsage: List<DailyAppUsageSummaryEntity>,
+        innerSessions: List<InnerDisplaySessionEntity>,
+        innerSessionAppUsages: List<InnerDisplaySessionAppUsageEntity>,
         state: DailySummaryStateEntity,
     ) {
         deleteAll()
         deleteAllAppUsage()
+        deleteAllInnerSessionAppUsages()
+        deleteAllInnerSessions()
         insertAll(summaries)
         insertAllAppUsage(appUsage)
+        insertAllInnerSessions(innerSessions)
+        insertAllInnerSessionAppUsages(innerSessionAppUsages)
+        upsertState(state)
+    }
+
+    @Transaction
+    suspend fun replaceAll(
+        summaries: List<DailyPostureSummaryEntity>,
+        appUsage: List<DailyAppUsageSummaryEntity>,
+        innerSessions: List<InnerDisplaySessionEntity>,
+        state: DailySummaryStateEntity,
+    ) = replaceAll(
+        summaries = summaries,
+        appUsage = appUsage,
+        innerSessions = innerSessions,
+        innerSessionAppUsages = emptyList(),
+        state = state,
+    )
+
+    @Transaction
+    suspend fun replaceFrom(
+        beginMillis: Long,
+        summaries: List<DailyPostureSummaryEntity>,
+        appUsage: List<DailyAppUsageSummaryEntity>,
+        innerSessions: List<InnerDisplaySessionEntity>,
+        innerSessionAppUsages: List<InnerDisplaySessionAppUsageEntity>,
+        state: DailySummaryStateEntity,
+    ) {
+        deleteFrom(beginMillis)
+        deleteAppUsageFrom(beginMillis)
+        deleteInnerSessionAppUsagesFrom(beginMillis)
+        deleteInnerSessionsFrom(beginMillis)
+        insertAll(summaries)
+        insertAllAppUsage(appUsage)
+        insertAllInnerSessions(innerSessions)
+        insertAllInnerSessionAppUsages(innerSessionAppUsages)
         upsertState(state)
     }
 
@@ -532,14 +695,16 @@ interface DailyPostureSummaryDao {
         beginMillis: Long,
         summaries: List<DailyPostureSummaryEntity>,
         appUsage: List<DailyAppUsageSummaryEntity>,
+        innerSessions: List<InnerDisplaySessionEntity>,
         state: DailySummaryStateEntity,
-    ) {
-        deleteFrom(beginMillis)
-        deleteAppUsageFrom(beginMillis)
-        insertAll(summaries)
-        insertAllAppUsage(appUsage)
-        upsertState(state)
-    }
+    ) = replaceFrom(
+        beginMillis = beginMillis,
+        summaries = summaries,
+        appUsage = appUsage,
+        innerSessions = innerSessions,
+        innerSessionAppUsages = emptyList(),
+        state = state,
+    )
 }
 
 @Database(
@@ -549,10 +714,12 @@ interface DailyPostureSummaryDao {
         PostureCheckpointEntity::class,
         DailyPostureSummaryEntity::class,
         DailyAppUsageSummaryEntity::class,
+        InnerDisplaySessionEntity::class,
+        InnerDisplaySessionAppUsageEntity::class,
         DailySummaryStateEntity::class,
         SyncHistoryEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class FoldlyticsDatabase : RoomDatabase() {
@@ -573,7 +740,7 @@ abstract class FoldlyticsDatabase : RoomDatabase() {
                     FoldlyticsDatabase::class.java,
                     "foldlytics.db",
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { instance = it }
             }
@@ -604,6 +771,50 @@ internal val MIGRATION_2_3 = object : Migration(2, 3) {
             "CREATE INDEX IF NOT EXISTS " +
                 "index_sync_history_device_state_observed_at_millis " +
                 "ON sync_history (device_state_observed_at_millis)",
+        )
+    }
+}
+
+internal val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `inner_display_sessions` (
+                `opened_at_millis` INTEGER NOT NULL,
+                `opened_sequence_at_timestamp` INTEGER NOT NULL,
+                `closed_at_millis` INTEGER,
+                `inner_active_millis` INTEGER NOT NULL,
+                PRIMARY KEY(`opened_at_millis`, `opened_sequence_at_timestamp`)
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_inner_display_sessions_closed_at_millis` " +
+                "ON `inner_display_sessions` (`closed_at_millis`)",
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `inner_display_session_app_usage` (
+                `opened_at_millis` INTEGER NOT NULL,
+                `opened_sequence_at_timestamp` INTEGER NOT NULL,
+                `package_name` TEXT NOT NULL,
+                `inner_active_millis` INTEGER NOT NULL,
+                PRIMARY KEY(`opened_at_millis`, `opened_sequence_at_timestamp`, `package_name`),
+                FOREIGN KEY(`opened_at_millis`, `opened_sequence_at_timestamp`)
+                    REFERENCES `inner_display_sessions`(`opened_at_millis`, `opened_sequence_at_timestamp`)
+                    ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS " +
+                "`index_inner_display_session_app_usage_opened_at_millis_opened_sequence_at_timestamp` " +
+                "ON `inner_display_session_app_usage` " +
+                "(`opened_at_millis`, `opened_sequence_at_timestamp`)",
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_inner_display_session_app_usage_package_name` " +
+                "ON `inner_display_session_app_usage` (`package_name`)",
         )
     }
 }
@@ -811,6 +1022,38 @@ internal fun DailyAppUsageSummary.toEntity(): DailyAppUsageSummaryEntity =
         coverMillis = coverMillis,
         innerMillis = innerMillis,
         excludedMillis = excludedMillis,
+    )
+
+internal fun InnerDisplaySession.toEntity(): InnerDisplaySessionEntity =
+    InnerDisplaySessionEntity(
+        openedAtMillis = openedAtMillis,
+        openedSequenceAtTimestamp = openedSequenceAtTimestamp,
+        closedAtMillis = closedAtMillis,
+        innerActiveMillis = innerActiveMillis,
+    )
+
+internal fun InnerDisplaySession.toAppUsageEntities(): List<InnerDisplaySessionAppUsageEntity> =
+    appUsageMillis.asSequence()
+        .filter { (_, millis) -> millis > 0L }
+        .map { (packageName, millis) ->
+            InnerDisplaySessionAppUsageEntity(
+                openedAtMillis = openedAtMillis,
+                openedSequenceAtTimestamp = openedSequenceAtTimestamp,
+                packageName = packageName,
+                innerActiveMillis = millis,
+            )
+        }
+        .toList()
+
+internal fun InnerDisplaySessionEntity.toModel(
+    appUsages: List<InnerDisplaySessionAppUsageEntity> = emptyList(),
+): InnerDisplaySession =
+    InnerDisplaySession(
+        openedAtMillis = openedAtMillis,
+        openedSequenceAtTimestamp = openedSequenceAtTimestamp,
+        closedAtMillis = closedAtMillis,
+        innerActiveMillis = innerActiveMillis,
+        appUsageMillis = appUsages.associate { it.packageName to it.innerActiveMillis },
     )
 
 private fun stableKey(vararg fields: String?): String {

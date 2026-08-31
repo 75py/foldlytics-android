@@ -32,9 +32,11 @@ class UsageEventCleanupTest {
         context = InstrumentationRegistry.getInstrumentation().targetContext
         require(LEGACY_CLEANUP_DATABASE_NAME != "foldlytics.db")
         require(DEVICE_STATE_MIGRATION_DATABASE_NAME != "foldlytics.db")
+        require(SESSION_MIGRATION_DATABASE_NAME != "foldlytics.db")
         require(FRESH_DATABASE_NAME != "foldlytics.db")
         context.deleteDatabase(LEGACY_CLEANUP_DATABASE_NAME)
         context.deleteDatabase(DEVICE_STATE_MIGRATION_DATABASE_NAME)
+        context.deleteDatabase(SESSION_MIGRATION_DATABASE_NAME)
         context.deleteDatabase(FRESH_DATABASE_NAME)
     }
 
@@ -42,6 +44,7 @@ class UsageEventCleanupTest {
     fun tearDown() {
         context.deleteDatabase(LEGACY_CLEANUP_DATABASE_NAME)
         context.deleteDatabase(DEVICE_STATE_MIGRATION_DATABASE_NAME)
+        context.deleteDatabase(SESSION_MIGRATION_DATABASE_NAME)
         context.deleteDatabase(FRESH_DATABASE_NAME)
     }
 
@@ -162,10 +165,103 @@ class UsageEventCleanupTest {
     }
 
     @Test
-    fun reopeningFreshVersionThreeDatabaseDoesNotRunLegacyCleanup() = runBlocking {
+    fun migrationFromThreeToFourCreatesSessionTablesAndPreservesCacheState() {
+        val versionThree = migrationHelper.createDatabase(SESSION_MIGRATION_DATABASE_NAME, 3)
+        try {
+            versionThree.execSQL(
+                """
+                INSERT INTO daily_summary_state (
+                    singleton_id,
+                    last_aggregated_through_millis,
+                    calibration_key,
+                    zone_id,
+                    checkpoint_revision,
+                    aggregation_version
+                ) VALUES (1, 9000, 'calibration', 'Asia/Tokyo', 7, 2)
+                """.trimIndent(),
+            )
+        } finally {
+            versionThree.close()
+        }
+
+        val migrated = migrationHelper.runMigrationsAndValidate(
+            SESSION_MIGRATION_DATABASE_NAME,
+            4,
+            true,
+            MIGRATION_3_4,
+        )
+        try {
+            assertEquals(4, migrated.version)
+            migrated.query("SELECT COUNT(*) FROM inner_display_sessions").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(0, cursor.getInt(0))
+                assertFalse(cursor.moveToNext())
+            }
+            migrated.query("SELECT COUNT(*) FROM inner_display_session_app_usage").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(0, cursor.getInt(0))
+                assertFalse(cursor.moveToNext())
+            }
+            migrated.execSQL("PRAGMA foreign_keys = ON")
+            migrated.execSQL(
+                """
+                INSERT INTO inner_display_sessions (
+                    opened_at_millis,
+                    opened_sequence_at_timestamp,
+                    closed_at_millis,
+                    inner_active_millis
+                ) VALUES (1000, 2, 2000, 900)
+                """.trimIndent(),
+            )
+            migrated.execSQL(
+                """
+                INSERT INTO inner_display_session_app_usage (
+                    opened_at_millis,
+                    opened_sequence_at_timestamp,
+                    package_name,
+                    inner_active_millis
+                ) VALUES (1000, 2, 'app.example', 900)
+                """.trimIndent(),
+            )
+            migrated.execSQL(
+                "DELETE FROM inner_display_sessions " +
+                    "WHERE opened_at_millis = 1000 AND opened_sequence_at_timestamp = 2",
+            )
+            migrated.query("SELECT COUNT(*) FROM inner_display_session_app_usage").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(0, cursor.getInt(0))
+                assertFalse(cursor.moveToNext())
+            }
+            migrated.query(
+                """
+                SELECT
+                    last_aggregated_through_millis,
+                    calibration_key,
+                    zone_id,
+                    checkpoint_revision,
+                    aggregation_version
+                FROM daily_summary_state
+                WHERE singleton_id = 1
+                """.trimIndent(),
+            ).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(9_000L, cursor.getLong(0))
+                assertEquals("calibration", cursor.getString(1))
+                assertEquals("Asia/Tokyo", cursor.getString(2))
+                assertEquals(7L, cursor.getLong(3))
+                assertEquals(2, cursor.getInt(4))
+                assertFalse(cursor.moveToNext())
+            }
+        } finally {
+            migrated.close()
+        }
+    }
+
+    @Test
+    fun reopeningFreshVersionFourDatabaseDoesNotRunLegacyCleanup() = runBlocking {
         var database = openLatestDatabase(FRESH_DATABASE_NAME)
         try {
-            assertEquals(3, database.openHelper.writableDatabase.version)
+            assertEquals(4, database.openHelper.writableDatabase.version)
             database.usageEventDao().insertEvents(
                 listOf(
                     event(
@@ -300,7 +396,7 @@ class UsageEventCleanupTest {
 
     private fun openLatestDatabase(name: String): FoldlyticsDatabase =
         Room.databaseBuilder(context, FoldlyticsDatabase::class.java, name)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
             .build()
 
     private fun event(eventKey: String, rawEventType: Int): UsageEventEntity = UsageEventEntity(
@@ -322,6 +418,7 @@ class UsageEventCleanupTest {
         const val LEGACY_CLEANUP_DATABASE_NAME = "foldlytics-usage-event-migration-test.db"
         const val DEVICE_STATE_MIGRATION_DATABASE_NAME =
             "foldlytics-device-state-migration-test.db"
-        const val FRESH_DATABASE_NAME = "foldlytics-usage-event-fresh-v3-test.db"
+        const val SESSION_MIGRATION_DATABASE_NAME = "foldlytics-session-migration-test.db"
+        const val FRESH_DATABASE_NAME = "foldlytics-usage-event-fresh-v4-test.db"
     }
 }

@@ -32,6 +32,12 @@
     <string name="content_desc_cover_app_ranking">外側のアプリランキング</string>
     <string name="content_desc_inner_app_ranking">内側のアプリランキング</string>
     <string name="content_desc_summary">%1$sは外側%2$s、内側%3$s、内側%4$s</string>
+    <string name="content_desc_inner_session_metrics">開いた記録%2$d回のうち、%1$d回分の内側画面利用。中央値%3$s、平均値%4$s、最長%5$s。</string>
+    <string name="content_desc_inner_session_detail">%1$s開始、内側利用%2$s。アプリ内訳：%3$s。その他%4$s。</string>
+    <string name="content_desc_inner_session_detail_without_other">%1$s開始、内側利用%2$s。アプリ内訳：%3$s。</string>
+    <string name="content_desc_inner_session_app">%1$s、%2$s</string>
+    <string name="content_desc_inner_session_no_apps">表示できるアプリはありません</string>
+    <string name="content_desc_inner_session_app_separator">、</string>
     <string name="content_desc_chart_no_data">%1$s データなし</string>
     <string name="content_desc_chart_inner_ratio">%1$s 内側%2$s</string>
     <plurals name="content_desc_chart_opened">
@@ -72,6 +78,7 @@
     <string name="selected_date_range">選択中 %1$s〜%2$s</string>
     <string name="short_date_pattern">yyyy/M/d</string>
     <string name="time_pattern">MM/dd HH:mm:ss</string>
+    <string name="inner_session_start_time_pattern">yyyy/M/d HH:mm</string>
     <string name="report_date_time_pattern">yyyy-MM-dd HH:mm:ss</string>
     <string name="duration_hours_minutes">%1$d時間%2$d分</string>
     <string name="duration_hours_only">%1$d時間</string>
@@ -162,6 +169,23 @@
     <string name="open_count_trend_title">開いた回数の推移</string>
     <string name="legend_open_count">開いた回数</string>
     <string name="label_period_total">期間合計</string>
+
+    <!-- Inner-display sessions -->
+    <string name="inner_sessions_title">1回の内側画面利用</string>
+    <string name="inner_sessions_description">端末を開いてから閉じるまでを1回として、内側画面を使った時間を集計します。</string>
+    <string name="value_complete_inner_sessions">%1$d回分を集計（開いた記録%2$d回）</string>
+    <string name="label_median_inner_session_time">内側利用時間の中央値</string>
+    <string name="label_average_inner_session_time">内側利用時間の平均値</string>
+    <string name="label_longest_inner_session_time">最長の内側利用時間</string>
+    <string name="long_inner_sessions_title">長く使った回（最大3件）</string>
+    <string name="long_inner_sessions_empty">この期間は、長く使った内側画面の利用はありません。</string>
+    <string name="inner_session_duration">内側利用 %1$s</string>
+    <string name="inner_session_other">その他</string>
+    <string name="inner_session_other_description">「その他」には、表示した上位3件以外、ランチャーから起動できないアプリ、アプリを特定できない時間が含まれます。</string>
+    <string name="inner_sessions_empty_no_opens">この期間は、端末を開いた記録がありません。</string>
+    <plurals name="inner_sessions_empty_no_complete">
+        <item quantity="other">「開いた」記録は%1$d回ありますが、閉じるまでの内側画面利用を確認できる記録はありません。</item>
+    </plurals>
 
     <!-- Summary image sharing -->
     <string name="share_summary_period">%1$s · %2$s</string>

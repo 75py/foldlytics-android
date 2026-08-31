@@ -8,7 +8,7 @@ Foldlytics calculates its statistics from usage events available through Android
 
 Foldlytics requires Android Usage Access. It reads events for app display state, whether the screen is interactive, lock state, display configuration, and device startup or shutdown.
 
-Display configuration events and checkpoints provide evidence for the cover and inner states. When a usable display configuration is available, Foldlytics saves a checkpoint when the app starts, enters or leaves the foreground, is refreshed manually, or is calibrated. It stores the events and checkpoints in a local Room database. Daily summaries are caches that can be regenerated from this source data when calibration, the time zone, or aggregation logic changes.
+Display configuration events and checkpoints provide evidence for the cover and inner states. When a usable display configuration is available, Foldlytics saves a checkpoint when the app starts, enters or leaves the foreground, is refreshed manually, or is calibrated. It stores the events and checkpoints in a local Room database. Daily summaries and inner-display sessions are derived caches that can be regenerated from this source data when calibration, the time zone, or aggregation logic changes.
 
 ## Device use time
 
@@ -32,6 +32,22 @@ Foldlytics does not increment either count when it first learns the posture, whe
 
 The counts include only configuration events that Android retained and Foldlytics retrieved. They are not a count of every physical hinge movement.
 
+## Inner-display sessions
+
+An inner-display session starts only when a display configuration event confirms a transition from the cover display to the inner display. It completes only when a later display configuration event confirms the reverse transition from the inner display to the cover display. Checkpoints can establish or reaffirm the current display state, but a checkpoint does not itself start or complete a session.
+
+Foldlytics includes a session in the selected period only when both its detected open and detected close are inside that period. A session is invalidated if display configuration becomes unknown, a device startup or shutdown is observed, collection is interrupted, or other evidence moves the state away from the inner display without a confirmed close. Screen-off and locked intervals pause active-time accumulation but do not end the session.
+
+For each positive-length interval inside an inner-display session, Foldlytics evaluates screen and lock evidence as follows:
+
+- `ACTIVE`: the screen is confirmed interactive and the device is confirmed unlocked. The interval is added to inner active time.
+- `INACTIVE`: the screen is confirmed off or the device is confirmed locked. The interval contributes zero inner active time, even when the other state is unknown, and does not invalidate the session.
+- `UNKNOWN`: neither of those conclusions is proven. For example, a confirmed interactive screen with an unknown lock state is unknown rather than inactive.
+
+A session containing even one positive-length `UNKNOWN` interval is excluded from the session statistics and the derived session cache, even if later evidence becomes known before the close. A confirmed screen-off interval is therefore valid zero-time use when the lock state is unknown, while a screen-on interval with an unknown lock state is excluded. An opening and closing at the same timestamp has no positive-length interval, so it can remain a valid zero-time session without screen or lock evidence. Foldlytics shows the number of complete sessions relative to detected opens, the median, arithmetic average, and longest active time. Zero-time complete sessions are included in all three statistics; the average is calculated with integer milliseconds without overflowing `Long`. For an even number of sessions, the median is the midpoint of the two middle durations.
+
+Each session also retains inner active time by package. When exactly one distinct package has a resumed activity during an eligible interval, that package receives the interval's time. Intervals with no resumed package or multiple distinct resumed packages are kept as unallocated time. For the three longest complete sessions with positive inner active time, Foldlytics shows the start time, inner active time, the top three launchable apps by time, and the remaining time as Other. The Other row is shown only when its remaining time is positive. Non-launchable apps, fourth and later apps, and unallocated time are included in Other. Ties between sessions are ordered by newer start time and then by the recorded event sequence.
+
 ## Inner display share and data coverage
 
 Inner display share is `inner display time / (cover display time + inner display time)`. Excluded time is not part of the denominator.
@@ -44,7 +60,11 @@ Data coverage reports how much of the observed device use Foldlytics could class
 
 Foldlytics counts an app's display time while its activity is `ACTIVITY_RESUMED`, the screen is interactive, and the device is unlocked. An interval with an unknown display does not contribute to the app's cover or inner display time.
 
-In split screen and other multi-resume situations, more than one app can be `ACTIVITY_RESUMED` at the same time. The sum of per-app display time can therefore exceed device use time. The ranking on the home screen includes only apps that can be launched from the device launcher.
+In split screen and other multi-resume situations, more than one app can be `ACTIVITY_RESUMED` at the same time. The existing display-specific app ranking can therefore have app totals that exceed device use time. The per-session breakdown assigns such intervals to Other, so the displayed app total for a session never exceeds that session's inner active time. Both the existing ranking and session breakdown show only apps that can be launched from the device launcher.
+
+## Privacy impact of session analysis
+
+Session analysis uses only the usage events and checkpoints already described above. It does not read a new event category, request a new permission, add analytics or telemetry, or automatically transmit data off the device. The derived session cache remains in the local Room database and is removed when the app's data is cleared or the app is uninstalled. This feature therefore does not add a new collection, sharing, or transfer purpose to the Google Play Data safety disclosure.
 
 ## Daily and long-term values
 

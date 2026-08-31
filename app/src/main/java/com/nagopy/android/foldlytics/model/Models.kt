@@ -142,6 +142,50 @@ data class AppUsage(
     val observedMillis: Long = classifiedMillis + excludedMillis
 }
 
+/**
+ * A session between a detected cover-to-inner transition and the following inner-to-cover
+ * transition.
+ *
+ * The package map contains only time for intervals that had exactly one distinct resumed package.
+ * The difference between [innerActiveMillis] and the map total is intentionally retained as
+ * unallocated time and is presented as "Other".
+ */
+data class InnerDisplaySession(
+    val openedAtMillis: Long,
+    val openedSequenceAtTimestamp: Int,
+    val closedAtMillis: Long?,
+    val innerActiveMillis: Long,
+    val appUsageMillis: Map<String, Long> = emptyMap(),
+) {
+    val isComplete: Boolean = closedAtMillis != null
+}
+
+data class InnerSessionAppUsage(
+    val packageName: String,
+    val label: String,
+    val innerActiveMillis: Long,
+    val isLauncherApp: Boolean = true,
+)
+
+data class InnerSessionDetail(
+    val openedAtMillis: Long,
+    val openedSequenceAtTimestamp: Int,
+    val innerActiveMillis: Long,
+    val appUsages: List<InnerSessionAppUsage>,
+    val otherInnerActiveMillis: Long,
+)
+
+data class InnerSessionSummary(
+    val rangeStartMillis: Long,
+    val rangeEndMillis: Long,
+    val detectedOpenCount: Int,
+    val completeSessionCount: Int,
+    val medianInnerActiveMillis: Long?,
+    val averageInnerActiveMillis: Long?,
+    val longestInnerActiveMillis: Long?,
+    val longSessions: List<InnerSessionDetail> = emptyList(),
+)
+
 enum class PostureEventSource {
     CONFIGURATION_CHANGE,
     CHECKPOINT,
