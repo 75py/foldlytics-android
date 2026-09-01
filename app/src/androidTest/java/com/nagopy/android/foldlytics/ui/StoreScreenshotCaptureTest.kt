@@ -1,8 +1,11 @@
 package com.nagopy.android.foldlytics.ui
 
+import android.content.ContentValues
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.os.Environment
+import android.provider.MediaStore
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalConfiguration
@@ -15,6 +18,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nagopy.android.foldlytics.MainUiState
@@ -29,8 +33,6 @@ import com.nagopy.android.foldlytics.model.InnerSessionDetail
 import com.nagopy.android.foldlytics.model.InnerSessionSummary
 import com.nagopy.android.foldlytics.model.LongTermPeriod
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
-import java.io.File
-import java.io.FileOutputStream
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
@@ -106,6 +108,7 @@ class StoreScreenshotCaptureTest {
         state: MainUiState,
         outputDirectory: String,
     ) {
+        clearOutputDirectory(outputDirectory)
         composeRule.setContent {
             CompositionLocalProvider(
                 LocalContext provides context,
@@ -141,10 +144,11 @@ class StoreScreenshotCaptureTest {
         capture("02-session-details", outputDirectory)
 
         composeRule.onNodeWithTag(DETAIL_BACK_BUTTON_TAG).performClick()
-        scrollTo(USAGE_TREND_CARD_TAG)
+        scrollToHomeItem(HOME_USAGE_TREND_ITEM_INDEX)
         capture("03-inner-ratio-trend", outputDirectory)
 
         composeRule.onNodeWithTag(USAGE_TREND_OPEN_COUNT_TAG).performClick()
+        scrollToHomeItem(HOME_USAGE_TREND_ITEM_INDEX)
         capture("04-open-count-trend", outputDirectory)
 
         scrollTo(HOME_APP_USAGE_LINK_TAG)
@@ -164,6 +168,13 @@ class StoreScreenshotCaptureTest {
 
     private fun scrollTo(tag: String) {
         composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag(tag))
+    }
+
+    private fun scrollToHomeItem(index: Int) {
+        scrollTo(HOME_INNER_SESSIONS_LINK_TAG)
+        val scrollable = composeRule.onNode(hasScrollAction())
+        scrollable.performScrollToIndex(index - 1)
+        scrollable.performScrollToIndex(index)
     }
 
     private fun representativeState(appLabels: AppLabels): MainUiState {
@@ -250,8 +261,6 @@ class StoreScreenshotCaptureTest {
         labels: AppLabels,
     ): List<AppUsage> = listOf(
         app("demo.browser", labels.browser, coverMillis, 24, innerMillis, 16),
-        app("demo.messages", labels.messages, coverMillis, 21, innerMillis, 8),
-        app("demo.maps", labels.maps, coverMillis, 14, innerMillis, 4),
         app("demo.photos", labels.photos, coverMillis, 11, innerMillis, 14),
         app("demo.reader", labels.reading, coverMillis, 7, innerMillis, 27),
     )
@@ -353,24 +362,57 @@ class StoreScreenshotCaptureTest {
 
     private fun capture(name: String, outputDirectory: String) {
         composeRule.waitForIdle()
-        val directory = File(
-            checkNotNull(targetContext.getExternalFilesDir(null)),
-            outputDirectory,
-        )
-        check(directory.exists() || directory.mkdirs()) {
-            "Could not create screenshot output directory: $directory"
+        val resolver = targetContext.contentResolver
+        val relativePath = relativeOutputPath(outputDirectory)
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "$name.png")
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
         }
-        val output = File(directory, "$name.png")
-        FileOutputStream(output).use { stream ->
+        val outputUri = checkNotNull(
+            resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values),
+        ) {
+            "Could not create screenshot media entry: $relativePath/$name.png"
+        }
+        try {
+            val stream = checkNotNull(resolver.openOutputStream(outputUri)) {
+                "Could not open screenshot output: $relativePath/$name.png"
+            }
+            stream.use { output ->
+                check(
+                    composeRule.onRoot()
+                        .captureToImage()
+                        .asAndroidBitmap()
+                        .compress(Bitmap.CompressFormat.PNG, 100, output),
+                ) { "Could not write screenshot: $relativePath/$name.png" }
+            }
             check(
-                composeRule.onRoot()
-                    .captureToImage()
-                    .asAndroidBitmap()
-                    .compress(Bitmap.CompressFormat.PNG, 100, stream),
-            ) { "Could not write screenshot: $output" }
+                resolver.update(
+                    outputUri,
+                    ContentValues().apply {
+                        put(MediaStore.MediaColumns.IS_PENDING, 0)
+                    },
+                    null,
+                    null,
+                ) == 1,
+            ) { "Could not publish screenshot: $relativePath/$name.png" }
+        } catch (error: Throwable) {
+            resolver.delete(outputUri, null, null)
+            throw error
         }
-        check(output.length() > 0L) { "Screenshot is empty: $output" }
     }
+
+    private fun clearOutputDirectory(outputDirectory: String) {
+        targetContext.contentResolver.delete(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            "${MediaStore.MediaColumns.RELATIVE_PATH} = ?",
+            arrayOf(relativeOutputPath(outputDirectory)),
+        )
+    }
+
+    private fun relativeOutputPath(outputDirectory: String): String =
+        "${Environment.DIRECTORY_DOWNLOADS}/Foldlytics/$outputDirectory/"
 
     private fun minutes(value: Long): Long = value * 60_000L
 
@@ -385,6 +427,7 @@ class StoreScreenshotCaptureTest {
     companion object {
         private const val RECORD_DAY_COUNT = 365L
         private const val TREND_DAY_COUNT = 90L
+        private const val HOME_USAGE_TREND_ITEM_INDEX = 3
         private const val JAPANESE_OUTPUT_DIRECTORY = "store-screenshots"
         private const val ENGLISH_OUTPUT_DIRECTORY = "store-screenshots-en"
     }

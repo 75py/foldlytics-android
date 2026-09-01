@@ -57,7 +57,7 @@ least four portrait app screenshots at 1080 px or higher. The added headline are
 - 02: `The opening-to-closing inner-display use card showing median, average, longest time, and app breakdowns for the three longest uses.`
 - 03: `A Foldlytics line chart showing inner-display share across a 90-day period.`
 - 04: `The detected-open trend chart with a total of 945 and no app ranking on the home screen.`
-- 05: `The inner-display app usage detail led by Reading, Browser, Photos, and Messages.`
+- 05: `The inner-display app usage detail led by Reading, Browser, and Photos.`
 - 06: `The Foldlytics drawer with CSV export, diagnostic sharing, Usage Access settings, privacy policy, and an on-device data notice.`
 
 ## Representative data
@@ -85,33 +85,24 @@ trend buckets, open counts, and rankings agree with one another.
 1. Start the foldable API 36 test emulator in its opened state and set the display to 1080 x 1920.
    The Compose test host requires the active display; the capture fixture does not use device usage
    history or hinge readings.
-2. Build and install `app-debug.apk` and `app-debug-androidTest.apk`.
+2. From the repository root, run the capture helper:
 
    ```shell
-   ./gradlew --no-daemon installDebug installDebugAndroidTest
+   ./store-assets/google-play/capture-store-screenshots.sh
    ```
 
-3. Run:
+   The helper refuses physical or unknown devices, verifies the named API 36 emulator and
+   `ro.kernel.qemu=1`, sets `OPENED` and 1080 x 1920, then runs the Gradle connected test. The
+   fixture writes PNGs to its dedicated shared Downloads directories so the host can pull all
+   twelve files after the test and before any unrelated cleanup. Each file is checked as a PNG at
+   1080 x 1920, copied into `raw-ja/` or `raw-en/` using the existing raw names, and passed to
+   `generate-phone-screenshots.sh` for the upload-ready images and contact sheets. The helper
+   removes only its fixture directories from the test emulator when it exits.
 
-   ```shell
-   ./gradlew --no-daemon :app:connectedDebugAndroidTest \
-     -Pandroid.testInstrumentationRunnerArguments.class=com.nagopy.android.foldlytics.ui.StoreScreenshotCaptureTest
-   ```
-
-   Use the Gradle connected-test command because direct `am instrument` does not initialize the
+   Use this Gradle connected-test helper because direct `am instrument` does not initialize the
    Compose UI test v2 host used by this fixture.
 
-4. Pull the Japanese and English PNG files from:
-
-   ```text
-   /sdcard/Android/data/com.nagopy.android.foldlytics.debug/files/store-screenshots/
-   /sdcard/Android/data/com.nagopy.android.foldlytics.debug/files/store-screenshots-en/
-   ```
-
-   into `raw-ja/` and `raw-en/`, respectively.
-5. Run `./generate-phone-screenshots.sh` to generate the six upload-ready images and both
-   localized review contact sheets. Set `FOLDLYTICS_STORE_FONT` when the default macOS Hiragino
-   font is unavailable.
+3. Set `FOLDLYTICS_STORE_FONT` when the default macOS Hiragino font is unavailable.
 
 The script accepts the new capture names (`01-home-summary.png` through `06-drawer.png`) and
 temporarily falls back to the checked-in legacy raw names until fresh emulator captures are
