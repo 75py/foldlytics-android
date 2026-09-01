@@ -9,12 +9,13 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollToIndex
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nagopy.android.foldlytics.MainUiState
 import com.nagopy.android.foldlytics.R
@@ -125,36 +126,44 @@ class StoreScreenshotCaptureTest {
                         onOpenPrivacyPolicy = {},
                         onOpenOssLicenses = {},
                         appName = "Foldlytics",
-                        screenshotSectionEndSpacing = 64.dp,
                     )
                 }
             }
         }
 
-        val scrollable = composeRule.onNode(hasScrollAction())
+        scrollTo(SUMMARY_CARD_TAG)
+        capture("01-home-summary", outputDirectory)
 
-        scrollable.performScrollToIndex(SUMMARY_ITEM_INDEX)
-        capture("01-summary", outputDirectory)
+        scrollTo(HOME_INNER_SESSIONS_LINK_TAG)
+        composeRule.onNodeWithTag(HOME_INNER_SESSIONS_LINK_TAG).performClick()
+        composeRule.onNodeWithTag(INNER_DISPLAY_SESSION_SCREEN_TAG).assertExists()
+        scrollTo(INNER_SESSION_LONG_SESSIONS_CARD_TAG)
+        capture("02-session-details", outputDirectory)
 
-        scrollable.performScrollToIndex(INNER_SESSION_ITEM_INDEX)
-        capture("02-inner-sessions", outputDirectory)
+        composeRule.onNodeWithTag(DETAIL_BACK_BUTTON_TAG).performClick()
+        scrollTo(USAGE_TREND_CARD_TAG)
+        capture("03-inner-ratio-trend", outputDirectory)
 
-        scrollable.performScrollToIndex(TRENDS_ITEM_INDEX)
-        capture("03-trends", outputDirectory)
+        composeRule.onNodeWithTag(USAGE_TREND_OPEN_COUNT_TAG).performClick()
+        capture("04-open-count-trend", outputDirectory)
 
-        scrollable.performScrollToIndex(OPEN_COUNT_ITEM_INDEX)
-        capture("04-open-count", outputDirectory)
+        scrollTo(HOME_APP_USAGE_LINK_TAG)
+        composeRule.onNodeWithTag(HOME_APP_USAGE_LINK_TAG).performClick()
+        composeRule.onNodeWithTag(APP_USAGE_SCREEN_TAG).assertExists()
+        composeRule.onNodeWithTag(APP_USAGE_INNER_SEGMENT_TAG).performClick()
+        scrollTo("${APP_USAGE_CARD_TAG_PREFIX}demo.reader")
+        capture("05-inner-app-ranking", outputDirectory)
 
-        scrollable.performScrollToIndex(APP_RANKING_ITEM_INDEX)
-        composeRule.onNodeWithContentDescription(
-            context.getString(R.string.content_desc_inner_app_ranking),
-        ).performClick()
-        capture("05-app-ranking", outputDirectory)
+        composeRule.onNodeWithTag(DETAIL_BACK_BUTTON_TAG).performClick()
 
         composeRule.onNodeWithContentDescription(
             context.getString(R.string.content_desc_open_menu),
         ).performClick()
-        capture("06-on-device", outputDirectory)
+        capture("06-drawer", outputDirectory)
+    }
+
+    private fun scrollTo(tag: String) {
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag(tag))
     }
 
     private fun representativeState(appLabels: AppLabels): MainUiState {
@@ -376,11 +385,6 @@ class StoreScreenshotCaptureTest {
     companion object {
         private const val RECORD_DAY_COUNT = 365L
         private const val TREND_DAY_COUNT = 90L
-        private const val SUMMARY_ITEM_INDEX = 2
-        private const val INNER_SESSION_ITEM_INDEX = 3
-        private const val TRENDS_ITEM_INDEX = 4
-        private const val OPEN_COUNT_ITEM_INDEX = 6
-        private const val APP_RANKING_ITEM_INDEX = 7
         private const val JAPANESE_OUTPUT_DIRECTORY = "store-screenshots"
         private const val ENGLISH_OUTPUT_DIRECTORY = "store-screenshots-en"
     }

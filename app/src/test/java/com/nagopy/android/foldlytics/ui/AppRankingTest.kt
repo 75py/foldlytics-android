@@ -40,6 +40,25 @@ class AppRankingTest {
         )
     }
 
+    @Test
+    fun homePreviewRanksByTotalTimeKeepsLauncherAppsOnlyReturnsThreeAndOmitsZeroTime() {
+        val apps = listOf(
+            app("total-second", coverMillis = 100L, innerMillis = 100L),
+            app("total-first", coverMillis = 300L, innerMillis = 200L),
+            app("total-third", coverMillis = 20L, innerMillis = 30L),
+            app("total-fourth", coverMillis = 10L, innerMillis = 20L),
+            app("zero-time", coverMillis = 0L, innerMillis = 0L),
+            app("system", coverMillis = 10_000L, innerMillis = 10_000L, isLauncherApp = false),
+        )
+
+        val ranked = rankAppsForHomePreview(apps)
+
+        assertEquals(
+            listOf("total-first", "total-second", "total-third"),
+            ranked.map(AppUsage::packageName),
+        )
+    }
+
     private fun app(
         packageName: String,
         coverMillis: Long,

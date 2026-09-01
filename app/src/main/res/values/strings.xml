@@ -29,11 +29,18 @@
     <!-- Accessibility -->
     <string name="content_desc_analysis_progress">Analyzing saved data</string>
     <string name="content_desc_open_menu">Open menu</string>
+    <string name="content_desc_go_back">Go back</string>
     <string name="content_desc_share_summary">Share usage summary as an image</string>
     <string name="content_desc_summary_share_preview">Foldlytics usage summary share image</string>
     <string name="content_desc_cover_app_ranking">Outer-display app ranking</string>
     <string name="content_desc_inner_app_ranking">Inner-display app ranking</string>
     <string name="content_desc_summary">%1$s: outer %2$s, inner %3$s, inner share %4$s</string>
+    <string name="content_desc_live_state">%1$s. %2$s.</string>
+    <string name="content_desc_analysis_period_selector">Select analysis period. Current: %1$s</string>
+    <string name="content_desc_select_inner_ratio_trend">Show inner share trend</string>
+    <string name="content_desc_select_open_count_trend">Show open count trend</string>
+    <string name="content_desc_home_app_usage_link">Open app usage details.</string>
+    <string name="content_desc_home_inner_sessions_link">Open inner-display use per opening details.</string>
     <string name="content_desc_inner_session_metrics">Inner-display uses summarized: %1$d. Openings detected: %2$d. Median %3$s. Average %4$s. Longest %5$s.</string>
     <string name="content_desc_inner_session_detail">Started %1$s. Inner-display use %2$s. Apps: %3$s. Other %4$s.</string>
     <string name="content_desc_inner_session_detail_without_other">Started %1$s. Inner-display use %2$s. Apps: %3$s.</string>
@@ -62,6 +69,8 @@
     <string name="status_none">None</string>
     <string name="status_allowed">Allowed</string>
     <string name="status_not_allowed">Not allowed</string>
+    <string name="recording_status_available">Recording available</string>
+    <string name="recording_status_access_required">Usage access needed</string>
     <string name="status_range_in">In range</string>
     <string name="status_range_seed">Lookback</string>
     <string name="value_item_count">%1$d</string>
@@ -128,6 +137,20 @@
     <string name="no_ranked_apps">No apps have measurable %1$s-display time in this period.</string>
     <string name="saved_data_usage_access_note">Showing saved data. Usage access is required to sync new data.</string>
     <string name="error_sync_read">Sync or data-loading error: %1$s</string>
+    <string name="sync_error_title">Action needed: usage data could not be updated</string>
+    <string name="detail_unavailable_while_analyzing">Unavailable while saved data is being analyzed.</string>
+    <string name="home_app_usage_link_title">Most-used apps</string>
+    <string name="home_app_usage_preview">Top apps by total display time: %1$s</string>
+    <string name="home_app_usage_empty">No launcher apps have measurable display time in this period.</string>
+    <string name="home_inner_sessions_link_title">Inner-display use per opening</string>
+    <string name="home_inner_sessions_preview">Typical inner-display use per opening: median %1$s; longest %2$s.</string>
+    <string name="home_inner_sessions_empty">No completed inner-display uses are available in this period.</string>
+    <string name="usage_trend_inner_ratio">Inner share</string>
+    <string name="usage_trend_open_count">Open count</string>
+    <string name="app_usage_screen_title">App usage</string>
+    <string name="inner_sessions_screen_title">Inner-display use per opening</string>
+    <string name="app_usage_detail_empty">No app-usage data is available for this period.</string>
+    <string name="inner_sessions_detail_empty">No inner-display session data is available for this period.</string>
     <string name="calibration_intro_title">Usually no setup is needed</string>
     <string name="calibration_intro_body">Foldlytics automatically identifies the outer and inner displays from screen width. Save device-specific values only if the current state on Home is incorrect.</string>
     <string name="label_current_posture">Current posture</string>
@@ -139,12 +162,6 @@
     <string name="usage_access_disclosure_body">To calculate outer- and inner-display usage, Foldlytics reads displayed app names, screen on and lock state, screen configuration, and their timestamps. It also reads this data about every six hours while the app is closed and stores it in an on-device database until you uninstall the app.\n\nThe data is used only for statistics and for CSV export or sharing that you initiate. It is not used for advertising or third-party analytics and is not transmitted automatically. Only when you choose to export or share is the data passed to the destination or app you select.</string>
     <string name="usage_access_required_title">Usage access is required</string>
     <string name="usage_access_required_body">App display time and fold state are calculated only on this device.</string>
-    <string name="live_state_cover">Using the outer display</string>
-    <string name="live_state_inner">Using the inner display</string>
-    <string name="live_state_unknown">Fold state cannot be determined</string>
-    <string name="classification_saved_values_detail">Detected from device-specific saved values</string>
-    <string name="classification_automatic_detail">Detected automatically from device information</string>
-    <string name="live_state_title">Current device state</string>
     <string name="calibration_values_title">Device-specific detection values</string>
     <string name="calibration_instructions">Close the device and record the outer display, then open it and record the inner display. Automatic detection remains active until both values are saved.</string>
 
@@ -168,9 +185,7 @@
     <string name="label_observed_days">Days with data</string>
     <string name="label_inner_used_days">Days using inner display</string>
     <string name="label_change_from_first_30_days">Change from first 30 days (latest 30)</string>
-    <string name="inner_ratio_trend_title">Inner-display share over time</string>
     <string name="legend_inner_ratio">Inner share</string>
-    <string name="open_count_trend_title">Open count over time</string>
     <string name="legend_open_count">Open count</string>
     <string name="label_period_total">Period total</string>
 
@@ -191,6 +206,8 @@
         <item quantity="one">%1$d opening was detected, but we could not confirm inner-display use through a closing.</item>
         <item quantity="other">%1$d openings were detected, but we could not confirm inner-display use through a closing.</item>
     </plurals>
+    <string name="inner_sessions_method_title">How this is calculated</string>
+    <string name="inner_sessions_method_body">Each use is measured from an opening until the next closing. Only completed records are included in the summary. Screen-off and locked intervals count as 0 seconds. Apps beyond the top three, apps that cannot be launched from the launcher, and time that cannot be matched to an app are included in Other.</string>
 
     <!-- Summary image sharing -->
     <string name="share_summary_brand" translatable="false">Foldlytics</string>

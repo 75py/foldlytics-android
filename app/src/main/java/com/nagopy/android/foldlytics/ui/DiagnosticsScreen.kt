@@ -38,7 +38,7 @@ internal fun DiagnosticsContent(
     val events = analysis?.postureEvents.orEmpty()
     val inRangeCount = events.count { !it.isBeforeRange }
     val seedCount = events.size - inRangeCount
-    FoldlyticsLazyColumn(scaffoldPadding) {
+    FoldlyticsLazyColumn(scaffoldPadding = scaffoldPadding) {
         item {
             LabCard(title = stringResource(R.string.diagnostics_overview_title)) {
                 Text(

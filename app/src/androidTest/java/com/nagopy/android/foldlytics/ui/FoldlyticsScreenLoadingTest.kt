@@ -6,11 +6,15 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -19,20 +23,22 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.test.espresso.Espresso
+import androidx.test.platform.app.InstrumentationRegistry
 import com.nagopy.android.foldlytics.MainUiState
 import com.nagopy.android.foldlytics.R
 import com.nagopy.android.foldlytics.model.AnalysisPeriod
 import com.nagopy.android.foldlytics.model.AppUsage
+import com.nagopy.android.foldlytics.model.DisplayPosture
+import com.nagopy.android.foldlytics.model.InnerSessionSummary
 import com.nagopy.android.foldlytics.model.LongTermBucket
 import com.nagopy.android.foldlytics.model.LongTermInsights
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
 import com.nagopy.android.foldlytics.model.availableAnalysisPeriods
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
-import androidx.test.platform.app.InstrumentationRegistry
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.Locale
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -158,17 +164,16 @@ class FoldlyticsScreenLoadingTest {
     fun usesOnePeriodSelectorForShortAndLongRanges() {
         setContent { false }
 
+        composeRule.onNodeWithTag(ANALYSIS_PERIOD_SELECTOR_TAG).assertIsEnabled()
         composeRule.onNodeWithText(text(R.string.section_analysis_period)).assertIsDisplayed()
         composeRule.onNodeWithText(text(R.string.period_24_hours)).assertIsDisplayed()
-        composeRule.onNodeWithText(text(R.string.period_7_days)).assertIsDisplayed()
-        composeRule.onNodeWithText(text(R.string.period_custom)).assertIsDisplayed()
         composeRule.onNodeWithText("3 years").assertDoesNotExist()
         composeRule.onNodeWithText("Recent usage").assertDoesNotExist()
         composeRule.onNodeWithText("Long-term trends").assertDoesNotExist()
     }
 
     @Test
-    fun enablesOnlyFixedPeriodsCoveredByTheRecordedRange() {
+    fun opensOnePeriodDropdownWithEnabledAndDisabledCandidates() {
         val zoneId = ZoneOffset.UTC
         val rangeStart = LocalDate.of(2026, 1, 1)
             .atStartOfDay(zoneId)
@@ -186,11 +191,39 @@ class FoldlyticsScreenLoadingTest {
             ),
         )
 
-        composeRule.onNodeWithText(text(R.string.period_7_days)).assertIsEnabled()
-        composeRule.onNodeWithText(text(R.string.period_30_days)).assertIsEnabled()
-        composeRule.onNodeWithText(text(R.string.period_90_days)).assertIsNotEnabled()
-        composeRule.onNodeWithText(text(R.string.period_1_year)).assertIsNotEnabled()
-        composeRule.onNodeWithText(text(R.string.period_custom)).assertIsEnabled().performClick()
+        composeRule.onNodeWithTag(ANALYSIS_PERIOD_SELECTOR_TAG).performClick()
+
+        option(AnalysisPeriod.HOURS_1).assertIsEnabled()
+        option(AnalysisPeriod.HOURS_6).assertIsEnabled()
+        option(AnalysisPeriod.HOURS_24).assertIsEnabled()
+        option(AnalysisPeriod.DAYS_7).assertIsEnabled()
+        option(AnalysisPeriod.DAYS_30).assertIsEnabled()
+        option(AnalysisPeriod.DAYS_90).assertIsNotEnabled()
+        option(AnalysisPeriod.DAYS_365).assertIsNotEnabled()
+        option(AnalysisPeriod.CUSTOM).assertIsEnabled()
+    }
+
+    @Test
+    fun opensCustomPeriodDialogFromThePeriodDropdown() {
+        val zoneId = ZoneOffset.UTC
+        val rangeStart = LocalDate.of(2026, 1, 1)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        val rangeEnd = LocalDate.of(2026, 2, 10)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        setContent(
+            MainUiState(
+                recordRangeStartMillis = rangeStart,
+                recordRangeEndMillis = rangeEnd,
+                availablePeriods = availableAnalysisPeriods(rangeStart, rangeEnd, zoneId),
+            ),
+        )
+
+        composeRule.onNodeWithTag(ANALYSIS_PERIOD_SELECTOR_TAG).performClick()
+        option(AnalysisPeriod.CUSTOM).performClick()
         composeRule.waitForIdle()
         val dialogTitle = composeRule.onNodeWithTag(
             CUSTOM_PERIOD_DIALOG_TITLE_TAG,
@@ -220,44 +253,125 @@ class FoldlyticsScreenLoadingTest {
     }
 
     @Test
-    fun scopesTheDisplayRankingToTheAppSectionAfterUsageTrends() {
+    fun keepsHomeToSummaryAndOneSwitchableTrendCardWithoutDetailBreakdowns() {
         setContent(rankingState())
 
         val scrollable = composeRule.onNode(hasScrollAction())
-        scrollable.performScrollToNode(hasText(text(R.string.section_usage_trends)))
-        composeRule.onNodeWithText(text(R.string.section_usage_trends)).assertIsDisplayed()
+        scrollable.performScrollToNode(hasTestTag(USAGE_TREND_CARD_TAG))
+        composeRule.onAllNodes(hasTestTag(USAGE_TREND_CARD_TAG)).assertCountEquals(1)
+        composeRule.onNodeWithText(text(R.string.app_ranking_title)).assertDoesNotExist()
+        composeRule.onNodeWithTag(INNER_SESSION_CARD_TAG).assertDoesNotExist()
+        composeRule.onNodeWithTag(INNER_SESSION_LONG_SESSIONS_CARD_TAG).assertDoesNotExist()
+        composeRule.onNodeWithText(text(R.string.label_observed_days)).assertIsDisplayed()
+        composeRule.onNodeWithText(text(R.string.label_period_total)).assertDoesNotExist()
 
-        scrollable.performScrollToNode(hasText(text(R.string.app_ranking_title)))
-        composeRule.onNodeWithText(text(R.string.app_ranking_title)).assertIsDisplayed()
-        composeRule.onNodeWithText("Share by app").assertDoesNotExist()
-        scrollable.performScrollToNode(
-            hasContentDescription(text(R.string.content_desc_cover_app_ranking)),
-        )
-        composeRule.onNodeWithContentDescription(
-            text(R.string.content_desc_cover_app_ranking),
-        )
-            .assertIsDisplayed()
-        val outerOrder = text(
-            R.string.app_ranking_order,
-            text(R.string.posture_cover),
-        )
-        scrollable.performScrollToNode(hasText(outerOrder))
-        composeRule.onNodeWithText(outerOrder).assertIsDisplayed()
-
-        scrollable.performScrollToNode(
-            hasContentDescription(text(R.string.content_desc_inner_app_ranking)),
-        )
-        composeRule.onNodeWithContentDescription(
-            text(R.string.content_desc_inner_app_ranking),
-        ).performClick()
-
-        val innerOrder = text(
-            R.string.app_ranking_order,
-            text(R.string.posture_inner),
-        )
-        scrollable.performScrollToNode(hasText(innerOrder))
-        composeRule.onNodeWithText(innerOrder).assertIsDisplayed()
+        composeRule.onNodeWithTag(USAGE_TREND_OPEN_COUNT_TAG).performClick()
+        composeRule.onNodeWithText(text(R.string.label_period_total)).assertIsDisplayed()
+        composeRule.onNodeWithText(text(R.string.label_observed_days)).assertDoesNotExist()
+        composeRule.onNodeWithTag(USAGE_TREND_INNER_RATIO_TAG).assertIsDisplayed()
     }
+
+    @Test
+    fun liveStateCardExposesOneCombinedAccessibilityNodeWithoutDuplicateChildAnnouncements() {
+        val postureLabel = text(R.string.posture_inner)
+        val recordingStatus = text(R.string.recording_status_available)
+        val combinedDescription = text(
+            R.string.content_desc_live_state,
+            postureLabel,
+            recordingStatus,
+        )
+        setContent(
+            MainUiState(
+                hasUsageAccess = true,
+                currentPosture = DisplayPosture.INNER,
+            ),
+        )
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(
+            hasTestTag(LIVE_STATE_CARD_TAG),
+        )
+        composeRule.onNode(
+            hasTestTag(LIVE_STATE_CARD_TAG) and hasContentDescription(combinedDescription),
+        ).assertIsDisplayed()
+        composeRule.onAllNodes(
+            hasContentDescription(combinedDescription),
+            useUnmergedTree = false,
+        ).assertCountEquals(1)
+
+        composeRule.onNodeWithText(postureLabel, useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithText(recordingStatus, useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onAllNodes(
+            hasText(postureLabel, substring = false),
+            useUnmergedTree = false,
+        ).assertCountEquals(0)
+        composeRule.onAllNodes(
+            hasText(recordingStatus, substring = false),
+            useUnmergedTree = false,
+        ).assertCountEquals(0)
+    }
+
+    @Test
+    fun homeDetailLinksNavigateBackAndRestoreTheHomeScrollPosition() {
+        setContent(navigationState())
+
+        val scrollable = composeRule.onNode(hasScrollAction())
+        scrollable.performScrollToNode(hasTestTag(HOME_APP_USAGE_LINK_TAG))
+        val appLinkTop = composeRule.onNodeWithTag(HOME_APP_USAGE_LINK_TAG)
+            .fetchSemanticsNode().boundsInRoot.top
+
+        composeRule.onNodeWithTag(HOME_APP_USAGE_LINK_TAG).performClick()
+        composeRule.onNodeWithTag(APP_USAGE_SCREEN_TAG).assertIsDisplayed()
+        composeRule.onAllNodes(
+            hasText(text(R.string.app_usage_screen_title), substring = false),
+        ).assertCountEquals(2)
+
+        composeRule.onNodeWithTag(DETAIL_BACK_BUTTON_TAG).performClick()
+        composeRule.onNodeWithTag(HOME_APP_USAGE_LINK_TAG).assertIsDisplayed()
+        val restoredAppLinkTop = composeRule.onNodeWithTag(HOME_APP_USAGE_LINK_TAG)
+            .fetchSemanticsNode().boundsInRoot.top
+        assertEquals(appLinkTop, restoredAppLinkTop, 1f)
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(
+            hasTestTag(HOME_INNER_SESSIONS_LINK_TAG),
+        )
+        composeRule.onNodeWithTag(HOME_INNER_SESSIONS_LINK_TAG).performClick()
+        composeRule.onNodeWithTag(INNER_DISPLAY_SESSION_SCREEN_TAG).assertIsDisplayed()
+        composeRule.onAllNodes(
+            hasText(text(R.string.inner_sessions_screen_title), substring = false),
+        ).assertCountEquals(3)
+        composeRule.onNodeWithTag(DETAIL_BACK_BUTTON_TAG).performClick()
+        composeRule.onNodeWithTag(HOME_INNER_SESSIONS_LINK_TAG).assertIsDisplayed()
+    }
+
+    @Test
+    fun systemBackReturnsFromAnAppDetailToHome() {
+        setContent(navigationState())
+        composeRule.onNode(hasScrollAction()).performScrollToNode(
+            hasTestTag(HOME_APP_USAGE_LINK_TAG),
+        )
+        composeRule.onNodeWithTag(HOME_APP_USAGE_LINK_TAG).performClick()
+        composeRule.onNodeWithTag(APP_USAGE_SCREEN_TAG).assertIsDisplayed()
+
+        Espresso.pressBack()
+
+        composeRule.onNodeWithTag(HOME_APP_USAGE_LINK_TAG).assertIsDisplayed()
+    }
+
+    @Test
+    fun disablesHomeDetailLinksWhileAnalysisIsLoading() {
+        setContent(navigationState().copy(isAnalysisLoading = true))
+        val scrollable = composeRule.onNode(hasScrollAction())
+        scrollable.performScrollToNode(hasTestTag(HOME_APP_USAGE_LINK_TAG))
+
+        composeRule.onNodeWithTag(HOME_APP_USAGE_LINK_TAG).assertIsNotEnabled()
+        scrollable.performScrollToNode(hasTestTag(HOME_INNER_SESSIONS_LINK_TAG))
+        composeRule.onNodeWithTag(HOME_INNER_SESSIONS_LINK_TAG).assertIsNotEnabled()
+    }
+
+    private fun option(period: AnalysisPeriod) = composeRule.onNodeWithTag(
+        "$ANALYSIS_PERIOD_OPTION_TAG_PREFIX${period.name}",
+        useUnmergedTree = true,
+    )
 
     private fun setContent(isLoading: () -> Boolean) {
         setContentWithStateProvider(
@@ -362,4 +476,17 @@ class FoldlyticsScreenLoadingTest {
             ),
         )
     }
+
+    private fun navigationState(): MainUiState = rankingState().copy(
+        innerSessionSummary = InnerSessionSummary(
+            rangeStartMillis = 0L,
+            rangeEndMillis = 1_000L,
+            detectedOpenCount = 1,
+            completeSessionCount = 1,
+            medianInnerActiveMillis = 500L,
+            averageInnerActiveMillis = 500L,
+            longestInnerActiveMillis = 500L,
+            longSessions = emptyList(),
+        ),
+    )
 }

@@ -18,6 +18,22 @@ class LocalizationResourcesTest {
         assertEquals("Home", context.getString(R.string.nav_home))
         assertEquals("Usage summary", context.getString(R.string.summary_title))
         assertEquals("Outer", context.getString(R.string.posture_cover))
+        assertEquals("Most-used apps", context.getString(R.string.home_app_usage_link_title))
+        assertEquals("App usage", context.getString(R.string.app_usage_screen_title))
+        assertEquals(
+            "Inner-display use per opening",
+            context.getString(R.string.inner_sessions_screen_title),
+        )
+        assertEquals(
+            "Inner-display use per opening",
+            context.getString(R.string.home_inner_sessions_link_title),
+        )
+        assertEquals("Inner share", context.getString(R.string.usage_trend_inner_ratio))
+        assertEquals("Open count", context.getString(R.string.usage_trend_open_count))
+        assertEquals(
+            "How this is calculated",
+            context.getString(R.string.inner_sessions_method_title),
+        )
     }
 
     @Test
@@ -27,6 +43,19 @@ class LocalizationResourcesTest {
         assertEquals("ホーム", context.getString(R.string.nav_home))
         assertEquals("利用サマリー", context.getString(R.string.summary_title))
         assertEquals("外側", context.getString(R.string.posture_cover))
+        assertEquals("よく使ったアプリ", context.getString(R.string.home_app_usage_link_title))
+        assertEquals("アプリの利用", context.getString(R.string.app_usage_screen_title))
+        assertEquals(
+            "開閉ごとの内側画面利用",
+            context.getString(R.string.inner_sessions_screen_title),
+        )
+        assertEquals(
+            "開閉ごとの内側画面利用",
+            context.getString(R.string.home_inner_sessions_link_title),
+        )
+        assertEquals("内側割合", context.getString(R.string.usage_trend_inner_ratio))
+        assertEquals("開いた回数", context.getString(R.string.usage_trend_open_count))
+        assertEquals("集計方法", context.getString(R.string.inner_sessions_method_title))
     }
 
     private fun Context.withLocale(locale: Locale): Context {

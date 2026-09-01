@@ -13,7 +13,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nagopy.android.foldlytics.MainUiState
 import com.nagopy.android.foldlytics.model.AnalysisPeriod
@@ -68,7 +68,7 @@ class SummaryShareScreenshotCaptureTest {
             }
         }
 
-        composeRule.onNode(hasScrollAction()).performScrollToIndex(SUMMARY_ITEM_INDEX)
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag(SUMMARY_CARD_TAG))
         composeRule.onNodeWithTag(SUMMARY_SHARE_BUTTON_TAG).performClick()
         composeRule.waitUntil(timeoutMillis = 5_000L) {
             composeRule.onAllNodes(hasTestTag(SUMMARY_SHARE_PREVIEW_IMAGE_TAG))
@@ -139,7 +139,6 @@ class SummaryShareScreenshotCaptureTest {
     private fun minutes(value: Long): Long = value * 60_000L
 
     companion object {
-        private const val SUMMARY_ITEM_INDEX = 2
         private const val OUTPUT_DIRECTORY = "summary-share-review"
     }
 }
