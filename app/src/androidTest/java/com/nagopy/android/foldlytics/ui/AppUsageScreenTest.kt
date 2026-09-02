@@ -9,6 +9,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -31,7 +32,7 @@ class AppUsageScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun showsTargetPeriodAndSwitchesTheSingleRankingBasis() {
+    fun showsTargetPeriodAndStartsWithTotalRankingBeforeSwitchingDisplayBasis() {
         val context = localizedContext(Locale.ENGLISH)
         setContent(context, summaryWithApps())
 
@@ -44,19 +45,21 @@ class AppUsageScreenTest {
             ),
         ).assertIsDisplayed()
         composeRule.onNodeWithTag(APP_USAGE_RANKING_SELECTOR_TAG).assertIsDisplayed()
-        composeRule.onNodeWithTag(APP_USAGE_COVER_SEGMENT_TAG).assertIsSelected()
+        composeRule.onNodeWithTag(APP_USAGE_TOTAL_SEGMENT_TAG).assertIsSelected()
+        composeRule.onNodeWithTag(APP_USAGE_COVER_SEGMENT_TAG).assertIsNotSelected()
         composeRule.onNodeWithTag(APP_USAGE_INNER_SEGMENT_TAG).assertIsNotSelected()
+        composeRule.onNodeWithText(
+            context.getString(R.string.app_ranking_total_order),
+        ).assertIsDisplayed()
+        composeRule.onNodeWithTag(APP_USAGE_COVER_SEGMENT_TAG).performClick()
+        composeRule.onNodeWithTag(APP_USAGE_TOTAL_SEGMENT_TAG).assertIsNotSelected()
+        composeRule.onNodeWithTag(APP_USAGE_COVER_SEGMENT_TAG).assertIsSelected()
         composeRule.onNodeWithText(
             context.getString(
                 R.string.app_ranking_order,
                 context.getString(R.string.posture_cover),
             ),
         ).assertIsDisplayed()
-        composeRule.onNode(hasScrollAction()).performScrollToNode(
-            hasTestTag("${APP_USAGE_CARD_TAG_PREFIX}outer-first"),
-        )
-        composeRule.onNodeWithTag("${APP_USAGE_CARD_TAG_PREFIX}outer-first").assertExists()
-
         composeRule.onNodeWithTag(APP_USAGE_INNER_SEGMENT_TAG).performClick()
 
         composeRule.onNodeWithTag(APP_USAGE_COVER_SEGMENT_TAG).assertIsNotSelected()
@@ -67,10 +70,30 @@ class AppUsageScreenTest {
                 context.getString(R.string.posture_inner),
             ),
         ).assertIsDisplayed()
+        composeRule.onNodeWithTag(APP_USAGE_TOTAL_SEGMENT_TAG).performClick()
+        composeRule.onNodeWithTag(APP_USAGE_TOTAL_SEGMENT_TAG).assertIsSelected()
         composeRule.onNode(hasScrollAction()).performScrollToNode(
             hasTestTag("${APP_USAGE_CARD_TAG_PREFIX}inner-first"),
         )
-        composeRule.onNodeWithTag("${APP_USAGE_CARD_TAG_PREFIX}inner-first").assertExists()
+        assertRankedFirst(context, "inner-first")
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(
+            hasTestTag(APP_USAGE_RANKING_SELECTOR_TAG),
+        )
+        composeRule.onNodeWithTag(APP_USAGE_COVER_SEGMENT_TAG).performClick()
+        composeRule.onNode(hasScrollAction()).performScrollToNode(
+            hasTestTag("${APP_USAGE_CARD_TAG_PREFIX}outer-first"),
+        )
+        assertRankedFirst(context, "outer-first")
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(
+            hasTestTag(APP_USAGE_RANKING_SELECTOR_TAG),
+        )
+        composeRule.onNodeWithTag(APP_USAGE_INNER_SEGMENT_TAG).performClick()
+        composeRule.onNode(hasScrollAction()).performScrollToNode(
+            hasTestTag("${APP_USAGE_CARD_TAG_PREFIX}inner-first"),
+        )
+        assertRankedFirst(context, "inner-first")
         composeRule.onNodeWithText("Zero time").assertDoesNotExist()
         composeRule.onNodeWithText("System process").assertDoesNotExist()
     }
@@ -95,10 +118,7 @@ class AppUsageScreenTest {
         )
 
         composeRule.onNodeWithText(
-            context.getString(
-                R.string.no_ranked_apps,
-                context.getString(R.string.posture_cover),
-            ),
+            context.getString(R.string.no_ranked_apps_total),
         ).assertIsDisplayed()
         composeRule.onNodeWithTag("${APP_USAGE_CARD_TAG_PREFIX}zero").assertDoesNotExist()
         composeRule.onNodeWithTag("${APP_USAGE_CARD_TAG_PREFIX}system").assertDoesNotExist()
@@ -146,6 +166,18 @@ class AppUsageScreenTest {
                 }
             }
         }
+    }
+
+    private fun assertRankedFirst(context: Context, packageName: String) {
+        composeRule.onNode(
+            hasTestTag("$APP_USAGE_CARD_TAG_PREFIX$packageName") and
+                hasAnyDescendant(
+                    androidx.compose.ui.test.hasText(
+                        context.getString(R.string.value_rank, 1),
+                        substring = false,
+                    ),
+                ),
+        ).assertExists()
     }
 
     private fun summaryWithApps(

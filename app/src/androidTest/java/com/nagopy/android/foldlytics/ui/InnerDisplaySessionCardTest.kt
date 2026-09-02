@@ -93,8 +93,8 @@ class InnerDisplaySessionCardTest {
         scrollToSessionCard()
 
         composeRule.onAllNodes(
-            hasText(context.getString(R.string.inner_sessions_title), substring = false),
-        ).assertCountEquals(2)
+            hasText(context.getString(R.string.inner_sessions_overview_title), substring = false),
+        ).assertCountEquals(1)
         composeRule.onNodeWithText(context.getString(R.string.inner_sessions_description))
             .assertExists()
         composeRule.onNodeWithTag(INNER_SESSION_COUNT_TAG).assertExists()
@@ -236,8 +236,8 @@ class InnerDisplaySessionCardTest {
         scrollToSessionCard()
 
         composeRule.onAllNodes(
-            hasText(context.getString(R.string.inner_sessions_title), substring = false),
-        ).assertCountEquals(2)
+            hasText(context.getString(R.string.inner_sessions_overview_title), substring = false),
+        ).assertCountEquals(1)
         composeRule.onNodeWithText(context.getString(R.string.inner_sessions_description))
             .assertExists()
         composeRule.onNodeWithTag(INNER_SESSION_METRICS_TAG).assertExists()

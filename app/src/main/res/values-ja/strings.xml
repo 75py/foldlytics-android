@@ -32,8 +32,14 @@
     <string name="content_desc_summary_share_preview">Foldlytics 利用サマリー共有画像</string>
     <string name="content_desc_cover_app_ranking">外側のアプリランキング</string>
     <string name="content_desc_inner_app_ranking">内側のアプリランキング</string>
+    <string name="content_desc_total_app_ranking">表示時間合計のアプリランキング</string>
     <string name="content_desc_summary">%1$sは外側%2$s、内側%3$s、内側%4$s</string>
-    <string name="content_desc_live_state">%1$s。%2$s。</string>
+    <string name="content_desc_live_state_cover_recording">現在の端末状態：外側ディスプレイを使用中です。利用状況を記録できます。</string>
+    <string name="content_desc_live_state_cover_access_required">現在の端末状態：外側ディスプレイを使用中です。記録するには利用状況へのアクセスが必要です。</string>
+    <string name="content_desc_live_state_inner_recording">現在の端末状態：内側ディスプレイを使用中です。利用状況を記録できます。</string>
+    <string name="content_desc_live_state_inner_access_required">現在の端末状態：内側ディスプレイを使用中です。記録するには利用状況へのアクセスが必要です。</string>
+    <string name="content_desc_live_state_unknown_recording">現在の端末状態：使用中のディスプレイを判定できません。利用状況を記録できます。</string>
+    <string name="content_desc_live_state_unknown_access_required">現在の端末状態：使用中のディスプレイを判定できません。記録するには利用状況へのアクセスが必要です。</string>
     <string name="content_desc_analysis_period_selector">対象期間を選択。現在：%1$s</string>
     <string name="content_desc_select_inner_ratio_trend">内側割合の推移を表示</string>
     <string name="content_desc_select_open_count_trend">開いた回数の推移を表示</string>
@@ -130,7 +136,8 @@
 
     <!-- Home and permission disclosure -->
     <string name="section_usage_trends">利用傾向</string>
-    <string name="no_ranked_apps">この期間に%1$sで集計できるアプリはありません。</string>
+    <string name="no_ranked_apps">この期間に%1$sの利用時間を集計できるアプリはありません。</string>
+    <string name="no_ranked_apps_total">この期間に利用時間を集計できるアプリはありません。</string>
     <string name="saved_data_usage_access_note">保存済みデータを表示しています。新しいデータの同期には利用状況アクセスが必要です。</string>
     <string name="error_sync_read">同期・読み込みエラー: %1$s</string>
     <string name="sync_error_title">対応が必要です：利用状況データを更新できませんでした</string>
@@ -145,6 +152,7 @@
     <string name="usage_trend_open_count">開いた回数</string>
     <string name="app_usage_screen_title">アプリの利用</string>
     <string name="inner_sessions_screen_title">開閉ごとの内側画面利用</string>
+    <string name="inner_sessions_overview_title">利用概要</string>
     <string name="app_usage_detail_empty">この期間のアプリ利用データはありません。</string>
     <string name="inner_sessions_detail_empty">この期間の内側画面利用データはありません。</string>
     <string name="calibration_intro_title">通常は設定不要です</string>
@@ -171,6 +179,7 @@
     <string name="custom_period_dialog_title">対象期間を選択</string>
     <string name="record_range_empty">記録範囲はまだありません</string>
     <string name="record_range">記録範囲 %1$s〜%2$s（%3$s）</string>
+    <string name="analysis_range">集計範囲（%1$s）: %2$s〜%3$s</string>
     <string name="summary_title">利用サマリー</string>
     <string name="label_analysis_range">集計範囲</string>
     <string name="label_classified_time">判定できた時間</string>
@@ -217,12 +226,16 @@
     <string name="share_summary_chooser">利用サマリーを共有</string>
 
     <!-- App ranking -->
-    <string name="app_ranking_title">画面別によく使うアプリ</string>
+    <string name="app_ranking_title">よく使うアプリ</string>
     <string name="selected_period">対象期間：%1$s</string>
     <string name="app_ranking_basis">ランキングの基準</string>
+    <string name="app_ranking_total">合計</string>
     <string name="app_ranking_order">%1$sでの表示時間が長い順です</string>
+    <string name="app_ranking_total_order">表示時間の合計が長い順です</string>
     <string name="app_usage_selected">%1$s %2$s</string>
     <string name="app_usage_counterpart">%1$sでは %2$s</string>
+    <string name="app_usage_total">合計 %1$s</string>
+    <string name="app_usage_display_breakdown">外側 %1$s ・ 内側 %2$s</string>
 
     <!-- Diagnostics -->
     <string name="diagnostics_overview_title">判定データの概要</string>

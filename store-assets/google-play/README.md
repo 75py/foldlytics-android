@@ -47,7 +47,7 @@ least four portrait app screenshots at 1080 px or higher. The added headline are
 - 02: `開いてから閉じるまでの内側画面利用について、中央値・平均値・最長時間と長く使った回のアプリ内訳を表示した画面。`
 - 03: `90日間の内側利用割合の推移を折れ線グラフで表示した利用傾向。`
 - 04: `検出した開いた回数の推移と期間合計を表示した利用傾向。`
-- 05: `内側ディスプレイでの表示時間を基準に、読書やブラウザなどを並べたアプリ利用詳細。`
+- 05: `外側と内側を合わせた表示時間を基準に、読書やブラウザなどを並べたアプリ利用詳細。`
 - 06: `CSV保存、診断共有、利用状況設定、プライバシーポリシーと端末内保存の説明を表示したドロワー。`
 
 ### English (`en-US`)
@@ -57,7 +57,7 @@ least four portrait app screenshots at 1080 px or higher. The added headline are
 - 02: `The opening-to-closing inner-display use card showing median, average, longest time, and app breakdowns for the three longest uses.`
 - 03: `A Foldlytics line chart showing inner-display share across a 90-day period.`
 - 04: `The detected-open trend chart with a total of 945 and no app ranking on the home screen.`
-- 05: `The inner-display app usage detail led by Reading, Browser, and Photos.`
+- 05: `The total display-time app usage detail led by Reading, Browser, and Photos, with outer and inner time shown for each app.`
 - 06: `The Foldlytics drawer with CSV export, diagnostic sharing, Usage Access settings, privacy policy, and an on-device data notice.`
 
 ## Representative data
@@ -104,15 +104,18 @@ trend buckets, open counts, and rankings agree with one another.
 
 3. Set `FOLDLYTICS_STORE_FONT` when the default macOS Hiragino font is unavailable.
 
-The script accepts the new capture names (`01-home-summary.png` through `06-drawer.png`) and
-temporarily falls back to the checked-in legacy raw names until fresh emulator captures are
-available.
+The capture names describe the rendered screen (`01-home-summary.png` through `06-drawer.png`),
+while the helper stores them under the stable raw filenames. In particular,
+`05-total-app-ranking.png` is saved as `05-app-ranking.png`. The generator prefers that stable
+app-ranking raw file and accepts the former `05-total-app-ranking.png` and
+`05-inner-app-ranking.png` aliases only as migration fallbacks; the capture helper removes both
+aliases so new captures do not accumulate extra raw PNGs.
 
 `FoldlyticsScreen` accepts an optional `appName` only so the screenshot fixture can render the
 public title `Foldlytics` instead of the debug application label. Normal application calls keep
 using the localized resource. The test renders `Locale.JAPANESE` and `Locale.US` with generic,
 localized app labels and the same calculated values. The capture flow navigates through stable
-test tags and semantics: home summary, session details, the two trend modes, inner app usage
+test tags and semantics: home summary, session details, the two trend modes, total app usage
 details, and the drawer. The app theme also passes the active locale to Compose typography so
 `ja-JP` captures use Japanese CJK glyph forms.
 

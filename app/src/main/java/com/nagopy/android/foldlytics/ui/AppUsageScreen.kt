@@ -38,27 +38,30 @@ import com.nagopy.android.foldlytics.toDurationText
 
 internal enum class AppRankingBasis(
     val labelRes: Int,
-    val counterpartLabelRes: Int,
     val selectorDescriptionRes: Int,
 ) {
+    TOTAL(
+        labelRes = R.string.app_ranking_total,
+        selectorDescriptionRes = R.string.content_desc_total_app_ranking,
+    ),
     COVER(
         labelRes = R.string.posture_cover,
-        counterpartLabelRes = R.string.posture_inner,
         selectorDescriptionRes = R.string.content_desc_cover_app_ranking,
     ),
     INNER(
         labelRes = R.string.posture_inner,
-        counterpartLabelRes = R.string.posture_cover,
         selectorDescriptionRes = R.string.content_desc_inner_app_ranking,
     ),
     ;
 
     fun selectedMillis(app: AppUsage): Long = when (this) {
+        TOTAL -> app.classifiedMillis
         COVER -> app.coverMillis
         INNER -> app.innerMillis
     }
 
     fun counterpartMillis(app: AppUsage): Long = when (this) {
+        TOTAL -> 0L
         COVER -> app.innerMillis
         INNER -> app.coverMillis
     }
@@ -73,7 +76,8 @@ internal fun rankAppsForDisplay(
     .sortedWith(
         compareByDescending<AppUsage> { basis.selectedMillis(it) }
             .thenByDescending { basis.counterpartMillis(it) }
-            .thenBy { it.label },
+            .thenBy { it.label }
+            .thenBy { it.packageName },
     )
     .toList()
 
@@ -84,7 +88,7 @@ internal fun AppUsageScreen(
     scaffoldPadding: PaddingValues,
     listState: LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
 ) {
-    var selectedBasis by rememberSaveable { mutableStateOf(AppRankingBasis.COVER) }
+    var selectedBasis by rememberSaveable { mutableStateOf(AppRankingBasis.TOTAL) }
     val summary = state.periodSummary
     FoldlyticsLazyColumn(
         scaffoldPadding = scaffoldPadding,
@@ -98,7 +102,6 @@ internal fun AppUsageScreen(
                     .testTag(APP_USAGE_PERIOD_TAG),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                SectionTitle(stringResource(R.string.app_usage_screen_title))
                 AnalysisPeriodContext(
                     period = summary?.period ?: state.selectedPeriod,
                     rangeStartMillis = summary?.rangeStartMillis
@@ -137,10 +140,14 @@ internal fun AppUsageScreen(
             } else {
                 item {
                     HintCard(
-                        stringResource(
-                            R.string.no_ranked_apps,
-                            stringResource(selectedBasis.labelRes),
-                        ),
+                        if (selectedBasis == AppRankingBasis.TOTAL) {
+                            stringResource(R.string.no_ranked_apps_total)
+                        } else {
+                            stringResource(
+                                R.string.no_ranked_apps,
+                                stringResource(selectedBasis.labelRes),
+                            )
+                        },
                     )
                 }
             }
@@ -150,6 +157,7 @@ internal fun AppUsageScreen(
 
 internal const val APP_USAGE_PERIOD_TAG = "app_usage_period"
 internal const val APP_USAGE_RANKING_SELECTOR_TAG = "app_usage_ranking_selector"
+internal const val APP_USAGE_TOTAL_SEGMENT_TAG = "app_usage_total_segment"
 internal const val APP_USAGE_COVER_SEGMENT_TAG = "app_usage_cover_segment"
 internal const val APP_USAGE_INNER_SEGMENT_TAG = "app_usage_inner_segment"
 
@@ -184,10 +192,10 @@ private fun AppRankingSelector(
                     label = { Text(stringResource(basis.labelRes)) },
                     modifier = Modifier
                         .testTag(
-                            if (basis == AppRankingBasis.COVER) {
-                                APP_USAGE_COVER_SEGMENT_TAG
-                            } else {
-                                APP_USAGE_INNER_SEGMENT_TAG
+                            when (basis) {
+                                AppRankingBasis.TOTAL -> APP_USAGE_TOTAL_SEGMENT_TAG
+                                AppRankingBasis.COVER -> APP_USAGE_COVER_SEGMENT_TAG
+                                AppRankingBasis.INNER -> APP_USAGE_INNER_SEGMENT_TAG
                             },
                         )
                         .semantics { contentDescription = selectorDescription },
@@ -195,10 +203,14 @@ private fun AppRankingSelector(
             }
         }
         Text(
-            stringResource(
-                R.string.app_ranking_order,
-                stringResource(selectedBasis.labelRes),
-            ),
+            if (selectedBasis == AppRankingBasis.TOTAL) {
+                stringResource(R.string.app_ranking_total_order)
+            } else {
+                stringResource(
+                    R.string.app_ranking_order,
+                    stringResource(selectedBasis.labelRes),
+                )
+            },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -217,6 +229,7 @@ internal fun AppUsageCard(
     val selectedMillis = basis.selectedMillis(app)
     val counterpartMillis = basis.counterpartMillis(app)
     val selectedColor = when (basis) {
+        AppRankingBasis.TOTAL -> MaterialTheme.colorScheme.primary
         AppRankingBasis.COVER -> colors.cover
         AppRankingBasis.INNER -> colors.inner
     }
@@ -250,11 +263,18 @@ internal fun AppUsageCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        stringResource(
-                            R.string.app_usage_selected,
-                            stringResource(basis.labelRes),
-                            selectedMillis.toDurationText(resources),
-                        ),
+                        if (basis == AppRankingBasis.TOTAL) {
+                            stringResource(
+                                R.string.app_usage_total,
+                                selectedMillis.toDurationText(resources),
+                            )
+                        } else {
+                            stringResource(
+                                R.string.app_usage_selected,
+                                stringResource(basis.labelRes),
+                                selectedMillis.toDurationText(resources),
+                            )
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = selectedColor,
@@ -267,11 +287,24 @@ internal fun AppUsageCard(
                 color = selectedColor,
             )
             Text(
-                stringResource(
-                    R.string.app_usage_counterpart,
-                    stringResource(basis.counterpartLabelRes),
-                    counterpartMillis.toDurationText(resources),
-                ),
+                if (basis == AppRankingBasis.TOTAL) {
+                    stringResource(
+                        R.string.app_usage_display_breakdown,
+                        app.coverMillis.toDurationText(resources),
+                        app.innerMillis.toDurationText(resources),
+                    )
+                } else {
+                    val counterpartLabelRes = if (basis == AppRankingBasis.COVER) {
+                        R.string.posture_inner
+                    } else {
+                        R.string.posture_cover
+                    }
+                    stringResource(
+                        R.string.app_usage_counterpart,
+                        stringResource(counterpartLabelRes),
+                        counterpartMillis.toDurationText(resources),
+                    )
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

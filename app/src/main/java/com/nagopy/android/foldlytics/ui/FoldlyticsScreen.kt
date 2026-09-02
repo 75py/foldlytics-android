@@ -84,6 +84,7 @@ fun FoldlyticsScreen(
     onShareSummary: suspend (Bitmap) -> Boolean = { false },
     appName: String? = null,
     screenshotSectionEndSpacing: Dp = 0.dp,
+    screenshotHomeItemIndex: Int? = null,
 ) {
     val analysisProgressDescription = stringResource(R.string.content_desc_analysis_progress)
     val resolvedAppName = appName ?: stringResource(R.string.app_name)
@@ -103,6 +104,11 @@ fun FoldlyticsScreen(
             showAnalysisProgress = true
         } else {
             showAnalysisProgress = false
+        }
+    }
+    LaunchedEffect(destination, screenshotHomeItemIndex) {
+        if (destination == ScreenDestination.HOME && screenshotHomeItemIndex != null) {
+            homeListState.scrollToItem(screenshotHomeItemIndex)
         }
     }
     BackHandler(enabled = destination != ScreenDestination.HOME) {

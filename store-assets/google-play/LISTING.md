@@ -56,7 +56,7 @@ Foldlyticsは、対応する折りたたみAndroid端末で、外側と内側の
 ・1回の内側画面利用ごとの件数、中央値、平均値、最長時間
 ・長く使った最大3回の開始日時、内側利用時間、アプリ別上位3件、その他の時間
 ・内側利用割合と開いた回数の推移
-・外側／内側それぞれでよく使うアプリのランキング
+・表示時間の合計、外側／内側それぞれでよく使うアプリのランキング
 ・プリセット期間と、日付を指定した任意期間の集計
 ・データ充足率と収集状態
 ・保存している全期間の日次CSV
@@ -120,7 +120,7 @@ What you can review
 • Inner-display use for each opening, with median, average, and longest time
 • The three longest uses, with start time, inner-display time, top three apps, and Other time
 • Trends for inner display use and detected opens
-• App rankings for each display
+• App rankings by total display time and by each display
 • Preset periods and custom date ranges
 • Data coverage and collection status
 • Daily CSV export for all saved history

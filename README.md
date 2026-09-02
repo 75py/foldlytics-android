@@ -25,8 +25,8 @@ Download: [https://play.google.com/store/apps/details?id=com.nagopy.android.fold
 - Inner-display ratio and detected-open trends over longer periods.
 - A comparison between the first 30 days and the latest 30 days when enough
   history is available.
-- App rankings for the cover or inner display, limited to launchable apps and
-  shown with their icons.
+- App rankings by total display time, cover display, or inner display, limited
+  to launchable apps and shown with their icons.
 - Data coverage and collection status.
 - Daily CSV export for all saved history, to a destination you choose.
 

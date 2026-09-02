@@ -52,7 +52,6 @@ internal fun InnerDisplaySessionScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                SectionTitle(stringResource(R.string.inner_sessions_screen_title))
                 AnalysisPeriodContext(
                     period = state.periodSummary?.period ?: state.selectedPeriod,
                     rangeStartMillis = summary?.rangeStartMillis
@@ -83,7 +82,7 @@ private fun InnerSessionOverviewCard(summary: InnerSessionSummary) {
     val resources = LocalResources.current
     val innerColor = postureColors().inner
     LabCard(
-        title = stringResource(R.string.inner_sessions_title),
+        title = stringResource(R.string.inner_sessions_overview_title),
         modifier = Modifier.testTag(INNER_SESSION_CARD_TAG),
     ) {
         Text(

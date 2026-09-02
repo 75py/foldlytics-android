@@ -272,9 +272,7 @@ private fun LiveStateCard(state: MainUiState) {
         },
     )
     val stateDescription = stringResource(
-        R.string.content_desc_live_state,
-        postureLabel,
-        recordingStatus,
+        state.currentPosture.liveStateDescriptionRes(state.hasUsageAccess),
     )
     Card(
         modifier = Modifier
@@ -397,17 +395,9 @@ private fun ResultHeader(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        if (
-            state.selectedPeriod == AnalysisPeriod.CUSTOM &&
-            state.customRangeStartMillis != null &&
-            state.customRangeEndMillis != null
-        ) {
+        state.periodSummary?.let { summary ->
             Text(
-                stringResource(
-                    R.string.selected_date_range,
-                    state.customRangeStartMillis.toShortDateText(resources),
-                    (state.customRangeEndMillis - 1L).toShortDateText(resources),
-                ),
+                summary.analysisRangeText(resources),
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
             )
@@ -515,13 +505,8 @@ private fun appUsagePreview(apps: List<AppUsage>): String {
 }
 
 internal fun rankAppsForHomePreview(apps: List<AppUsage>): List<AppUsage> = apps
+    .let { rankAppsForDisplay(it, AppRankingBasis.TOTAL) }
     .asSequence()
-    .filter { it.isLauncherApp && it.classifiedMillis > 0L }
-    .sortedWith(
-        compareByDescending<AppUsage> { it.classifiedMillis }
-            .thenBy { it.label }
-            .thenBy { it.packageName },
-    )
     .take(3)
     .toList()
 
@@ -815,6 +800,31 @@ private fun MainUiState.recordRangeText(resources: Resources): String {
         (endMillis - 1L).toShortDateText(resources),
         resources.getQuantityString(R.plurals.days_count, dayCount.toInt(), dayCount),
     )
+}
+
+private fun PeriodUsageSummary.analysisRangeText(resources: Resources): String = resources.getString(
+    R.string.analysis_range,
+    resources.getString(period.labelRes),
+    rangeStartMillis.toShortDateText(resources),
+    (rangeEndMillis - 1L).coerceAtLeast(0L).toShortDateText(resources),
+)
+
+private fun DisplayPosture.liveStateDescriptionRes(hasUsageAccess: Boolean): Int = when (this) {
+    DisplayPosture.COVER -> if (hasUsageAccess) {
+        R.string.content_desc_live_state_cover_recording
+    } else {
+        R.string.content_desc_live_state_cover_access_required
+    }
+    DisplayPosture.INNER -> if (hasUsageAccess) {
+        R.string.content_desc_live_state_inner_recording
+    } else {
+        R.string.content_desc_live_state_inner_access_required
+    }
+    DisplayPosture.UNKNOWN -> if (hasUsageAccess) {
+        R.string.content_desc_live_state_unknown_recording
+    } else {
+        R.string.content_desc_live_state_unknown_access_required
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

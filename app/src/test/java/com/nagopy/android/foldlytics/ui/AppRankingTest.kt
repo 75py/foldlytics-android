@@ -6,6 +6,25 @@ import org.junit.Test
 
 class AppRankingTest {
     @Test
+    fun ranksLauncherAppsByTotalClassifiedTimeWithStableTieBreakers() {
+        val apps = listOf(
+            app("zeta", coverMillis = 200L, innerMillis = 100L),
+            app("higher-cover", coverMillis = 250L, innerMillis = 50L),
+            app("alpha", coverMillis = 200L, innerMillis = 100L),
+            app("total-first", coverMillis = 20L, innerMillis = 400L),
+            app("zero", coverMillis = 0L, innerMillis = 0L),
+            app("system", coverMillis = 1_000L, innerMillis = 1_000L, isLauncherApp = false),
+        )
+
+        val ranked = rankAppsForDisplay(apps, AppRankingBasis.TOTAL)
+
+        assertEquals(
+            listOf("total-first", "alpha", "higher-cover", "zeta"),
+            ranked.map(AppUsage::packageName),
+        )
+    }
+
+    @Test
     fun ranksLauncherAppsByCoverTimeAndOmitsAppsWithoutCoverTime() {
         val apps = listOf(
             app("inner-first", coverMillis = 20L, innerMillis = 300L),

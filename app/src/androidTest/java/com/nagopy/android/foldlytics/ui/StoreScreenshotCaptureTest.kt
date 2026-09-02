@@ -7,6 +7,9 @@ import android.graphics.Bitmap
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -18,8 +21,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nagopy.android.foldlytics.MainUiState
 import com.nagopy.android.foldlytics.R
@@ -59,6 +62,7 @@ class StoreScreenshotCaptureTest {
     private val englishContext: Context by lazy {
         localizedContext(Locale.US)
     }
+    private var screenshotHomeItemIndex: Int? by mutableStateOf(null)
 
     @Test
     fun captureJapanesePhoneScreenshots() {
@@ -109,6 +113,7 @@ class StoreScreenshotCaptureTest {
         outputDirectory: String,
     ) {
         clearOutputDirectory(outputDirectory)
+        screenshotHomeItemIndex = null
         composeRule.setContent {
             CompositionLocalProvider(
                 LocalContext provides context,
@@ -129,6 +134,8 @@ class StoreScreenshotCaptureTest {
                         onOpenPrivacyPolicy = {},
                         onOpenOssLicenses = {},
                         appName = "Foldlytics",
+                        screenshotSectionEndSpacing = SCREENSHOT_SECTION_END_SPACING,
+                        screenshotHomeItemIndex = screenshotHomeItemIndex,
                     )
                 }
             }
@@ -144,19 +151,18 @@ class StoreScreenshotCaptureTest {
         capture("02-session-details", outputDirectory)
 
         composeRule.onNodeWithTag(DETAIL_BACK_BUTTON_TAG).performClick()
-        scrollToHomeItem(HOME_USAGE_TREND_ITEM_INDEX)
+        scrollHomeToItem(HOME_USAGE_TREND_ITEM_INDEX)
         capture("03-inner-ratio-trend", outputDirectory)
 
         composeRule.onNodeWithTag(USAGE_TREND_OPEN_COUNT_TAG).performClick()
-        scrollToHomeItem(HOME_USAGE_TREND_ITEM_INDEX)
+        scrollHomeToItem(HOME_USAGE_TREND_ITEM_INDEX)
         capture("04-open-count-trend", outputDirectory)
 
         scrollTo(HOME_APP_USAGE_LINK_TAG)
         composeRule.onNodeWithTag(HOME_APP_USAGE_LINK_TAG).performClick()
         composeRule.onNodeWithTag(APP_USAGE_SCREEN_TAG).assertExists()
-        composeRule.onNodeWithTag(APP_USAGE_INNER_SEGMENT_TAG).performClick()
         scrollTo("${APP_USAGE_CARD_TAG_PREFIX}demo.reader")
-        capture("05-inner-app-ranking", outputDirectory)
+        capture("05-total-app-ranking", outputDirectory)
 
         composeRule.onNodeWithTag(DETAIL_BACK_BUTTON_TAG).performClick()
 
@@ -170,11 +176,13 @@ class StoreScreenshotCaptureTest {
         composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag(tag))
     }
 
-    private fun scrollToHomeItem(index: Int) {
-        scrollTo(HOME_INNER_SESSIONS_LINK_TAG)
-        val scrollable = composeRule.onNode(hasScrollAction())
-        scrollable.performScrollToIndex(index - 1)
-        scrollable.performScrollToIndex(index)
+    private fun scrollHomeToItem(index: Int) {
+        // Reset first so an unchanged index re-runs the capture-only scroll anchor after a tab
+        // changes the card height.
+        composeRule.runOnIdle { screenshotHomeItemIndex = null }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle { screenshotHomeItemIndex = index }
+        composeRule.waitForIdle()
     }
 
     private fun representativeState(appLabels: AppLabels): MainUiState {
@@ -428,6 +436,8 @@ class StoreScreenshotCaptureTest {
         private const val RECORD_DAY_COUNT = 365L
         private const val TREND_DAY_COUNT = 90L
         private const val HOME_USAGE_TREND_ITEM_INDEX = 3
+        // Small capture-only trailing space that prevents scrollToItem from clamping.
+        private val SCREENSHOT_SECTION_END_SPACING = 96.dp
         private const val JAPANESE_OUTPUT_DIRECTORY = "store-screenshots"
         private const val ENGLISH_OUTPUT_DIRECTORY = "store-screenshots-en"
     }

@@ -86,7 +86,7 @@ capture_names=(
     02-session-details
     03-inner-ratio-trend
     04-open-count-trend
-    05-inner-app-ranking
+    05-total-app-ranking
     06-drawer
 )
 preferred_raw_names=(
@@ -94,7 +94,7 @@ preferred_raw_names=(
     02-session-details
     03-inner-ratio-trend
     04-open-count-trend
-    05-inner-app-ranking
+    05-total-app-ranking
     06-drawer
 )
 raw_names=(
@@ -158,6 +158,17 @@ remove_preferred_raw_aliases() {
 
 remove_preferred_raw_aliases "$raw_ja_dir"
 remove_preferred_raw_aliases "$raw_en_dir"
+
+remove_app_ranking_raw_aliases() {
+    local raw_dir="$1"
+
+    rm -f -- \
+        "$raw_dir/05-inner-app-ranking.png" \
+        "$raw_dir/05-total-app-ranking.png"
+}
+
+remove_app_ranking_raw_aliases "$raw_ja_dir"
+remove_app_ranking_raw_aliases "$raw_en_dir"
 
 for index in "${!raw_names[@]}"; do
     raw_name="${raw_names[$index]}"

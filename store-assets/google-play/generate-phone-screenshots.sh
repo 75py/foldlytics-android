@@ -13,28 +13,31 @@ work_dir="$(mktemp -d /private/tmp/foldlytics-store-screenshots.XXXXXX)"
 
 resolve_raw_name() {
     local raw_dir="$1"
-    local current_name="$2"
-    local legacy_name="$3"
+    shift
+    local raw_name
 
-    if [[ -f "$raw_dir/$current_name" ]]; then
-        printf '%s\n' "$current_name"
-    else
-        # Keep the checked-in raw assets usable until the next emulator capture replaces them.
-        printf '%s\n' "$legacy_name"
-    fi
+    for raw_name in "$@"; do
+        if [[ -f "$raw_dir/$raw_name" ]]; then
+            printf '%s\n' "$raw_name"
+            return
+        fi
+    done
+
+    # The last name is a checked-in legacy fallback until an emulator capture replaces it.
+    printf '%s\n' "${!#}"
 }
 
 japanese_home_raw="$(resolve_raw_name "$japanese_raw_dir" "01-home-summary.png" "01-summary.png")"
 japanese_session_raw="$(resolve_raw_name "$japanese_raw_dir" "02-session-details.png" "02-inner-sessions.png")"
 japanese_inner_ratio_raw="$(resolve_raw_name "$japanese_raw_dir" "03-inner-ratio-trend.png" "03-trends.png")"
 japanese_open_count_raw="$(resolve_raw_name "$japanese_raw_dir" "04-open-count-trend.png" "04-open-count.png")"
-japanese_app_raw="$(resolve_raw_name "$japanese_raw_dir" "05-inner-app-ranking.png" "05-app-ranking.png")"
+japanese_app_raw="$(resolve_raw_name "$japanese_raw_dir" "05-app-ranking.png" "05-total-app-ranking.png" "05-inner-app-ranking.png")"
 japanese_drawer_raw="$(resolve_raw_name "$japanese_raw_dir" "06-drawer.png" "06-on-device.png")"
 english_home_raw="$(resolve_raw_name "$english_raw_dir" "01-home-summary.png" "01-summary.png")"
 english_session_raw="$(resolve_raw_name "$english_raw_dir" "02-session-details.png" "02-inner-sessions.png")"
 english_inner_ratio_raw="$(resolve_raw_name "$english_raw_dir" "03-inner-ratio-trend.png" "03-trends.png")"
 english_open_count_raw="$(resolve_raw_name "$english_raw_dir" "04-open-count-trend.png" "04-open-count.png")"
-english_app_raw="$(resolve_raw_name "$english_raw_dir" "05-inner-app-ranking.png" "05-app-ranking.png")"
+english_app_raw="$(resolve_raw_name "$english_raw_dir" "05-app-ranking.png" "05-total-app-ranking.png" "05-inner-app-ranking.png")"
 english_drawer_raw="$(resolve_raw_name "$english_raw_dir" "06-drawer.png" "06-on-device.png")"
 
 cleanup() {

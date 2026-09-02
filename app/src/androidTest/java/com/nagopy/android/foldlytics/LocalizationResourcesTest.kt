@@ -20,6 +20,8 @@ class LocalizationResourcesTest {
         assertEquals("Outer", context.getString(R.string.posture_cover))
         assertEquals("Most-used apps", context.getString(R.string.home_app_usage_link_title))
         assertEquals("App usage", context.getString(R.string.app_usage_screen_title))
+        assertEquals("Total", context.getString(R.string.app_ranking_total))
+        assertEquals("Overview", context.getString(R.string.inner_sessions_overview_title))
         assertEquals(
             "Inner-display use per opening",
             context.getString(R.string.inner_sessions_screen_title),
@@ -45,6 +47,8 @@ class LocalizationResourcesTest {
         assertEquals("外側", context.getString(R.string.posture_cover))
         assertEquals("よく使ったアプリ", context.getString(R.string.home_app_usage_link_title))
         assertEquals("アプリの利用", context.getString(R.string.app_usage_screen_title))
+        assertEquals("合計", context.getString(R.string.app_ranking_total))
+        assertEquals("利用概要", context.getString(R.string.inner_sessions_overview_title))
         assertEquals(
             "開閉ごとの内側画面利用",
             context.getString(R.string.inner_sessions_screen_title),
