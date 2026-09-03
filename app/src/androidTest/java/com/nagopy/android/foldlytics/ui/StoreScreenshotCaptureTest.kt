@@ -141,7 +141,7 @@ class StoreScreenshotCaptureTest {
             }
         }
 
-        scrollTo(SUMMARY_CARD_TAG)
+        scrollHomeToItem(HOME_RESULT_HEADER_ITEM_INDEX)
         capture("01-home-summary", outputDirectory)
 
         scrollTo(HOME_INNER_SESSIONS_LINK_TAG)
@@ -435,6 +435,7 @@ class StoreScreenshotCaptureTest {
     companion object {
         private const val RECORD_DAY_COUNT = 365L
         private const val TREND_DAY_COUNT = 90L
+        private const val HOME_RESULT_HEADER_ITEM_INDEX = 1
         private const val HOME_USAGE_TREND_ITEM_INDEX = 3
         // Small capture-only trailing space that prevents scrollToItem from clamping.
         private val SCREENSHOT_SECTION_END_SPACING = 96.dp
