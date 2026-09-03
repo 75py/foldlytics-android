@@ -9,6 +9,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -507,8 +511,9 @@ class FoldlyticsScreenLoadingTest {
 
         composeRule.onNodeWithTag(APP_USAGE_SCREEN_TAG).assertIsDisplayed()
         composeRule.onNodeWithTag(MAIN_ERROR_BANNER_TAG).assertIsDisplayed()
-        composeRule.onNodeWithText(text(R.string.error_sync_read, errorMessage))
-            .assertIsDisplayed()
+        composeRule.onNodeWithText(text(R.string.analysis_error_title)).assertIsDisplayed()
+        composeRule.onNodeWithText(errorMessage).assertIsDisplayed()
+        composeRule.onNodeWithTag(MAIN_ERROR_DISMISS_TAG).assertIsEnabled()
         composeRule.onNodeWithTag(MAIN_ERROR_RETRY_TAG).performClick()
         composeRule.runOnIdle { assertTrue(refreshRequested) }
 
@@ -520,6 +525,41 @@ class FoldlyticsScreenLoadingTest {
 
         composeRule.onNodeWithTag(INNER_DISPLAY_SESSION_SCREEN_TAG).assertIsDisplayed()
         composeRule.onNodeWithTag(MAIN_ERROR_BANNER_TAG).assertIsDisplayed()
+    }
+
+    @Test
+    fun keepsDismissEnabledWhenSyncRetryIsUnavailableWithoutUsageAccess() {
+        var dismissed = false
+        val errorMessage = "test sync failure"
+        var state by mutableStateOf(
+            MainUiState(
+                hasUsageAccess = false,
+                error = MainUiError(
+                    kind = MainUiErrorKind.SYNC,
+                    message = errorMessage,
+                ),
+            ),
+        )
+        setContentWithStateProvider(
+            stateProvider = { state },
+            onDismissError = {
+                dismissed = true
+                state = state.copy(error = null)
+            },
+        )
+
+        composeRule.onNodeWithText(text(R.string.sync_error_title)).assertIsDisplayed()
+        composeRule.onNodeWithTag(MAIN_ERROR_BANNER_TAG).assert(
+            SemanticsMatcher.expectValue(
+                SemanticsProperties.LiveRegion,
+                LiveRegionMode.Polite,
+            ),
+        )
+        composeRule.onNodeWithTag(MAIN_ERROR_RETRY_TAG).assertIsNotEnabled()
+        composeRule.onNodeWithTag(MAIN_ERROR_DISMISS_TAG).assertIsEnabled().performClick()
+
+        composeRule.runOnIdle { assertTrue(dismissed) }
+        composeRule.onNodeWithTag(MAIN_ERROR_BANNER_TAG).assertDoesNotExist()
     }
 
     @Test

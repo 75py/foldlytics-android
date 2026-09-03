@@ -45,8 +45,10 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -280,11 +282,20 @@ private fun MainErrorBanner(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val canRefresh = error.kind != MainUiErrorKind.CHECKPOINT
+    val canRefresh = when (error.kind) {
+        MainUiErrorKind.SYNC, MainUiErrorKind.ANALYSIS -> true
+        MainUiErrorKind.CHECKPOINT -> false
+    }
+    val titleRes = when (error.kind) {
+        MainUiErrorKind.SYNC -> R.string.sync_error_title
+        MainUiErrorKind.ANALYSIS -> R.string.analysis_error_title
+        MainUiErrorKind.CHECKPOINT -> R.string.checkpoint_error_title
+    }
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .testTag(MAIN_ERROR_BANNER_TAG),
+            .testTag(MAIN_ERROR_BANNER_TAG)
+            .semantics { liveRegion = LiveRegionMode.Polite },
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.errorContainer,
         ),
@@ -294,37 +305,32 @@ private fun MainErrorBanner(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                stringResource(
-                    if (canRefresh) {
-                        R.string.sync_error_title
-                    } else {
-                        R.string.checkpoint_error_title
-                    },
-                ),
+                stringResource(titleRes),
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                if (canRefresh) {
-                    stringResource(R.string.error_sync_read, error.message)
-                } else {
-                    error.message
-                },
+                error.message,
                 style = MaterialTheme.typography.bodySmall,
             )
-            TextButton(
-                enabled = !canRefresh || canRetry,
-                onClick = if (canRefresh) onRetry else onDismiss,
-                modifier = Modifier
-                    .align(Alignment.End)
-                    .testTag(
-                        if (canRefresh) MAIN_ERROR_RETRY_TAG else MAIN_ERROR_DISMISS_TAG,
-                    ),
+            Row(
+                modifier = Modifier.align(Alignment.End),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(
-                    stringResource(
-                        if (canRefresh) R.string.action_refresh else R.string.action_dismiss,
-                    ),
-                )
+                if (canRefresh) {
+                    TextButton(
+                        enabled = canRetry,
+                        onClick = onRetry,
+                        modifier = Modifier.testTag(MAIN_ERROR_RETRY_TAG),
+                    ) {
+                        Text(stringResource(R.string.action_refresh))
+                    }
+                }
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.testTag(MAIN_ERROR_DISMISS_TAG),
+                ) {
+                    Text(stringResource(R.string.action_dismiss))
+                }
             }
         }
     }

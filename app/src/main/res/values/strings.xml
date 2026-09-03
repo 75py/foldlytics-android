@@ -144,8 +144,8 @@
     <string name="no_ranked_apps">No apps have measurable %1$s time in this period.</string>
     <string name="no_ranked_apps_total">No apps have measurable display time in this period.</string>
     <string name="saved_data_usage_access_note">Showing saved data. Usage access is required to sync new data.</string>
-    <string name="error_sync_read">Sync or data-loading error: %1$s</string>
     <string name="sync_error_title">Action needed: usage data could not be updated</string>
+    <string name="analysis_error_title">Saved data could not be analyzed</string>
     <string name="checkpoint_error_title">Some device-state data was not saved</string>
     <string name="detail_unavailable_while_analyzing">Unavailable while saved data is being analyzed.</string>
     <string name="home_app_usage_link_title">Most-used apps</string>
@@ -201,7 +201,6 @@
     <string name="label_period_total">Period total</string>
 
     <!-- Inner-display sessions -->
-    <string name="inner_sessions_title">Inner-display use per opening</string>
     <string name="inner_sessions_description">Each opening is paired with its next closing, and inner-display use is totaled for that period.</string>
     <string name="value_complete_inner_sessions">Inner-display uses summarized: %1$d. Openings detected: %2$d.</string>
     <string name="label_median_inner_session_time">Median inner-display time</string>

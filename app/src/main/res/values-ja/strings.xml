@@ -140,8 +140,8 @@
     <string name="no_ranked_apps">この期間に%1$sの利用時間を集計できるアプリはありません。</string>
     <string name="no_ranked_apps_total">この期間に利用時間を集計できるアプリはありません。</string>
     <string name="saved_data_usage_access_note">保存済みデータを表示しています。新しいデータの同期には利用状況アクセスが必要です。</string>
-    <string name="error_sync_read">同期・読み込みエラー: %1$s</string>
     <string name="sync_error_title">対応が必要です：利用状況データを更新できませんでした</string>
+    <string name="analysis_error_title">保存データを集計できませんでした</string>
     <string name="checkpoint_error_title">端末状態の一部を保存できませんでした</string>
     <string name="detail_unavailable_while_analyzing">保存データの集計中は利用できません。</string>
     <string name="home_app_usage_link_title">よく使ったアプリ</string>
@@ -197,7 +197,6 @@
     <string name="label_period_total">期間合計</string>
 
     <!-- Inner-display sessions -->
-    <string name="inner_sessions_title">開閉ごとの内側画面利用</string>
     <string name="inner_sessions_description">端末を開いてから閉じるまでを1回として、内側画面を使った時間を集計します。</string>
     <string name="value_complete_inner_sessions">%1$d回分を集計（開いた記録%2$d回）</string>
     <string name="label_median_inner_session_time">内側利用時間の中央値</string>

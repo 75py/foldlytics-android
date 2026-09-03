@@ -253,16 +253,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 R.string.usage_events_temporarily_unavailable,
                             )
                     }
-                    _uiState.update {
-                        it.copy(
+                    val syncError = message?.let {
+                        MainUiError(
+                            kind = MainUiErrorKind.SYNC,
+                            message = it,
+                        )
+                    }
+                    _uiState.update { state ->
+                        state.copy(
                             hasUsageAccess = syncRepository.hasUsageAccess(),
                             isLoading = false,
-                            error = message?.let {
-                                MainUiError(
-                                    kind = MainUiErrorKind.SYNC,
-                                    message = it,
-                                )
-                            },
+                            error = syncError ?: state.error,
                         )
                     }
                 }
