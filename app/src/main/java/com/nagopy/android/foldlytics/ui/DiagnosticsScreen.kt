@@ -87,11 +87,6 @@ internal fun DiagnosticsContent(
                 PostureEventRow(event)
             }
         }
-        state.errorMessage?.let { message ->
-            item {
-                HintCard(stringResource(R.string.error_sync_read, message), isError = true)
-            }
-        }
     }
 }
 

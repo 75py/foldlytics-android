@@ -132,8 +132,6 @@ private fun InnerSessionOverviewCard(summary: InnerSessionSummary) {
             ?: stringResource(R.string.label_no_data)
         val metricsDescription = stringResource(
             R.string.content_desc_inner_session_metrics,
-            summary.completeSessionCount,
-            summary.detectedOpenCount,
             medianText,
             averageText,
             longestText,

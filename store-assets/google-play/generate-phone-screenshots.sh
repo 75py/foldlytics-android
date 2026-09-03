@@ -140,7 +140,7 @@ render_screenshot \
     "$japanese_output_dir" \
     "$japanese_open_count_raw" \
     "04-open-count.png" \
-    $'検出した開閉回数を\n期間ごとに振り返る' \
+    $'検出した「開いた」回数を\n期間ごとに振り返る' \
     '#0067A5' \
     54
 

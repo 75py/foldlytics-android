@@ -5,7 +5,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_dir="$(cd "$script_dir/../.." && pwd)"
 raw_ja_dir="$script_dir/raw-ja"
 raw_en_dir="$script_dir/raw-en"
-expected_avd="Foldlytics_Pixel_9_Pro_Fold_API_36"
+expected_avd="${FOLDLYTICS_STORE_AVD:-Foldlytics_Pixel_9_Pro_Fold_API_36}"
 expected_sdk="36"
 remote_root="/sdcard/Download/Foldlytics"
 remote_ja_dir="$remote_root/store-screenshots"
@@ -61,8 +61,10 @@ if [[ "$(device_getprop ro.kernel.qemu)" != "1" ]]; then
     echo "Connected emulator did not report ro.kernel.qemu=1" >&2
     exit 1
 fi
-if [[ "$(device_getprop ro.boot.qemu.avd_name)" != "$expected_avd" ]]; then
-    echo "Connected AVD is not $expected_avd" >&2
+connected_avd="$(device_getprop ro.boot.qemu.avd_name)"
+if [[ "$connected_avd" != "$expected_avd" ]]; then
+    echo "Connected AVD is $connected_avd; expected $expected_avd." >&2
+    echo "Set FOLDLYTICS_STORE_AVD to use a differently named API 36 foldable AVD." >&2
     exit 1
 fi
 if [[ "$(device_getprop ro.build.version.sdk)" != "$expected_sdk" ]]; then

@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -41,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
@@ -48,6 +51,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.nagopy.android.foldlytics.MainUiError
+import com.nagopy.android.foldlytics.MainUiErrorKind
 import com.nagopy.android.foldlytics.MainUiState
 import com.nagopy.android.foldlytics.R
 import com.nagopy.android.foldlytics.labelRes
@@ -57,6 +62,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 internal const val ANALYSIS_PROGRESS_DELAY_MILLIS = 400L
+internal const val MAIN_ERROR_BANNER_TAG = "main_error_banner"
+internal const val MAIN_ERROR_RETRY_TAG = "main_error_retry"
+internal const val MAIN_ERROR_DISMISS_TAG = "main_error_dismiss"
 
 private enum class ScreenDestination(val titleRes: Int) {
     HOME(R.string.app_name),
@@ -81,6 +89,7 @@ fun FoldlyticsScreen(
     onExportCsv: () -> Unit,
     onOpenPrivacyPolicy: () -> Unit,
     onOpenOssLicenses: () -> Unit,
+    onDismissError: () -> Unit = {},
     onShareSummary: suspend (Bitmap) -> Boolean = { false },
     appName: String? = null,
     screenshotSectionEndSpacing: Dp = 0.dp,
@@ -177,6 +186,22 @@ fun FoldlyticsScreen(
                                 },
                         )
                     }
+                    state.error?.let { error ->
+                        MainErrorBanner(
+                            error = error,
+                            canRetry =
+                                state.hasUsageAccess &&
+                                    !state.isLoading &&
+                                    !state.isAnalysisLoading,
+                            onRetry = onRefresh,
+                            onDismiss = onDismissError,
+                            modifier = Modifier.padding(
+                                start = 16.dp,
+                                end = 16.dp,
+                                bottom = 8.dp,
+                            ),
+                        )
+                    }
                 }
             },
         ) { scaffoldPadding ->
@@ -245,6 +270,64 @@ fun FoldlyticsScreen(
 private fun ScreenDestination.isDetail(): Boolean = when (this) {
     ScreenDestination.APP_USAGE, ScreenDestination.INNER_SESSIONS -> true
     else -> false
+}
+
+@Composable
+private fun MainErrorBanner(
+    error: MainUiError,
+    canRetry: Boolean,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val canRefresh = error.kind != MainUiErrorKind.CHECKPOINT
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag(MAIN_ERROR_BANNER_TAG),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                stringResource(
+                    if (canRefresh) {
+                        R.string.sync_error_title
+                    } else {
+                        R.string.checkpoint_error_title
+                    },
+                ),
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                if (canRefresh) {
+                    stringResource(R.string.error_sync_read, error.message)
+                } else {
+                    error.message
+                },
+                style = MaterialTheme.typography.bodySmall,
+            )
+            TextButton(
+                enabled = !canRefresh || canRetry,
+                onClick = if (canRefresh) onRetry else onDismiss,
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .testTag(
+                        if (canRefresh) MAIN_ERROR_RETRY_TAG else MAIN_ERROR_DISMISS_TAG,
+                    ),
+            ) {
+                Text(
+                    stringResource(
+                        if (canRefresh) R.string.action_refresh else R.string.action_dismiss,
+                    ),
+                )
+            }
+        }
+    }
 }
 
 @Composable

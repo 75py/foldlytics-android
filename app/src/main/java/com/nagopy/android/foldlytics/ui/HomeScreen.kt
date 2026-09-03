@@ -83,7 +83,6 @@ internal const val CUSTOM_PERIOD_DIALOG_CANCEL_TAG = "custom_period_dialog_cance
 internal const val CUSTOM_PERIOD_DIALOG_APPLY_TAG = "custom_period_dialog_apply"
 internal const val ANALYSIS_PERIOD_OPTION_TAG_PREFIX = "analysis_period_option_"
 internal const val HOME_PERMISSION_CARD_TAG = "home_permission_card"
-internal const val HOME_SYNC_ERROR_CARD_TAG = "home_sync_error_card"
 internal const val LIVE_STATE_CARD_TAG = "live_state_card"
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -110,15 +109,6 @@ internal fun HomeScreen(
                 PermissionCard(
                     hasSavedData = state.periodSummary != null,
                     onOpenSettings = onRequestUsageAccess,
-                )
-            }
-        }
-        state.errorMessage?.let { message ->
-            item {
-                SyncErrorCard(
-                    message = message,
-                    canRetry = state.hasUsageAccess && !state.isLoading,
-                    onRetry = onRefresh,
                 )
             }
         }
@@ -215,41 +205,6 @@ private fun PermissionCard(
             }
             Button(onClick = onOpenSettings, modifier = Modifier.align(Alignment.End)) {
                 Text(stringResource(R.string.action_review_details))
-            }
-        }
-    }
-}
-
-@Composable
-private fun SyncErrorCard(
-    message: String,
-    canRetry: Boolean,
-    onRetry: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.testTag(HOME_SYNC_ERROR_CARD_TAG),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer,
-        ),
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                stringResource(R.string.sync_error_title),
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                stringResource(R.string.error_sync_read, message),
-                style = MaterialTheme.typography.bodySmall,
-            )
-            TextButton(
-                enabled = canRetry,
-                onClick = onRetry,
-                modifier = Modifier.align(Alignment.End),
-            ) {
-                Text(stringResource(R.string.action_refresh))
             }
         }
     }

@@ -4,7 +4,7 @@
 
 折りたたみスマホを、実際どれくらい開いて使っていますか？
 
-Foldlyticsは、対応する折りたたみAndroid端末で、外側・内側ディスプレイの利用時間、検出した開閉回数、画面別のアプリ利用状況を確認するためのアプリです。
+Foldlyticsは、対応する折りたたみAndroid端末で、外側・内側ディスプレイの利用時間、検出した「開いた」回数、画面別のアプリ利用状況を確認するためのアプリです。
 
 ダウンロード：[https://play.google.com/store/apps/details?id=com.nagopy.android.foldlytics](https://play.google.com/store/apps/details?id=com.nagopy.android.foldlytics)
 
@@ -17,7 +17,7 @@ Foldlyticsは、対応する折りたたみAndroid端末で、外側・内側デ
 ## 分かること
 
 - 外側・内側ディスプレイごとの利用時間と、内側を使った割合。
-- 検出した「開いた」「閉じた」回数。
+- 検出した「開いた」回数。
 - 1回の内側画面利用ごとの時間の中央値・平均値・最長時間、長く使った最大3回と
   アプリ別内訳。
 - 記録のある1日あたりに開いた回数。

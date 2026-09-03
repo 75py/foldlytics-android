@@ -43,7 +43,7 @@ least four portrait app screenshots at 1080 px or higher. The added headline are
 ### Japanese (`ja-JP`)
 
 - Feature graphic: `橙色の外側と青色の内側が折り重なる抽象図と、Foldlyticsの利用目的を示すコピー。`
-- 01: `90日間の外側・内側の利用時間、内側割合、データ充足率、検出した開閉回数を表示した利用サマリー。`
+- 01: `90日間の外側・内側の利用時間、内側割合、データ充足率、検出した「開いた」回数を表示した利用サマリー。`
 - 02: `開いてから閉じるまでの内側画面利用について、中央値・平均値・最長時間と長く使った回のアプリ内訳を表示した画面。`
 - 03: `90日間の内側利用割合の推移を折れ線グラフで表示した利用傾向。`
 - 04: `検出した開いた回数の推移と期間合計を表示した利用傾向。`
@@ -53,7 +53,7 @@ least four portrait app screenshots at 1080 px or higher. The added headline are
 ### English (`en-US`)
 
 - Feature graphic: `An abstract orange outer surface folds over a blue inner surface beside the Foldlytics name and tagline.`
-- 01: `A 90-day Foldlytics usage summary showing cover and inner display time, a 64% inner share, 98% data coverage, and 945 detected opens and closes.`
+- 01: `A 90-day Foldlytics usage summary showing cover and inner display time, a 64% inner share, 98% data coverage, and 945 detected opens.`
 - 02: `The opening-to-closing inner-display use card showing median, average, longest time, and app breakdowns for the three longest uses.`
 - 03: `A Foldlytics line chart showing inner-display share across a 90-day period.`
 - 04: `The detected-open trend chart with a total of 945 and no app ranking on the home screen.`
@@ -71,7 +71,7 @@ in the release APK and never changes a user's database.
 - Cover display: 145 hours 26 minutes.
 - Inner display: 259 hours 1 minute (64%).
 - Data coverage: 98%.
-- Detected opens and closes: 945 each; openings summarized through closing: 930.
+- Detected opens: 945; openings summarized through closing: 930.
 - Recent 30-day inner-display share: 7.8 points above the first 30 days.
 - Inner-display uses: three long uses of 42, 34, and 27 minutes, with app breakdowns and remaining time grouped as Other.
 - App names and package names are generic fixtures, so no user data or third-party app marks are
@@ -83,15 +83,24 @@ trend buckets, open counts, and rankings agree with one another.
 ## Regenerating phone screenshots
 
 1. Start the foldable API 36 test emulator in its opened state and set the display to 1080 x 1920.
-   The Compose test host requires the active display; the capture fixture does not use device usage
-   history or hinge readings.
+   The helper expects the AVD name `Foldlytics_Pixel_9_Pro_Fold_API_36` by default. For an
+   equivalently configured AVD with another name, set `FOLDLYTICS_STORE_AVD` when running the
+   helper. The Compose test host requires the active display; the capture fixture does not use
+   device usage history or hinge readings.
 2. From the repository root, run the capture helper:
 
    ```shell
    ./store-assets/google-play/capture-store-screenshots.sh
    ```
 
-   The helper refuses physical or unknown devices, verifies the named API 36 emulator and
+   For example, to use an AVD named `Pixel_9_Pro_Fold_API_36`:
+
+   ```shell
+   FOLDLYTICS_STORE_AVD=Pixel_9_Pro_Fold_API_36 \
+     ./store-assets/google-play/capture-store-screenshots.sh
+   ```
+
+   The helper refuses physical or unknown devices, verifies the selected API 36 emulator and
    `ro.kernel.qemu=1`, sets `OPENED` and 1080 x 1920, then runs the Gradle connected test. The
    fixture writes PNGs to its dedicated shared Downloads directories so the host can pull all
    twelve files after the test and before any unrelated cleanup. Each file is checked as a PNG at

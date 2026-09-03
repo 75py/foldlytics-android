@@ -28,6 +28,8 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.espresso.Espresso
 import androidx.test.platform.app.InstrumentationRegistry
+import com.nagopy.android.foldlytics.MainUiError
+import com.nagopy.android.foldlytics.MainUiErrorKind
 import com.nagopy.android.foldlytics.MainUiState
 import com.nagopy.android.foldlytics.R
 import com.nagopy.android.foldlytics.toShortDateText
@@ -483,6 +485,67 @@ class FoldlyticsScreenLoadingTest {
         composeRule.onNodeWithTag(HOME_INNER_SESSIONS_LINK_TAG).assertIsNotEnabled()
     }
 
+    @Test
+    fun keepsAnalysisErrorVisibleAcrossBothDetailDestinations() {
+        var refreshRequested = false
+        val errorMessage = "test analysis failure"
+        setContentWithStateProvider(
+            stateProvider = {
+                navigationState().copy(
+                    error = MainUiError(
+                        kind = MainUiErrorKind.ANALYSIS,
+                        message = errorMessage,
+                    ),
+                )
+            },
+            onRefresh = { refreshRequested = true },
+        )
+
+        val scrollable = composeRule.onNode(hasScrollAction())
+        scrollable.performScrollToNode(hasTestTag(HOME_APP_USAGE_LINK_TAG))
+        composeRule.onNodeWithTag(HOME_APP_USAGE_LINK_TAG).performClick()
+
+        composeRule.onNodeWithTag(APP_USAGE_SCREEN_TAG).assertIsDisplayed()
+        composeRule.onNodeWithTag(MAIN_ERROR_BANNER_TAG).assertIsDisplayed()
+        composeRule.onNodeWithText(text(R.string.error_sync_read, errorMessage))
+            .assertIsDisplayed()
+        composeRule.onNodeWithTag(MAIN_ERROR_RETRY_TAG).performClick()
+        composeRule.runOnIdle { assertTrue(refreshRequested) }
+
+        Espresso.pressBack()
+        composeRule.onNode(hasScrollAction()).performScrollToNode(
+            hasTestTag(HOME_INNER_SESSIONS_LINK_TAG),
+        )
+        composeRule.onNodeWithTag(HOME_INNER_SESSIONS_LINK_TAG).performClick()
+
+        composeRule.onNodeWithTag(INNER_DISPLAY_SESSION_SCREEN_TAG).assertIsDisplayed()
+        composeRule.onNodeWithTag(MAIN_ERROR_BANNER_TAG).assertIsDisplayed()
+    }
+
+    @Test
+    fun givesCheckpointErrorsASeparateDismissAction() {
+        var dismissed = false
+        val errorMessage = "test checkpoint failure"
+        setContentWithStateProvider(
+            stateProvider = {
+                MainUiState(
+                    error = MainUiError(
+                        kind = MainUiErrorKind.CHECKPOINT,
+                        message = errorMessage,
+                    ),
+                )
+            },
+            onDismissError = { dismissed = true },
+        )
+
+        composeRule.onNodeWithText(text(R.string.checkpoint_error_title)).assertIsDisplayed()
+        composeRule.onNodeWithText(errorMessage).assertIsDisplayed()
+        composeRule.onNodeWithTag(MAIN_ERROR_RETRY_TAG).assertDoesNotExist()
+        composeRule.onNodeWithTag(MAIN_ERROR_DISMISS_TAG).performClick()
+
+        composeRule.runOnIdle { assertTrue(dismissed) }
+    }
+
     private fun option(period: AnalysisPeriod) = composeRule.onNodeWithTag(
         "$ANALYSIS_PERIOD_OPTION_TAG_PREFIX${period.name}",
         useUnmergedTree = true,
@@ -502,6 +565,8 @@ class FoldlyticsScreenLoadingTest {
         stateProvider: () -> MainUiState,
         onOpenPrivacyPolicy: () -> Unit = {},
         onOpenOssLicenses: () -> Unit = {},
+        onRefresh: () -> Unit = {},
+        onDismissError: () -> Unit = {},
     ) {
         composeRule.setContent {
             CompositionLocalProvider(
@@ -517,7 +582,8 @@ class FoldlyticsScreenLoadingTest {
                         onClearCalibration = {},
                         onPeriodChanged = {},
                         onCustomPeriodChanged = { _, _ -> },
-                        onRefresh = {},
+                        onRefresh = onRefresh,
+                        onDismissError = onDismissError,
                         onShare = {},
                         onExportCsv = {},
                         onOpenPrivacyPolicy = onOpenPrivacyPolicy,

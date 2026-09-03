@@ -23,6 +23,7 @@
     <string name="action_syncing">Syncing…</string>
     <string name="action_apply">Apply</string>
     <string name="action_cancel">Cancel</string>
+    <string name="action_dismiss">Dismiss</string>
     <string name="action_share_summary_image">Share image</string>
     <string name="drawer_privacy_note">Data stays on this device and is never sent elsewhere unless you choose an export or share action.</string>
 
@@ -47,7 +48,7 @@
     <string name="content_desc_select_open_count_trend">Show open count trend</string>
     <string name="content_desc_home_app_usage_link">Open app usage details.</string>
     <string name="content_desc_home_inner_sessions_link">Open inner-display use per opening details.</string>
-    <string name="content_desc_inner_session_metrics">Inner-display uses summarized: %1$d. Openings detected: %2$d. Median %3$s. Average %4$s. Longest %5$s.</string>
+    <string name="content_desc_inner_session_metrics">Median %1$s. Average %2$s. Longest %3$s.</string>
     <string name="content_desc_inner_session_detail">Started %1$s. Inner-display use %2$s. Apps: %3$s. Other %4$s.</string>
     <string name="content_desc_inner_session_detail_without_other">Started %1$s. Inner-display use %2$s. Apps: %3$s.</string>
     <string name="content_desc_inner_session_app">%1$s, %2$s</string>
@@ -145,6 +146,7 @@
     <string name="saved_data_usage_access_note">Showing saved data. Usage access is required to sync new data.</string>
     <string name="error_sync_read">Sync or data-loading error: %1$s</string>
     <string name="sync_error_title">Action needed: usage data could not be updated</string>
+    <string name="checkpoint_error_title">Some device-state data was not saved</string>
     <string name="detail_unavailable_while_analyzing">Unavailable while saved data is being analyzed.</string>
     <string name="home_app_usage_link_title">Most-used apps</string>
     <string name="home_app_usage_preview">Top apps by total display time: %1$s</string>

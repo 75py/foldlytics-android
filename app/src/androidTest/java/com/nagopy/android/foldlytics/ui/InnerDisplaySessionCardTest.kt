@@ -105,8 +105,6 @@ class InnerDisplaySessionCardTest {
         composeRule.onNodeWithContentDescription(
             context.getString(
                 R.string.content_desc_inner_session_metrics,
-                4,
-                5,
                 context.getString(R.string.duration_seconds, 2),
                 context.getString(R.string.duration_seconds, 2),
                 context.getString(R.string.duration_seconds, 4),
@@ -244,8 +242,6 @@ class InnerDisplaySessionCardTest {
         composeRule.onNodeWithContentDescription(
             context.getString(
                 R.string.content_desc_inner_session_metrics,
-                1,
-                2,
                 context.getString(R.string.duration_seconds, 1),
                 context.getString(R.string.duration_seconds, 1),
                 context.getString(R.string.duration_seconds, 1),
@@ -289,10 +285,12 @@ class InnerDisplaySessionCardTest {
             "Inner-display uses summarized: 1. Openings detected: 1.",
         ).assertExists()
         composeRule.onNodeWithContentDescription(
-            "Inner-display uses summarized: 1. Openings detected: 1. " +
-                "Median ${context.getString(R.string.duration_seconds, 0)}. " +
-                "Average ${context.getString(R.string.duration_seconds, 0)}. " +
-                "Longest ${context.getString(R.string.duration_seconds, 0)}.",
+            context.getString(
+                R.string.content_desc_inner_session_metrics,
+                context.getString(R.string.duration_seconds, 0),
+                context.getString(R.string.duration_seconds, 0),
+                context.getString(R.string.duration_seconds, 0),
+            ),
         ).assertExists()
         composeRule.onNodeWithText(context.getString(R.string.long_inner_sessions_empty))
             .assertExists()

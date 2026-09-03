@@ -21,6 +21,7 @@
     <string name="action_syncing">同期中…</string>
     <string name="action_apply">適用</string>
     <string name="action_cancel">キャンセル</string>
+    <string name="action_dismiss">閉じる</string>
     <string name="action_share_summary_image">画像を共有</string>
     <string name="drawer_privacy_note">データは端末内に保存され、操作しない限り外部へ送信されません。</string>
 
@@ -45,7 +46,7 @@
     <string name="content_desc_select_open_count_trend">開いた回数の推移を表示</string>
     <string name="content_desc_home_app_usage_link">アプリの利用詳細を開く。</string>
     <string name="content_desc_home_inner_sessions_link">開閉ごとの内側画面利用の詳細を開く。</string>
-    <string name="content_desc_inner_session_metrics">開いた記録%2$d回のうち、%1$d回分の内側画面利用。中央値%3$s、平均値%4$s、最長%5$s。</string>
+    <string name="content_desc_inner_session_metrics">中央値%1$s、平均値%2$s、最長%3$s。</string>
     <string name="content_desc_inner_session_detail">%1$s開始、内側利用%2$s。アプリ内訳：%3$s。その他%4$s。</string>
     <string name="content_desc_inner_session_detail_without_other">%1$s開始、内側利用%2$s。アプリ内訳：%3$s。</string>
     <string name="content_desc_inner_session_app">%1$s、%2$s</string>
@@ -141,6 +142,7 @@
     <string name="saved_data_usage_access_note">保存済みデータを表示しています。新しいデータの同期には利用状況アクセスが必要です。</string>
     <string name="error_sync_read">同期・読み込みエラー: %1$s</string>
     <string name="sync_error_title">対応が必要です：利用状況データを更新できませんでした</string>
+    <string name="checkpoint_error_title">端末状態の一部を保存できませんでした</string>
     <string name="detail_unavailable_while_analyzing">保存データの集計中は利用できません。</string>
     <string name="home_app_usage_link_title">よく使ったアプリ</string>
     <string name="home_app_usage_preview">表示時間の合計が長いアプリ：%1$s</string>
