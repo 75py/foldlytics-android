@@ -4,7 +4,7 @@
 
 How often do you actually unfold your phone?
 
-Foldlytics is an Android app for compatible foldable phones. It shows how much time you spend on the cover and inner displays, how many opens and closes it detects, and which apps you use on each display.
+Foldlytics is an Android app for compatible foldable phones. It shows how much time you spend on the cover and inner displays, how many opens it detects, and which apps you use on each display.
 
 Download: [https://play.google.com/store/apps/details?id=com.nagopy.android.foldlytics](https://play.google.com/store/apps/details?id=com.nagopy.android.foldlytics)
 
@@ -17,7 +17,7 @@ Download: [https://play.google.com/store/apps/details?id=com.nagopy.android.fold
 ## What you can see
 
 - Cover and inner display time, plus the inner-display ratio.
-- Detected open and close counts.
+- Detected open counts.
 - Inner-display use for each opening, with median, average, and longest time,
   plus the three longest uses and their top app usage.
 - Average detected opens per observed day.
@@ -25,8 +25,8 @@ Download: [https://play.google.com/store/apps/details?id=com.nagopy.android.fold
 - Inner-display ratio and detected-open trends over longer periods.
 - A comparison between the first 30 days and the latest 30 days when enough
   history is available.
-- App rankings for the cover or inner display, limited to launchable apps and
-  shown with their icons.
+- App rankings by total display time, cover display, or inner display, limited
+  to launchable apps and shown with their icons.
 - Data coverage and collection status.
 - Daily CSV export for all saved history, to a destination you choose.
 

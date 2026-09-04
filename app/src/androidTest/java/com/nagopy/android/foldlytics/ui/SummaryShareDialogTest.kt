@@ -11,7 +11,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performScrollToNode
 import com.nagopy.android.foldlytics.MainUiState
 import com.nagopy.android.foldlytics.model.AnalysisPeriod
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
@@ -37,7 +37,7 @@ class SummaryShareDialogTest {
             ),
         )
         setScreen(state)
-        composeRule.onNode(hasScrollAction()).performScrollToIndex(SUMMARY_ITEM_INDEX)
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag(SUMMARY_CARD_TAG))
 
         composeRule.onNodeWithTag(SUMMARY_SHARE_BUTTON_TAG).assertIsNotEnabled()
 
@@ -67,7 +67,7 @@ class SummaryShareDialogTest {
             testBitmap()
         }
         setScreen(state, generator)
-        composeRule.onNode(hasScrollAction()).performScrollToIndex(SUMMARY_ITEM_INDEX)
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag(SUMMARY_CARD_TAG))
 
         composeRule.onNodeWithTag(SUMMARY_SHARE_BUTTON_TAG).performClick()
         waitForPreviewImage()
@@ -209,8 +209,4 @@ class SummaryShareDialogTest {
     }
 
     private fun hours(value: Long): Long = value * 60L * 60L * 1_000L
-
-    companion object {
-        private const val SUMMARY_ITEM_INDEX = 2
-    }
 }

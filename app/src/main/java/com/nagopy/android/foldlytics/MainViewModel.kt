@@ -58,6 +58,17 @@ data class FoldFeatureSnapshot(
 private val DEFAULT_AVAILABLE_PERIODS = AnalysisPeriod.entries
     .filterTo(mutableSetOf()) { it.hours != null }
 
+enum class MainUiErrorKind {
+    SYNC,
+    ANALYSIS,
+    CHECKPOINT,
+}
+
+data class MainUiError(
+    val kind: MainUiErrorKind,
+    val message: String,
+)
+
 data class MainUiState(
     val hasUsageAccess: Boolean = false,
     val currentConfiguration: DisplayConfiguration? = null,
@@ -83,7 +94,7 @@ data class MainUiState(
     val lastSuccessfulSyncMillis: Long? = null,
     val lastSyncQueryBeginMillis: Long? = null,
     val lastSyncInsertedEventCount: Int = 0,
-    val errorMessage: String? = null,
+    val error: MainUiError? = null,
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -217,7 +228,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (!_uiState.value.hasUsageAccess) return
         if (refreshJob?.isActive == true) return
         refreshJob = viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+            _uiState.update {
+                it.copy(
+                    isLoading = true,
+                    error = it.error?.takeIf { currentError ->
+                        currentError.kind == MainUiErrorKind.CHECKPOINT
+                    },
+                )
+            }
             when (val result = syncRepository.sync()) {
                 is UsageSyncResult.Success -> {
                     _uiState.update { it.copy(isLoading = false) }
@@ -235,11 +253,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 R.string.usage_events_temporarily_unavailable,
                             )
                     }
-                    _uiState.update {
-                        it.copy(
+                    val syncError = message?.let {
+                        MainUiError(
+                            kind = MainUiErrorKind.SYNC,
+                            message = it,
+                        )
+                    }
+                    _uiState.update { state ->
+                        state.copy(
                             hasUsageAccess = syncRepository.hasUsageAccess(),
                             isLoading = false,
-                            errorMessage = message,
+                            error = syncError ?: state.error,
                         )
                     }
                 }
@@ -248,9 +272,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            errorMessage = getApplication<Application>().getString(
-                                R.string.sync_failed,
-                                result.error.javaClass.simpleName,
+                            error = MainUiError(
+                                kind = MainUiErrorKind.SYNC,
+                                message = getApplication<Application>().getString(
+                                    R.string.sync_failed,
+                                    result.error.javaClass.simpleName,
+                                ),
                             ),
                         )
                     }
@@ -258,6 +285,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             analysisRevision.value += 1L
         }
+    }
+
+    fun clearError() {
+        _uiState.update { it.copy(error = null) }
     }
 
     fun diagnosticReport(): String {
@@ -596,9 +627,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } catch (error: Exception) {
                 _uiState.update {
                     it.copy(
-                        errorMessage = getApplication<Application>().getString(
-                            R.string.checkpoint_save_failed,
-                            error.javaClass.simpleName,
+                        error = MainUiError(
+                            kind = MainUiErrorKind.CHECKPOINT,
+                            message = getApplication<Application>().getString(
+                                R.string.checkpoint_save_failed,
+                                error.javaClass.simpleName,
+                            ),
                         ),
                     )
                 }
@@ -818,6 +852,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 longTermInsights = snapshot.longTermInsights,
                                 collectionHealth = snapshot.collectionHealth,
                                 isAnalysisLoading = false,
+                                error = it.error?.takeUnless { currentError ->
+                                    currentError.kind == MainUiErrorKind.ANALYSIS
+                                },
                             )
                         }
                         if (selectedPeriod.value != snapshot.selectedPeriod) {
@@ -832,9 +869,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         _uiState.update {
                             it.copy(
                                 isAnalysisLoading = false,
-                                errorMessage = getApplication<Application>().getString(
-                                    R.string.stored_analysis_failed,
-                                    error.javaClass.simpleName,
+                                error = MainUiError(
+                                    kind = MainUiErrorKind.ANALYSIS,
+                                    message = getApplication<Application>().getString(
+                                        R.string.stored_analysis_failed,
+                                        error.javaClass.simpleName,
+                                    ),
                                 ),
                             )
                         }

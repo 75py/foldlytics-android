@@ -35,15 +35,15 @@ Foldlytics：折りたたみ利用分析
 
 ### 簡単な説明
 
-40 / 80文字
+43 / 80文字
 
 ```text
-外側・内側の利用時間、検出した開閉回数、アプリ別の使い方を端末内で記録できます。
+外側・内側の利用時間、検出した「開いた」回数、アプリ別の使い方を端末内で記録できます。
 ```
 
 ### 詳しい説明
 
-981 / 4,000文字
+987 / 4,000文字
 
 ```text
 折りたたみスマホを、実際どれくらい開いて使っていますか？
@@ -52,11 +52,11 @@ Foldlyticsは、対応する折りたたみAndroid端末で、外側と内側の
 
 確認できること
 ・外側／内側ディスプレイごとの利用時間と割合
-・検出した「開いた」「閉じた」回数
+・検出した「開いた」回数
 ・1回の内側画面利用ごとの件数、中央値、平均値、最長時間
 ・長く使った最大3回の開始日時、内側利用時間、アプリ別上位3件、その他の時間
 ・内側利用割合と開いた回数の推移
-・外側／内側それぞれでよく使うアプリのランキング
+・表示時間の合計、外側／内側それぞれでよく使うアプリのランキング
 ・プリセット期間と、日付を指定した任意期間の集計
 ・データ充足率と収集状態
 ・保存している全期間の日次CSV
@@ -65,7 +65,7 @@ Foldlyticsは、対応する折りたたみAndroid端末で、外側と内側の
 
 データは、アプリのデータを消去するかアンインストールするまで端末内に保存されます。内側画面の利用時間も、同じ利用状況イベントから端末内で集計します。この機能のために新しい権限やデータの外部送信を追加しません。広告・分析SDKは使用せず、外部サーバーへ自動送信しません。CSV保存と診断レポートの共有は、ユーザーが操作した場合にだけ実行します。
 
-開閉回数は、Androidから取得できた画面構成イベントに基づく検出値です。物理ヒンジの絶対カウンターではありません。1回の内側画面利用は、選択期間内に「開いた」とその後の「閉じた」の両方を検出できた回です。0秒の利用も中央値・平均値・最長時間に含めますが、長く使った最大3回には表示しません。アプリ別の内訳は上位3件までを表示し、残りや判定できない時間は「その他」にまとめます。画面・ロックの情報から利用中か非利用かを判断できない時間を含む回は、利用時間の統計から除外します。取得できるイベントは、機種やAndroidバージョンによって異なる場合があります。
+「開いた」回数は、Androidから取得できた画面構成イベントに基づく検出値です。物理ヒンジを開いた絶対回数ではありません。1回の内側画面利用は、選択期間内に「開いた」とその後の「閉じた」の両方を検出できた回です。0秒の利用も中央値・平均値・最長時間に含めますが、長く使った最大3回には表示しません。アプリ別の内訳は上位3件までを表示し、残りや判定できない時間は「その他」にまとめます。画面・ロックの情報から利用中か非利用かを判断できない時間を含む回は、利用時間の統計から除外します。取得できるイベントは、機種やAndroidバージョンによって異なる場合があります。
 
 Android 10以降の対応する折りたたみ端末向けです。
 ```
@@ -83,7 +83,7 @@ Android 10以降の対応する折りたたみ端末向けです。
 1. `外側と内側、それぞれの利用時間が分かる`
 2. `1回の内側画面利用時間が分かる`
 3. `使い方の変化を週・月・年単位で確認`
-4. `検出した開閉回数を期間ごとに振り返る`
+4. `検出した「開いた」回数を期間ごとに振り返る`
 5. `画面ごとによく使うアプリを比較`
 6. `利用履歴は端末内だけに保存`
 
@@ -99,15 +99,15 @@ Foldlytics: Foldable Stats
 
 ### Short description
 
-76 / 80 characters
+65 / 80 characters
 
 ```text
-Track display time, detected opens and closes, and app usage on your device.
+Track display time, detected opens, and app usage on your device.
 ```
 
 ### Full description
 
-2,169 / 4,000 characters
+2,177 / 4,000 characters
 
 ```text
 How often do you actually unfold your phone?
@@ -116,11 +116,11 @@ Foldlytics records how you use the cover and inner displays on a compatible fold
 
 What you can review
 • Time spent on the cover and inner displays
-• Detected open and close counts
+• Detected open counts
 • Inner-display use for each opening, with median, average, and longest time
 • The three longest uses, with start time, inner-display time, top three apps, and Other time
 • Trends for inner display use and detected opens
-• App rankings for each display
+• App rankings by total display time and by each display
 • Preset periods and custom date ranges
 • Data coverage and collection status
 • Daily CSV export for all saved history
@@ -129,7 +129,7 @@ Foldlytics requires Android Usage Access. It reads which apps were displayed, wh
 
 Your data stays on your device until you clear the app's data or uninstall it. Inner-display use is calculated on-device from the same usage events. This feature adds no permission or external data transfer. Foldlytics does not use advertising or analytics SDKs and does not automatically send data to an external server. CSV export and diagnostic report sharing occur only when you choose them.
 
-Open and close counts come from display configuration events provided by Android. They are detections, not an absolute physical hinge counter. Inner-display use is summarized from an opening to its following close within the selected period; known zero-time uses still count in the median, average, and longest values, but are not shown among the three longest uses. The breakdown shows up to three apps, while remaining app time and time that cannot be identified are grouped as Other. A use containing any time that cannot be classified as active or inactive from the available screen and lock information is left out of the use statistics. Available events can vary by device and Android version.
+Open counts come from display configuration events provided by Android. They are detections, not an absolute count of physical unfolds. Inner-display use is summarized from an opening to its following close within the selected period; known zero-time uses still count in the median, average, and longest values, but are not shown among the three longest uses. The breakdown shows up to three apps, while remaining app time and time that cannot be identified are grouped as Other. A use containing any time that cannot be classified as active or inactive from the available screen and lock information is left out of the use statistics. Available events can vary by device and Android version.
 
 Requires Android 10 or later and a compatible foldable device.
 ```
@@ -154,7 +154,7 @@ Screenshot headline candidates:
 ## 表現上の統一ルール
 
 - 日本語は`外側` / `内側`、英語は`cover display` / `inner display`を使う。
-- `開閉回数`だけで終わらせず、本文では`検出した` / `detected`を付ける。
+- `開いた回数`だけで終わらせず、本文では`検出した` / `detected`を付ける。
 - `送信しない`ではなく`自動送信しない`とし、ユーザー操作によるCSV保存・共有を
   別に説明する。
 - `利用時間`は端末全体、アプリ別は厳密には`表示時間`であることを、READMEと

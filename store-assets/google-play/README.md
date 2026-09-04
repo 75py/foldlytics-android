@@ -43,22 +43,22 @@ least four portrait app screenshots at 1080 px or higher. The added headline are
 ### Japanese (`ja-JP`)
 
 - Feature graphic: `橙色の外側と青色の内側が折り重なる抽象図と、Foldlyticsの利用目的を示すコピー。`
-- 01: `90日間の外側・内側の利用時間、内側割合、データ充足率、検出した開閉回数を表示した利用サマリー。`
-- 02: `1回の内側画面利用カードで、中央値・平均値・最長時間と長く使った回のアプリ内訳を表示した画面。`
-- 03: `90日間の内側利用割合と開いた回数を折れ線グラフで表示した利用傾向。`
-- 04: `検出した開いた回数の推移と期間合計、その下に続く画面別アプリランキング。`
-- 05: `内側ディスプレイでの表示時間を基準に、読書やブラウザなどを並べたアプリランキング。`
-- 06: `CSV保存、診断共有、利用状況設定、プライバシーポリシーと端末内保存の説明を表示したメニュー。`
+- 01: `90日間の外側・内側の利用時間、内側割合、データ充足率、検出した「開いた」回数を表示した利用サマリー。`
+- 02: `開いてから閉じるまでの内側画面利用について、中央値・平均値・最長時間と長く使った回のアプリ内訳を表示した画面。`
+- 03: `90日間の内側利用割合の推移を折れ線グラフで表示した利用傾向。`
+- 04: `検出した開いた回数の推移と期間合計を表示した利用傾向。`
+- 05: `外側と内側を合わせた表示時間を基準に、読書やブラウザなどを並べたアプリ利用詳細。`
+- 06: `CSV保存、診断共有、利用状況設定、プライバシーポリシーと端末内保存の説明を表示したドロワー。`
 
 ### English (`en-US`)
 
 - Feature graphic: `An abstract orange outer surface folds over a blue inner surface beside the Foldlytics name and tagline.`
-- 01: `A 90-day Foldlytics usage summary showing cover and inner display time, a 64% inner share, 98% data coverage, and 945 detected opens and closes.`
+- 01: `A 90-day Foldlytics usage summary showing cover and inner display time, a 64% inner share, 98% data coverage, and 945 detected opens.`
 - 02: `The opening-to-closing inner-display use card showing median, average, longest time, and app breakdowns for the three longest uses.`
-- 03: `Foldlytics line charts showing inner-display share and detected open count across a 90-day period.`
-- 04: `The detected-open trend chart with a total of 945, followed by the app ranking section.`
-- 05: `The inner-display app ranking led by Reading, Browser, Photos, and Messages.`
-- 06: `The Foldlytics menu with CSV export, diagnostic sharing, Usage Access settings, privacy policy, and an on-device data notice.`
+- 03: `A Foldlytics line chart showing inner-display share across a 90-day period.`
+- 04: `The detected-open trend chart with a total of 945 and no app ranking on the home screen.`
+- 05: `The total display-time app usage detail led by Reading, Browser, and Photos, with outer and inner time shown for each app.`
+- 06: `The Foldlytics drawer with CSV export, diagnostic sharing, Usage Access settings, privacy policy, and an on-device data notice.`
 
 ## Representative data
 
@@ -71,7 +71,7 @@ in the release APK and never changes a user's database.
 - Cover display: 145 hours 26 minutes.
 - Inner display: 259 hours 1 minute (64%).
 - Data coverage: 98%.
-- Detected opens and closes: 945 each; openings summarized through closing: 930.
+- Detected opens: 945; openings summarized through closing: 930.
 - Recent 30-day inner-display share: 7.8 points above the first 30 days.
 - Inner-display uses: three long uses of 42, 34, and 27 minutes, with app breakdowns and remaining time grouped as Other.
 - App names and package names are generic fixtures, so no user data or third-party app marks are
@@ -82,34 +82,51 @@ trend buckets, open counts, and rankings agree with one another.
 
 ## Regenerating phone screenshots
 
-1. Start a foldable API 36 emulator in its closed state and set the display to 1080 x 1920.
-2. Build and install `app-debug.apk` and `app-debug-androidTest.apk`.
-3. Run:
+1. Start the foldable API 36 test emulator in its opened state and set the display to 1080 x 1920.
+   The helper expects the AVD name `Foldlytics_Pixel_9_Pro_Fold_API_36` by default. For an
+   equivalently configured AVD with another name, set `FOLDLYTICS_STORE_AVD` when running the
+   helper. The Compose test host requires the active display; the capture fixture does not use
+   device usage history or hinge readings.
+2. From the repository root, run the capture helper:
 
    ```shell
-   adb shell am instrument -w \
-     -e class com.nagopy.android.foldlytics.ui.StoreScreenshotCaptureTest \
-     com.nagopy.android.foldlytics.debug.test/androidx.test.runner.AndroidJUnitRunner
+   ./store-assets/google-play/capture-store-screenshots.sh
    ```
 
-4. Pull the Japanese and English PNG files from:
+   For example, to use an AVD named `Pixel_9_Pro_Fold_API_36`:
 
-   ```text
-   /sdcard/Android/data/com.nagopy.android.foldlytics.debug/files/store-screenshots/
-   /sdcard/Android/data/com.nagopy.android.foldlytics.debug/files/store-screenshots-en/
+   ```shell
+   FOLDLYTICS_STORE_AVD=Pixel_9_Pro_Fold_API_36 \
+     ./store-assets/google-play/capture-store-screenshots.sh
    ```
 
-   into `raw-ja/` and `raw-en/`, respectively.
-5. Run `./generate-phone-screenshots.sh` to generate the six upload-ready images and both
-   localized review contact sheets. Set `FOLDLYTICS_STORE_FONT` when the default macOS Hiragino
-   font is unavailable.
+   The helper refuses physical or unknown devices, verifies the selected API 36 emulator and
+   `ro.kernel.qemu=1`, sets `OPENED` and 1080 x 1920, then runs the Gradle connected test. The
+   fixture writes PNGs to its dedicated shared Downloads directories so the host can pull all
+   twelve files after the test and before any unrelated cleanup. Each file is checked as a PNG at
+   1080 x 1920, copied into `raw-ja/` or `raw-en/` using the existing raw names, and passed to
+   `generate-phone-screenshots.sh` for the upload-ready images and contact sheets. The helper
+   removes only its fixture directories from the test emulator when it exits.
+
+   Use this Gradle connected-test helper because direct `am instrument` does not initialize the
+   Compose UI test v2 host used by this fixture.
+
+3. Set `FOLDLYTICS_STORE_FONT` when the default macOS Hiragino font is unavailable.
+
+The capture names describe the rendered screen (`01-home-summary.png` through `06-drawer.png`),
+while the helper stores them under the stable raw filenames. In particular,
+`05-total-app-ranking.png` is saved as `05-app-ranking.png`. The generator prefers that stable
+app-ranking raw file and accepts the former `05-total-app-ranking.png` and
+`05-inner-app-ranking.png` aliases only as migration fallbacks; the capture helper removes both
+aliases so new captures do not accumulate extra raw PNGs.
 
 `FoldlyticsScreen` accepts an optional `appName` only so the screenshot fixture can render the
 public title `Foldlytics` instead of the debug application label. Normal application calls keep
 using the localized resource. The test renders `Locale.JAPANESE` and `Locale.US` with generic,
-localized app labels and the same calculated values. Capture-only spacing keeps the following
-section heading out of each focused screenshot. The app theme also passes the active locale to
-Compose typography so `ja-JP` captures use Japanese CJK glyph forms.
+localized app labels and the same calculated values. The capture flow navigates through stable
+test tags and semantics: home summary, session details, the two trend modes, total app usage
+details, and the drawer. The app theme also passes the active locale to Compose typography so
+`ja-JP` captures use Japanese CJK glyph forms.
 
 ## Feature graphic source and prompt
 

@@ -38,7 +38,7 @@ internal fun DiagnosticsContent(
     val events = analysis?.postureEvents.orEmpty()
     val inRangeCount = events.count { !it.isBeforeRange }
     val seedCount = events.size - inRangeCount
-    FoldlyticsLazyColumn(scaffoldPadding) {
+    FoldlyticsLazyColumn(scaffoldPadding = scaffoldPadding) {
         item {
             LabCard(title = stringResource(R.string.diagnostics_overview_title)) {
                 Text(
@@ -85,11 +85,6 @@ internal fun DiagnosticsContent(
                 contentType = { _, _ -> "posture-event" },
             ) { _, event ->
                 PostureEventRow(event)
-            }
-        }
-        state.errorMessage?.let { message ->
-            item {
-                HintCard(stringResource(R.string.error_sync_read, message), isError = true)
             }
         }
     }

@@ -107,6 +107,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                     onPeriodChanged = viewModel::setPeriod,
                     onCustomPeriodChanged = viewModel::setCustomPeriod,
                     onRefresh = viewModel::refreshFromCurrentState,
+                    onDismissError = viewModel::clearError,
                     onShare = ::shareReport,
                     onExportCsv = ::exportLongTermCsv,
                     onOpenPrivacyPolicy = ::openPrivacyPolicy,

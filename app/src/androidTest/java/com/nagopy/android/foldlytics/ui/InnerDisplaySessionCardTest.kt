@@ -3,6 +3,7 @@ package com.nagopy.android.foldlytics.ui
 import android.content.Context
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
@@ -27,7 +28,6 @@ import com.nagopy.android.foldlytics.model.AnalysisPeriod
 import com.nagopy.android.foldlytics.model.InnerSessionAppUsage
 import com.nagopy.android.foldlytics.model.InnerSessionDetail
 import com.nagopy.android.foldlytics.model.InnerSessionSummary
-import com.nagopy.android.foldlytics.model.PeriodUsageSummary
 import java.time.Instant
 import java.util.Locale
 import org.junit.Assert.assertTrue
@@ -92,7 +92,9 @@ class InnerDisplaySessionCardTest {
         setContent(context, sessionSummary)
         scrollToSessionCard()
 
-        composeRule.onNodeWithText(context.getString(R.string.inner_sessions_title)).assertExists()
+        composeRule.onAllNodes(
+            hasText(context.getString(R.string.inner_sessions_overview_title), substring = false),
+        ).assertCountEquals(1)
         composeRule.onNodeWithText(context.getString(R.string.inner_sessions_description))
             .assertExists()
         composeRule.onNodeWithTag(INNER_SESSION_COUNT_TAG).assertExists()
@@ -103,8 +105,6 @@ class InnerDisplaySessionCardTest {
         composeRule.onNodeWithContentDescription(
             context.getString(
                 R.string.content_desc_inner_session_metrics,
-                4,
-                5,
                 context.getString(R.string.duration_seconds, 2),
                 context.getString(R.string.duration_seconds, 2),
                 context.getString(R.string.duration_seconds, 4),
@@ -172,6 +172,11 @@ class InnerDisplaySessionCardTest {
             "${INNER_SESSION_OTHER_TAG_PREFIX}1000_0",
             useUnmergedTree = true,
         ).assertExists()
+        scrollToMethodCard()
+        composeRule.onNodeWithTag(INNER_SESSION_METHOD_TAG).assertExists()
+        composeRule.onNodeWithText(
+            context.getString(R.string.inner_sessions_method_body),
+        ).assertExists()
     }
 
     @Test
@@ -228,15 +233,15 @@ class InnerDisplaySessionCardTest {
         setContent(context, sessionSummary)
         scrollToSessionCard()
 
-        composeRule.onNodeWithText(context.getString(R.string.inner_sessions_title)).assertExists()
+        composeRule.onAllNodes(
+            hasText(context.getString(R.string.inner_sessions_overview_title), substring = false),
+        ).assertCountEquals(1)
         composeRule.onNodeWithText(context.getString(R.string.inner_sessions_description))
             .assertExists()
         composeRule.onNodeWithTag(INNER_SESSION_METRICS_TAG).assertExists()
         composeRule.onNodeWithContentDescription(
             context.getString(
                 R.string.content_desc_inner_session_metrics,
-                1,
-                2,
                 context.getString(R.string.duration_seconds, 1),
                 context.getString(R.string.duration_seconds, 1),
                 context.getString(R.string.duration_seconds, 1),
@@ -280,10 +285,12 @@ class InnerDisplaySessionCardTest {
             "Inner-display uses summarized: 1. Openings detected: 1.",
         ).assertExists()
         composeRule.onNodeWithContentDescription(
-            "Inner-display uses summarized: 1. Openings detected: 1. " +
-                "Median ${context.getString(R.string.duration_seconds, 0)}. " +
-                "Average ${context.getString(R.string.duration_seconds, 0)}. " +
-                "Longest ${context.getString(R.string.duration_seconds, 0)}.",
+            context.getString(
+                R.string.content_desc_inner_session_metrics,
+                context.getString(R.string.duration_seconds, 0),
+                context.getString(R.string.duration_seconds, 0),
+                context.getString(R.string.duration_seconds, 0),
+            ),
         ).assertExists()
         composeRule.onNodeWithText(context.getString(R.string.long_inner_sessions_empty))
             .assertExists()
@@ -380,6 +387,12 @@ class InnerDisplaySessionCardTest {
         )
     }
 
+    private fun scrollToMethodCard() {
+        composeRule.onNode(hasScrollAction()).performScrollToNode(
+            hasTestTag(INNER_SESSION_METHOD_TAG),
+        )
+    }
+
     private fun setContent(
         context: Context,
         sessionSummary: InnerSessionSummary,
@@ -394,33 +407,12 @@ class InnerDisplaySessionCardTest {
                     Box(
                         modifier = widthDp?.let { Modifier.width(it.dp) } ?: Modifier,
                     ) {
-                        FoldlyticsScreen(
+                        InnerDisplaySessionScreen(
                             state = MainUiState(
-                                hasUsageAccess = true,
-                                periodSummary = PeriodUsageSummary(
-                                    period = AnalysisPeriod.HOURS_24,
-                                    rangeStartMillis = sessionSummary.rangeStartMillis,
-                                    rangeEndMillis = sessionSummary.rangeEndMillis,
-                                    coverMillis = 1_000L,
-                                    innerMillis = 1_000L,
-                                    excludedMillis = 0L,
-                                    openedCount = sessionSummary.detectedOpenCount,
-                                    closedCount = sessionSummary.completeSessionCount,
-                                    apps = emptyList(),
-                                ),
+                                selectedPeriod = AnalysisPeriod.HOURS_24,
                                 innerSessionSummary = sessionSummary,
                             ),
-                            onOpenUsageAccess = {},
-                            onSaveCover = {},
-                            onSaveInner = {},
-                            onClearCalibration = {},
-                            onPeriodChanged = {},
-                            onCustomPeriodChanged = { _, _ -> },
-                            onRefresh = {},
-                            onShare = {},
-                            onExportCsv = {},
-                            onOpenPrivacyPolicy = {},
-                            onOpenOssLicenses = {},
+                            scaffoldPadding = PaddingValues(),
                         )
                     }
                 }

@@ -11,6 +11,35 @@ english_preview_file="$script_dir/previews/en-US-phone-contact-sheet.png"
 font_path="${FOLDLYTICS_STORE_FONT:-/System/Library/Fonts/ヒラギノ角ゴシック W6.ttc}"
 work_dir="$(mktemp -d /private/tmp/foldlytics-store-screenshots.XXXXXX)"
 
+resolve_raw_name() {
+    local raw_dir="$1"
+    shift
+    local raw_name
+
+    for raw_name in "$@"; do
+        if [[ -f "$raw_dir/$raw_name" ]]; then
+            printf '%s\n' "$raw_name"
+            return
+        fi
+    done
+
+    # The last name is a checked-in legacy fallback until an emulator capture replaces it.
+    printf '%s\n' "${!#}"
+}
+
+japanese_home_raw="$(resolve_raw_name "$japanese_raw_dir" "01-home-summary.png" "01-summary.png")"
+japanese_session_raw="$(resolve_raw_name "$japanese_raw_dir" "02-session-details.png" "02-inner-sessions.png")"
+japanese_inner_ratio_raw="$(resolve_raw_name "$japanese_raw_dir" "03-inner-ratio-trend.png" "03-trends.png")"
+japanese_open_count_raw="$(resolve_raw_name "$japanese_raw_dir" "04-open-count-trend.png" "04-open-count.png")"
+japanese_app_raw="$(resolve_raw_name "$japanese_raw_dir" "05-app-ranking.png" "05-total-app-ranking.png" "05-inner-app-ranking.png")"
+japanese_drawer_raw="$(resolve_raw_name "$japanese_raw_dir" "06-drawer.png" "06-on-device.png")"
+english_home_raw="$(resolve_raw_name "$english_raw_dir" "01-home-summary.png" "01-summary.png")"
+english_session_raw="$(resolve_raw_name "$english_raw_dir" "02-session-details.png" "02-inner-sessions.png")"
+english_inner_ratio_raw="$(resolve_raw_name "$english_raw_dir" "03-inner-ratio-trend.png" "03-trends.png")"
+english_open_count_raw="$(resolve_raw_name "$english_raw_dir" "04-open-count-trend.png" "04-open-count.png")"
+english_app_raw="$(resolve_raw_name "$english_raw_dir" "05-app-ranking.png" "05-total-app-ranking.png" "05-inner-app-ranking.png")"
+english_drawer_raw="$(resolve_raw_name "$english_raw_dir" "06-drawer.png" "06-on-device.png")"
+
 cleanup() {
     rm -rf "$work_dir"
 }
@@ -82,7 +111,7 @@ render_screenshot() {
 render_screenshot \
     "$japanese_raw_dir" \
     "$japanese_output_dir" \
-    "01-summary.png" \
+    "$japanese_home_raw" \
     "01-display-time.png" \
     $'外側と内側、それぞれの\n利用時間が分かる' \
     '#0067A5' \
@@ -91,7 +120,7 @@ render_screenshot \
 render_screenshot \
     "$japanese_raw_dir" \
     "$japanese_output_dir" \
-    "02-inner-sessions.png" \
+    "$japanese_session_raw" \
     "02-inner-sessions.png" \
     $'1回の内側画面利用時間が\n分かる' \
     '#0067A5' \
@@ -100,7 +129,7 @@ render_screenshot \
 render_screenshot \
     "$japanese_raw_dir" \
     "$japanese_output_dir" \
-    "03-trends.png" \
+    "$japanese_inner_ratio_raw" \
     "03-long-term-trends.png" \
     $'使い方の変化を\n週・月・年単位で確認' \
     '#C44E00' \
@@ -109,16 +138,16 @@ render_screenshot \
 render_screenshot \
     "$japanese_raw_dir" \
     "$japanese_output_dir" \
+    "$japanese_open_count_raw" \
     "04-open-count.png" \
-    "04-open-count.png" \
-    $'検出した開閉回数を\n期間ごとに振り返る' \
+    $'検出した「開いた」回数を\n期間ごとに振り返る' \
     '#0067A5' \
     54
 
 render_screenshot \
     "$japanese_raw_dir" \
     "$japanese_output_dir" \
-    "05-app-ranking.png" \
+    "$japanese_app_raw" \
     "05-app-ranking.png" \
     $'画面ごとによく使う\nアプリを比較' \
     '#C44E00' \
@@ -127,7 +156,7 @@ render_screenshot \
 render_screenshot \
     "$japanese_raw_dir" \
     "$japanese_output_dir" \
-    "06-on-device.png" \
+    "$japanese_drawer_raw" \
     "06-on-device.png" \
     $'利用履歴は\n端末内だけに保存' \
     '#0067A5' \
@@ -136,7 +165,7 @@ render_screenshot \
 render_screenshot \
     "$english_raw_dir" \
     "$english_output_dir" \
-    "01-summary.png" \
+    "$english_home_raw" \
     "01-display-time.png" \
     $'See your cover and inner\ndisplay time' \
     '#0067A5' \
@@ -145,7 +174,7 @@ render_screenshot \
 render_screenshot \
     "$english_raw_dir" \
     "$english_output_dir" \
-    "02-inner-sessions.png" \
+    "$english_session_raw" \
     "02-inner-sessions.png" \
     $'See inner-display use\nfor each opening' \
     '#0067A5' \
@@ -154,7 +183,7 @@ render_screenshot \
 render_screenshot \
     "$english_raw_dir" \
     "$english_output_dir" \
-    "03-trends.png" \
+    "$english_inner_ratio_raw" \
     "03-long-term-trends.png" \
     $'Follow your usage trends\nover weeks and months' \
     '#C44E00' \
@@ -163,7 +192,7 @@ render_screenshot \
 render_screenshot \
     "$english_raw_dir" \
     "$english_output_dir" \
-    "04-open-count.png" \
+    "$english_open_count_raw" \
     "04-open-count.png" \
     $'Track detected opens\nover time' \
     '#0067A5' \
@@ -172,7 +201,7 @@ render_screenshot \
 render_screenshot \
     "$english_raw_dir" \
     "$english_output_dir" \
-    "05-app-ranking.png" \
+    "$english_app_raw" \
     "05-app-ranking.png" \
     $'See which apps you use\non each display' \
     '#C44E00' \
@@ -181,7 +210,7 @@ render_screenshot \
 render_screenshot \
     "$english_raw_dir" \
     "$english_output_dir" \
-    "06-on-device.png" \
+    "$english_drawer_raw" \
     "06-on-device.png" \
     $'Your usage history\nstays on your device' \
     '#0067A5' \

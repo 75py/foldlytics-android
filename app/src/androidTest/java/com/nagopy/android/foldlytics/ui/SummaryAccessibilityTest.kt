@@ -8,11 +8,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nagopy.android.foldlytics.MainUiState
 import com.nagopy.android.foldlytics.R
@@ -39,7 +40,7 @@ class SummaryAccessibilityTest {
         )
 
         setContent(context, summary)
-        composeRule.onNode(hasScrollAction()).performScrollToIndex(2)
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag(SUMMARY_CARD_TAG))
 
         composeRule.onNodeWithContentDescription(
             description,
@@ -69,7 +70,7 @@ class SummaryAccessibilityTest {
         )
 
         setContent(context, summary)
-        composeRule.onNode(hasScrollAction()).performScrollToIndex(2)
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag(SUMMARY_CARD_TAG))
 
         composeRule.onNodeWithContentDescription(
             description,
@@ -90,7 +91,7 @@ class SummaryAccessibilityTest {
         )
 
         setContent(context, summary)
-        composeRule.onNode(hasScrollAction()).performScrollToIndex(2)
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag(SUMMARY_CARD_TAG))
 
         composeRule.onNodeWithContentDescription(
             description,
