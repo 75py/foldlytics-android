@@ -28,7 +28,48 @@ data class Calibration(
     val cover: DisplayConfiguration? = null,
     val inner: DisplayConfiguration? = null,
 ) {
-    val isComplete: Boolean = cover?.isUsable() == true && inner?.isUsable() == true
+    val validationFailure: CalibrationValidationFailure?
+        get() = if (
+            cover?.isUsable() == true &&
+                inner?.isUsable() == true &&
+                !cover.isDistinguishableFrom(inner)
+        ) {
+            CalibrationValidationFailure.ANCHORS_TOO_CLOSE
+        } else {
+            null
+        }
+
+    val isComplete: Boolean =
+        cover?.isUsable() == true &&
+            inner?.isUsable() == true &&
+            validationFailure == null
+
+    fun withAnchor(
+        anchor: CalibrationAnchor,
+        configuration: DisplayConfiguration,
+    ): CalibrationUpdateResult {
+        if (!configuration.isUsable()) {
+            return CalibrationUpdateResult.Rejected(
+                CalibrationValidationFailure.CONFIGURATION_UNAVAILABLE,
+            )
+        }
+        val usableCalibration = usableAnchorsOnly()
+        val updated = when (anchor) {
+            CalibrationAnchor.COVER -> usableCalibration.copy(cover = configuration)
+            CalibrationAnchor.INNER -> usableCalibration.copy(inner = configuration)
+        }
+        val failure = updated.validationFailure
+        return if (failure == null) {
+            CalibrationUpdateResult.Accepted(updated)
+        } else {
+            CalibrationUpdateResult.Rejected(failure)
+        }
+    }
+
+    fun usableAnchorsOnly(): Calibration = Calibration(
+        cover = cover?.takeIf(DisplayConfiguration::isUsable),
+        inner = inner?.takeIf(DisplayConfiguration::isUsable),
+    )
 
     fun classify(configuration: DisplayConfiguration?): DisplayPosture =
         classifyWithDetails(configuration).posture
@@ -41,7 +82,7 @@ data class Calibration(
         val coverConfig = cover
         val innerConfig = inner
 
-        if (coverConfig?.isUsable() != true || innerConfig?.isUsable() != true) {
+        if (!isComplete || coverConfig == null || innerConfig == null) {
             return configuration.classifyWithDefaultThreshold()
         }
 
@@ -63,6 +104,20 @@ data class Calibration(
             abs(shortSideDp - other.shortSideDp) * 2 +
             abs(longSideDp - other.longSideDp)
 
+    /**
+     * Configuration dimensions have one-dp resolution. A difference of at most one dp in every
+     * input used by [distanceTo] can be caused by integer rounding and cannot safely define two
+     * opposite postures. A two-dp difference in any input remains valid so genuinely close display
+     * configurations are not rejected unnecessarily.
+     */
+    private fun DisplayConfiguration.isDistinguishableFrom(
+        other: DisplayConfiguration,
+    ): Boolean =
+        abs(effectiveSmallestScreenWidthDp - other.effectiveSmallestScreenWidthDp) >
+            MAX_INDISTINGUISHABLE_DIFFERENCE_DP ||
+            abs(shortSideDp - other.shortSideDp) > MAX_INDISTINGUISHABLE_DIFFERENCE_DP ||
+            abs(longSideDp - other.longSideDp) > MAX_INDISTINGUISHABLE_DIFFERENCE_DP
+
     private fun DisplayConfiguration.classifyWithDefaultThreshold(): PostureClassification =
         PostureClassification(
             posture = if (effectiveSmallestScreenWidthDp >= DEFAULT_INNER_MIN_WIDTH_DP) {
@@ -74,7 +129,26 @@ data class Calibration(
 
     private companion object {
         const val DEFAULT_INNER_MIN_WIDTH_DP = 600
+        const val MAX_INDISTINGUISHABLE_DIFFERENCE_DP = 1
     }
+}
+
+enum class CalibrationAnchor {
+    COVER,
+    INNER,
+}
+
+enum class CalibrationValidationFailure {
+    CONFIGURATION_UNAVAILABLE,
+    ANCHORS_TOO_CLOSE,
+}
+
+sealed interface CalibrationUpdateResult {
+    data class Accepted(val calibration: Calibration) : CalibrationUpdateResult
+
+    data class Rejected(
+        val reason: CalibrationValidationFailure,
+    ) : CalibrationUpdateResult
 }
 
 data class PostureClassification(

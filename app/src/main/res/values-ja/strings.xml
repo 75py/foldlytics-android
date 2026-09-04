@@ -170,6 +170,8 @@
     <string name="usage_access_required_body">アプリの表示時間と開閉状態を、端末内だけで集計します。</string>
     <string name="calibration_values_title">端末ごとの判定値</string>
     <string name="calibration_instructions">端末を閉じて外側を記録し、次に端末を開いて内側を記録してください。両方の登録が完了するまでは自動判定を使います。</string>
+    <string name="calibration_configuration_unavailable">現在の画面サイズを取得できませんでした。画面が安定してから、もう一度記録してください。</string>
+    <string name="calibration_anchors_too_close">外側と内側の測定値が近すぎるため区別できません。端末を完全に閉じるか開いてから、正しい画面をもう一度記録してください。</string>
 
     <!-- Period selection and summary -->
     <string name="section_analysis_period">対象期間</string>

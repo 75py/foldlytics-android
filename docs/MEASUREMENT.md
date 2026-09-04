@@ -18,7 +18,7 @@ Classified time is the part of device use that Foldlytics can assign to the cove
 
 ## Cover and inner display classification
 
-Foldlytics compares the display dimensions in Android configuration events with the saved cover and inner calibration values. When both calibration values are available, the app assigns the current configuration to the closer one. Before calibration is complete, an effective smallest screen width of at least 600dp counts as the inner display; a smaller value counts as the cover display.
+Foldlytics compares the display dimensions in Android configuration events with the saved cover and inner calibration values. When both calibration values are available, the app assigns the current configuration to the closer one. These dimensions are integer dp values, so opposite calibration anchors are accepted only when their effective smallest width, normalized short side, or normalized long side differs by at least 2dp. Closer anchors are not saved or applied. Before calibration is complete, or when previously saved anchors fail this validation, an effective smallest screen width of at least 600dp counts as the inner display; a smaller value counts as the cover display.
 
 If Android does not provide usable display dimensions, the posture is unknown. After a device restart or collection interruption, Foldlytics also leaves the posture unknown until it receives new evidence instead of carrying the previous state forward.
 

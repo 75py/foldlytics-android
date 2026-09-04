@@ -1,6 +1,7 @@
 package com.nagopy.android.foldlytics.data
 
 import com.nagopy.android.foldlytics.model.Calibration
+import com.nagopy.android.foldlytics.model.CalibrationValidationFailure
 import com.nagopy.android.foldlytics.model.DailyAppUsageSummary
 import com.nagopy.android.foldlytics.model.DailyPostureSummary
 import com.nagopy.android.foldlytics.model.DisplayConfiguration
@@ -47,7 +48,7 @@ class DailySummaryRepository(
         collectionGapStarts: List<Long>,
     ): List<DailyPostureSummary> {
         val rangeEnd = syncedThroughMillis.coerceAtLeast(0L)
-        val calibrationKey = calibration.cacheKey()
+        val calibrationKey = calibration.dailySummaryCacheKey()
         val existingState = summaryDao.loadState()
         val cacheIdentityMatches = existingState != null &&
             existingState.calibrationKey == calibrationKey &&
@@ -242,19 +243,6 @@ class DailySummaryRepository(
         )
     }
 
-    private fun Calibration.cacheKey(): String =
-        "cover=${cover.cacheKeyPart()}|inner=${inner.cacheKeyPart()}"
-
-    private fun DisplayConfiguration?.cacheKeyPart(): String = this?.let {
-        listOf(
-            it.screenWidthDp,
-            it.screenHeightDp,
-            it.smallestScreenWidthDp,
-            it.orientation,
-            it.densityDpi,
-        ).joinToString(separator = ",")
-    } ?: "none"
-
     private companion object {
         const val AGGREGATION_VERSION = 5
         const val AGGREGATION_CHUNK_DAYS = 31L
@@ -267,6 +255,23 @@ class DailySummaryRepository(
         val innerSessionAppUsages: List<InnerDisplaySessionAppUsageEntity> = emptyList(),
     )
 }
+
+internal fun Calibration.dailySummaryCacheKey(): String =
+    if (validationFailure == CalibrationValidationFailure.ANCHORS_TOO_CLOSE) {
+        "cover=none|inner=none"
+    } else {
+        "cover=${cover.cacheKeyPart()}|inner=${inner.cacheKeyPart()}"
+    }
+
+private fun DisplayConfiguration?.cacheKeyPart(): String = this?.let {
+    listOf(
+        it.screenWidthDp,
+        it.screenHeightDp,
+        it.smallestScreenWidthDp,
+        it.orientation,
+        it.densityDpi,
+    ).joinToString(separator = ",")
+} ?: "none"
 
 internal fun chooseDailySummaryRebuildStart(
     fullRebuild: Boolean,
