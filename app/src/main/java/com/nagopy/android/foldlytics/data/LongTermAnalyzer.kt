@@ -98,7 +98,7 @@ class LongTermAnalyzer {
             )
         }
         val values = periodSummaries.map(DatedSummary::summary)
-        val comparison = thirtyDayComparison(periodSummaries, endDate)
+        val comparison = thirtyDayComparison(datedSummaries, endDate)
 
         return LongTermInsights(
             rangeStartMillis = startDate.atStartOfDay(zoneId).toInstant().toEpochMilli(),
