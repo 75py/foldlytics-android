@@ -18,6 +18,9 @@ import com.nagopy.android.foldlytics.data.toDisplayConfiguration
 import com.nagopy.android.foldlytics.model.AnalysisPeriod
 import com.nagopy.android.foldlytics.model.AppUsage
 import com.nagopy.android.foldlytics.model.Calibration
+import com.nagopy.android.foldlytics.model.CalibrationAnchor
+import com.nagopy.android.foldlytics.model.CalibrationUpdateResult
+import com.nagopy.android.foldlytics.model.CalibrationValidationFailure
 import com.nagopy.android.foldlytics.model.CollectionHealth
 import com.nagopy.android.foldlytics.model.CustomAnalysisRange
 import com.nagopy.android.foldlytics.model.DailyPostureSummary
@@ -73,6 +76,7 @@ data class MainUiState(
     val hasUsageAccess: Boolean = false,
     val currentConfiguration: DisplayConfiguration? = null,
     val calibration: Calibration = Calibration(),
+    val calibrationValidationFailure: CalibrationValidationFailure? = null,
     val currentPosture: DisplayPosture = DisplayPosture.UNKNOWN,
     val foldFeature: FoldFeatureSnapshot = FoldFeatureSnapshot(),
     val hingeSensorAvailable: Boolean = false,
@@ -125,6 +129,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         MainUiState(
             currentConfiguration = application.resources.configuration.toDisplayConfiguration(),
             calibration = initialCalibration,
+            calibrationValidationFailure = initialCalibration.validationFailure,
         ),
     )
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
@@ -150,7 +155,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateConfiguration(configuration: DisplayConfiguration) {
-        _uiState.update { it.copy(currentConfiguration = configuration) }
+        _uiState.update {
+            it.copy(
+                currentConfiguration = configuration,
+                calibrationValidationFailure = it.calibration.validationFailure,
+            )
+        }
         recalculateCurrentPosture()
     }
 
@@ -206,17 +216,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun saveCurrentAsCover() {
-        val configuration = _uiState.value.currentConfiguration ?: return
-        calibrationStore.saveCover(configuration)
-        saveCurrentCheckpoint(PostureCheckpointSource.CALIBRATION_COVER)
-        reloadCalibrationAndRefresh()
+        saveCurrentCalibration(
+            anchor = CalibrationAnchor.COVER,
+            checkpointSource = PostureCheckpointSource.CALIBRATION_COVER,
+        )
     }
 
     fun saveCurrentAsInner() {
-        val configuration = _uiState.value.currentConfiguration ?: return
-        calibrationStore.saveInner(configuration)
-        saveCurrentCheckpoint(PostureCheckpointSource.CALIBRATION_INNER)
-        reloadCalibrationAndRefresh()
+        saveCurrentCalibration(
+            anchor = CalibrationAnchor.INNER,
+            checkpointSource = PostureCheckpointSource.CALIBRATION_INNER,
+        )
     }
 
     fun clearCalibration() {
@@ -339,6 +349,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 R.string.label_inner_calibration,
                 state.calibration.inner?.toDisplayText(resources)
                     ?: resources.getString(R.string.status_not_registered),
+            )
+            appendField(
+                R.string.label_classification_method,
+                resources.getString(
+                    if (state.calibration.isComplete) {
+                        R.string.classification_saved_values
+                    } else {
+                        R.string.classification_automatic
+                    },
+                ),
             )
             appendField(
                 R.string.label_data_source,
@@ -643,9 +663,47 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun reloadCalibrationAndRefresh() {
         val calibration = calibrationStore.load()
         activeCalibration.value = calibration
-        _uiState.update { it.copy(calibration = calibration) }
+        _uiState.update {
+            it.copy(
+                calibration = calibration,
+                calibrationValidationFailure = calibration.validationFailure,
+            )
+        }
         recalculateCurrentPosture()
         refresh()
+    }
+
+    private fun saveCurrentCalibration(
+        anchor: CalibrationAnchor,
+        checkpointSource: PostureCheckpointSource,
+    ) {
+        val configuration = _uiState.value.currentConfiguration
+        if (configuration == null) {
+            _uiState.update {
+                it.copy(
+                    calibrationValidationFailure =
+                        CalibrationValidationFailure.CONFIGURATION_UNAVAILABLE,
+                )
+            }
+            return
+        }
+
+        val result = when (anchor) {
+            CalibrationAnchor.COVER -> calibrationStore.saveCover(configuration)
+            CalibrationAnchor.INNER -> calibrationStore.saveInner(configuration)
+        }
+        when (result) {
+            is CalibrationUpdateResult.Accepted -> {
+                saveCurrentCheckpoint(checkpointSource)
+                reloadCalibrationAndRefresh()
+            }
+
+            is CalibrationUpdateResult.Rejected -> {
+                _uiState.update {
+                    it.copy(calibrationValidationFailure = result.reason)
+                }
+            }
+        }
     }
 
     private fun observeStoredAnalysis() {
