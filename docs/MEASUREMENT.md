@@ -72,7 +72,7 @@ Daily summaries use the device time zone at the time of aggregation. If the time
 
 An observed day is a day with classified or excluded time, a detected transition, or a recorded evidence gap. Average detected opens per observed day is the total detected open count divided by the number of observed days. A day counts as an inner-use day when it has at least one millisecond of inner display time.
 
-Regardless of the analysis period selected on screen, the comparison between the first 30 days and the latest 30 days starts on the first day with observed device use. It appears only after at least 60 calendar days have passed from that day, and only when both 30-day periods contain classified time.
+Regardless of the analysis period selected on screen, the comparison between the first 30 days and the latest 30 days uses the full recorded history. The first window starts on the first day with recorded device-use time, and the latest window ends at the latest successful synchronization. It appears only after at least 60 calendar days have passed from the start day, and only when both 30-day periods contain classified time.
 
 ## Synchronization and collection interruptions
 

@@ -150,7 +150,7 @@ class LongTermAnalyzerTest {
                 openedCount = 1,
             ),
         )
-        val rangeEnd = recordingStart.plusDays(120L)
+        val recordingEnd = recordingStart.plusDays(120L)
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
@@ -163,17 +163,21 @@ class LongTermAnalyzerTest {
             analyzer.analyze(
                 summaries = summaries,
                 period = period,
-                rangeEndMillis = rangeEnd,
+                rangeEndMillis = recordingEnd,
                 zoneId = zoneId,
             )
         }
         val customResult = analyzer.analyzeRange(
             summaries = summaries,
-            rangeStartMillis = recordingStart.plusDays(113L)
+            rangeStartMillis = recordingStart.plusDays(20L)
                 .atStartOfDay(zoneId)
                 .toInstant()
                 .toEpochMilli(),
-            rangeEndMillis = rangeEnd,
+            rangeEndMillis = recordingStart.plusDays(40L)
+                .atStartOfDay(zoneId)
+                .toInstant()
+                .toEpochMilli(),
+            recordingEndMillis = recordingEnd,
             zoneId = zoneId,
         )
 
@@ -219,6 +223,75 @@ class LongTermAnalyzerTest {
     }
 
     @Test
+    fun omitsComparisonWhenRecentThirtyDaysOnlyContainUnknownTime() {
+        val firstDate = LocalDate.of(2026, 1, 1)
+        val summaries = listOf(
+            summary(
+                date = firstDate,
+                coverMillis = 3_000L,
+                innerMillis = 1_000L,
+                openedCount = 1,
+            ),
+            summary(
+                date = firstDate.plusDays(59L),
+                coverMillis = 0L,
+                innerMillis = 0L,
+                excludedMillis = 4_000L,
+                openedCount = 0,
+            ),
+        )
+        val rangeEnd = firstDate.plusDays(60L)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+
+        val result = analyzer.analyze(
+            summaries = summaries,
+            period = LongTermPeriod.DAYS_90,
+            rangeEndMillis = rangeEnd,
+            zoneId = zoneId,
+        )
+
+        assertNull(result.firstThirtyDayInnerRatio)
+        assertNull(result.recentThirtyDayInnerRatio)
+        assertNull(result.thirtyDayInnerRatioDelta)
+    }
+
+    @Test
+    fun omitsComparisonBeforeSixtyCalendarDays() {
+        val firstDate = LocalDate.of(2026, 1, 1)
+        val summaries = listOf(
+            summary(
+                date = firstDate,
+                coverMillis = 3_000L,
+                innerMillis = 1_000L,
+                openedCount = 1,
+            ),
+            summary(
+                date = firstDate.plusDays(58L),
+                coverMillis = 1_000L,
+                innerMillis = 3_000L,
+                openedCount = 1,
+            ),
+        )
+        val rangeEnd = firstDate.plusDays(59L)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+
+        val result = analyzer.analyze(
+            summaries = summaries,
+            period = LongTermPeriod.DAYS_90,
+            rangeEndMillis = rangeEnd,
+            zoneId = zoneId,
+        )
+
+        assertNull(result.firstThirtyDayInnerRatio)
+        assertNull(result.recentThirtyDayInnerRatio)
+        assertNull(result.thirtyDayInnerRatioDelta)
+    }
+
+    @Test
     fun analyzesOnlyTheSelectedCustomDateRange() {
         val firstDate = LocalDate.of(2026, 1, 1)
         val summaries = (0L until 60L).map { offset ->
@@ -236,6 +309,10 @@ class LongTermAnalyzerTest {
             summaries = summaries,
             rangeStartMillis = selectedStart.atStartOfDay(zoneId).toInstant().toEpochMilli(),
             rangeEndMillis = selectedEndExclusive
+                .atStartOfDay(zoneId)
+                .toInstant()
+                .toEpochMilli(),
+            recordingEndMillis = firstDate.plusDays(60L)
                 .atStartOfDay(zoneId)
                 .toInstant()
                 .toEpochMilli(),
