@@ -829,6 +829,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                         range.endMillis,
                                         syncState.lastSuccessfulEndMillis,
                                     ),
+                                    recordingEndMillis = syncState.lastSuccessfulEndMillis,
                                     zoneId = zoneId,
                                 )
                             } else {

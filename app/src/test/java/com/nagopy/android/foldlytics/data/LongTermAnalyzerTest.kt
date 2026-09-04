@@ -6,6 +6,8 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class LongTermAnalyzerTest {
@@ -113,6 +115,184 @@ class LongTermAnalyzerTest {
     }
 
     @Test
+    fun usesRecordingStartForComparisonAcrossSelectedDisplayRanges() {
+        val recordingStart = LocalDate.of(2026, 1, 1)
+        val summaries = listOf(
+            summary(
+                date = recordingStart.minusDays(1L),
+                coverMillis = 0L,
+                innerMillis = 0L,
+                openedCount = 0,
+                evidenceGapCount = 1,
+            ),
+            summary(
+                date = recordingStart,
+                coverMillis = 0L,
+                innerMillis = 0L,
+                excludedMillis = 4_000L,
+                openedCount = 0,
+            ),
+            summary(
+                date = recordingStart.plusDays(29L),
+                coverMillis = 3_000L,
+                innerMillis = 1_000L,
+                openedCount = 1,
+            ),
+            summary(
+                date = recordingStart.plusDays(30L),
+                coverMillis = 2_000L,
+                innerMillis = 2_000L,
+                openedCount = 1,
+            ),
+            summary(
+                date = recordingStart.plusDays(119L),
+                coverMillis = 1_000L,
+                innerMillis = 3_000L,
+                openedCount = 1,
+            ),
+        )
+        val recordingEnd = recordingStart.plusDays(120L)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        val presetResults = listOf(
+            LongTermPeriod.DAYS_7,
+            LongTermPeriod.DAYS_30,
+            LongTermPeriod.DAYS_90,
+            LongTermPeriod.DAYS_365,
+        ).map { period ->
+            analyzer.analyze(
+                summaries = summaries,
+                period = period,
+                rangeEndMillis = recordingEnd,
+                zoneId = zoneId,
+            )
+        }
+        val customResult = analyzer.analyzeRange(
+            summaries = summaries,
+            rangeStartMillis = recordingStart.plusDays(20L)
+                .atStartOfDay(zoneId)
+                .toInstant()
+                .toEpochMilli(),
+            rangeEndMillis = recordingStart.plusDays(40L)
+                .atStartOfDay(zoneId)
+                .toInstant()
+                .toEpochMilli(),
+            recordingEndMillis = recordingEnd,
+            zoneId = zoneId,
+        )
+
+        (presetResults + customResult).forEach { result ->
+            assertEquals(0.25f, result.firstThirtyDayInnerRatio ?: 0f, 0f)
+            assertEquals(0.75f, result.recentThirtyDayInnerRatio ?: 0f, 0f)
+        }
+    }
+
+    @Test
+    fun omitsComparisonWhenFirstThirtyDaysOnlyContainUnknownTime() {
+        val firstDate = LocalDate.of(2026, 1, 1)
+        val summaries = listOf(
+            summary(
+                date = firstDate,
+                coverMillis = 0L,
+                innerMillis = 0L,
+                excludedMillis = 4_000L,
+                openedCount = 0,
+            ),
+            summary(
+                date = firstDate.plusDays(59L),
+                coverMillis = 1_000L,
+                innerMillis = 3_000L,
+                openedCount = 1,
+            ),
+        )
+        val rangeEnd = firstDate.plusDays(60L)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+
+        val result = analyzer.analyze(
+            summaries = summaries,
+            period = LongTermPeriod.DAYS_90,
+            rangeEndMillis = rangeEnd,
+            zoneId = zoneId,
+        )
+
+        assertNull(result.firstThirtyDayInnerRatio)
+        assertNull(result.recentThirtyDayInnerRatio)
+        assertNull(result.thirtyDayInnerRatioDelta)
+    }
+
+    @Test
+    fun omitsComparisonWhenRecentThirtyDaysOnlyContainUnknownTime() {
+        val firstDate = LocalDate.of(2026, 1, 1)
+        val summaries = listOf(
+            summary(
+                date = firstDate,
+                coverMillis = 3_000L,
+                innerMillis = 1_000L,
+                openedCount = 1,
+            ),
+            summary(
+                date = firstDate.plusDays(59L),
+                coverMillis = 0L,
+                innerMillis = 0L,
+                excludedMillis = 4_000L,
+                openedCount = 0,
+            ),
+        )
+        val rangeEnd = firstDate.plusDays(60L)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+
+        val result = analyzer.analyze(
+            summaries = summaries,
+            period = LongTermPeriod.DAYS_90,
+            rangeEndMillis = rangeEnd,
+            zoneId = zoneId,
+        )
+
+        assertNull(result.firstThirtyDayInnerRatio)
+        assertNull(result.recentThirtyDayInnerRatio)
+        assertNull(result.thirtyDayInnerRatioDelta)
+    }
+
+    @Test
+    fun omitsComparisonBeforeSixtyCalendarDays() {
+        val firstDate = LocalDate.of(2026, 1, 1)
+        val summaries = listOf(
+            summary(
+                date = firstDate,
+                coverMillis = 3_000L,
+                innerMillis = 1_000L,
+                openedCount = 1,
+            ),
+            summary(
+                date = firstDate.plusDays(58L),
+                coverMillis = 1_000L,
+                innerMillis = 3_000L,
+                openedCount = 1,
+            ),
+        )
+        val rangeEnd = firstDate.plusDays(59L)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+
+        val result = analyzer.analyze(
+            summaries = summaries,
+            period = LongTermPeriod.DAYS_90,
+            rangeEndMillis = rangeEnd,
+            zoneId = zoneId,
+        )
+
+        assertNull(result.firstThirtyDayInnerRatio)
+        assertNull(result.recentThirtyDayInnerRatio)
+        assertNull(result.thirtyDayInnerRatioDelta)
+    }
+
+    @Test
     fun analyzesOnlyTheSelectedCustomDateRange() {
         val firstDate = LocalDate.of(2026, 1, 1)
         val summaries = (0L until 60L).map { offset ->
@@ -133,6 +313,10 @@ class LongTermAnalyzerTest {
                 .atStartOfDay(zoneId)
                 .toInstant()
                 .toEpochMilli(),
+            recordingEndMillis = firstDate.plusDays(60L)
+                .atStartOfDay(zoneId)
+                .toInstant()
+                .toEpochMilli(),
             zoneId = zoneId,
         )
 
@@ -141,6 +325,78 @@ class LongTermAnalyzerTest {
         assertEquals(40_000L, result.coverMillis)
         assertEquals(80_000L, result.innerMillis)
         assertEquals(6, result.buckets.size)
+    }
+
+    @Test
+    fun rejectsCustomRangeEndingAfterRecordedHistory() {
+        val firstDate = LocalDate.of(2026, 1, 1)
+        val rangeStart = firstDate.atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val recordingEnd = firstDate.plusDays(1L)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        val rangeEnd = firstDate.plusDays(2L)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            analyzer.analyzeRange(
+                summaries = emptyList(),
+                rangeStartMillis = rangeStart,
+                rangeEndMillis = rangeEnd,
+                recordingEndMillis = recordingEnd,
+                zoneId = zoneId,
+            )
+        }
+
+        assertEquals("Analysis range must end within the recorded history", error.message)
+    }
+
+    @Test
+    fun ignoresSummariesAfterRecordedHistoryInRecentComparison() {
+        val firstDate = LocalDate.of(2026, 1, 1)
+        val summaries = listOf(
+            summary(
+                date = firstDate,
+                coverMillis = 3_000L,
+                innerMillis = 1_000L,
+                openedCount = 1,
+            ),
+            summary(
+                date = firstDate.plusDays(59L),
+                coverMillis = 1_000L,
+                innerMillis = 3_000L,
+                openedCount = 1,
+            ),
+            summary(
+                date = firstDate.plusDays(60L),
+                coverMillis = 4_000L,
+                innerMillis = 0L,
+                openedCount = 1,
+            ),
+        )
+        val recordingEnd = firstDate.plusDays(60L)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+
+        val result = analyzer.analyzeRange(
+            summaries = summaries,
+            rangeStartMillis = firstDate.plusDays(10L)
+                .atStartOfDay(zoneId)
+                .toInstant()
+                .toEpochMilli(),
+            rangeEndMillis = firstDate.plusDays(20L)
+                .atStartOfDay(zoneId)
+                .toInstant()
+                .toEpochMilli(),
+            recordingEndMillis = recordingEnd,
+            zoneId = zoneId,
+        )
+
+        assertEquals(0.25f, result.firstThirtyDayInnerRatio ?: 0f, 0f)
+        assertEquals(0.75f, result.recentThirtyDayInnerRatio ?: 0f, 0f)
     }
 
     @Test
@@ -163,7 +419,9 @@ class LongTermAnalyzerTest {
         date: LocalDate,
         coverMillis: Long,
         innerMillis: Long,
+        excludedMillis: Long = 0L,
         openedCount: Int,
+        evidenceGapCount: Int = 0,
     ): DailyPostureSummary {
         val start = date.atStartOfDay(zoneId).toInstant().toEpochMilli()
         val end = date.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
@@ -173,10 +431,10 @@ class LongTermAnalyzerTest {
             zoneId = zoneId.id,
             coverMillis = coverMillis,
             innerMillis = innerMillis,
-            excludedMillis = 0L,
+            excludedMillis = excludedMillis,
             openedCount = openedCount,
             closedCount = openedCount,
-            evidenceGapCount = 0,
+            evidenceGapCount = evidenceGapCount,
         )
     }
 

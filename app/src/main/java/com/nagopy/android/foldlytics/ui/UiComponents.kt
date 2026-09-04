@@ -45,6 +45,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
@@ -292,7 +293,11 @@ internal fun InfoLine(label: String, value: String) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Top,
     ) {
-        Text(label, style = MaterialTheme.typography.bodySmall)
+        Text(
+            label,
+            modifier = Modifier.weight(1f, fill = false),
+            style = MaterialTheme.typography.bodySmall,
+        )
         Text(
             value,
             modifier = Modifier
@@ -300,6 +305,7 @@ internal fun InfoLine(label: String, value: String) {
                 .weight(1f, fill = false),
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.End,
             maxLines = 3,
             overflow = TextOverflow.Ellipsis,
         )
