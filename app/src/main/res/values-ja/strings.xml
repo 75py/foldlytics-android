@@ -193,7 +193,7 @@
     <string name="label_opened_per_observed_day">観測日あたり開いた回数</string>
     <string name="label_observed_days">記録のある日</string>
     <string name="label_inner_used_days">内側を使った日</string>
-    <string name="label_change_from_first_30_days">開始30日比（直近30日）</string>
+    <string name="label_change_from_first_30_days">全記録の比較（開始30日と直近30日）</string>
     <string name="legend_inner_ratio">内側の割合</string>
     <string name="legend_open_count">開いた回数</string>
     <string name="label_period_total">期間合計</string>
@@ -321,6 +321,6 @@
     <string name="report_usage_trends_heading">利用傾向（%1$s）</string>
     <string name="label_inner_ratio">内側割合</string>
     <string name="report_observed_days">記録のある日: %1$d/%2$d日 / 内側利用日: %3$d日</string>
-    <string name="label_inner_ratio_change">開始30日比（直近30日の内側割合）</string>
+    <string name="label_inner_ratio_change">全記録の内側割合変化（開始30日と直近30日）</string>
     <string name="report_collection_heading">収集状態</string>
 </resources>

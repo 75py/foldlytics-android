@@ -7,6 +7,7 @@ import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class LongTermAnalyzerTest {
@@ -324,6 +325,78 @@ class LongTermAnalyzerTest {
         assertEquals(40_000L, result.coverMillis)
         assertEquals(80_000L, result.innerMillis)
         assertEquals(6, result.buckets.size)
+    }
+
+    @Test
+    fun rejectsCustomRangeEndingAfterRecordedHistory() {
+        val firstDate = LocalDate.of(2026, 1, 1)
+        val rangeStart = firstDate.atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val recordingEnd = firstDate.plusDays(1L)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        val rangeEnd = firstDate.plusDays(2L)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            analyzer.analyzeRange(
+                summaries = emptyList(),
+                rangeStartMillis = rangeStart,
+                rangeEndMillis = rangeEnd,
+                recordingEndMillis = recordingEnd,
+                zoneId = zoneId,
+            )
+        }
+
+        assertEquals("Analysis range must end within the recorded history", error.message)
+    }
+
+    @Test
+    fun ignoresSummariesAfterRecordedHistoryInRecentComparison() {
+        val firstDate = LocalDate.of(2026, 1, 1)
+        val summaries = listOf(
+            summary(
+                date = firstDate,
+                coverMillis = 3_000L,
+                innerMillis = 1_000L,
+                openedCount = 1,
+            ),
+            summary(
+                date = firstDate.plusDays(59L),
+                coverMillis = 1_000L,
+                innerMillis = 3_000L,
+                openedCount = 1,
+            ),
+            summary(
+                date = firstDate.plusDays(60L),
+                coverMillis = 4_000L,
+                innerMillis = 0L,
+                openedCount = 1,
+            ),
+        )
+        val recordingEnd = firstDate.plusDays(60L)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+
+        val result = analyzer.analyzeRange(
+            summaries = summaries,
+            rangeStartMillis = firstDate.plusDays(10L)
+                .atStartOfDay(zoneId)
+                .toInstant()
+                .toEpochMilli(),
+            rangeEndMillis = firstDate.plusDays(20L)
+                .atStartOfDay(zoneId)
+                .toInstant()
+                .toEpochMilli(),
+            recordingEndMillis = recordingEnd,
+            zoneId = zoneId,
+        )
+
+        assertEquals(0.25f, result.firstThirtyDayInnerRatio ?: 0f, 0f)
+        assertEquals(0.75f, result.recentThirtyDayInnerRatio ?: 0f, 0f)
     }
 
     @Test
