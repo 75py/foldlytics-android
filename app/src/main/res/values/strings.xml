@@ -36,6 +36,12 @@
     <string name="content_desc_cover_app_ranking">Outer-display app ranking</string>
     <string name="content_desc_inner_app_ranking">Inner-display app ranking</string>
     <string name="content_desc_total_app_ranking">Total display-time app ranking</string>
+    <string name="content_desc_usage_time_app_ranking">Usage-time ranking</string>
+    <string name="content_desc_display_share_app_ranking">App display shares</string>
+    <string name="content_desc_cover_majority_app_ranking">Apps with a higher outer share</string>
+    <string name="content_desc_inner_majority_app_ranking">Apps with a higher inner share</string>
+    <string name="content_desc_app_usage_card">%1$s, %2$s. %3$s. %4$s.</string>
+    <string name="content_desc_app_usage_card_with_undetermined">%1$s, %2$s. %3$s. %4$s. %5$s.</string>
     <string name="content_desc_summary">%1$s: outer %2$s, inner %3$s, inner share %4$s</string>
     <string name="content_desc_live_state_cover_recording">Current device state: Using the outer display. Usage recording is available.</string>
     <string name="content_desc_live_state_cover_access_required">Current device state: Using the outer display. Usage access is needed to record.</string>
@@ -88,6 +94,10 @@
     <string name="value_points">%1$+.1f pts</string>
     <string name="value_percent_0">%1$.0f%%</string>
     <string name="value_percent_1">%1$.1f%%</string>
+    <string name="value_share_less_than_half">under half</string>
+    <string name="value_share_more_than_half">over half</string>
+    <string name="value_share_less_than_point_one_percent" formatted="false">under 0.1%</string>
+    <string name="value_share_more_than_ninety_nine_point_nine_percent" formatted="false">over 99.9%</string>
     <string name="value_degrees">%1$.1f°</string>
     <string name="value_rank">#%1$d</string>
     <plurals name="days_count">
@@ -143,6 +153,7 @@
     <string name="section_usage_trends">Usage trends</string>
     <string name="no_ranked_apps">No apps have measurable %1$s time in this period.</string>
     <string name="no_ranked_apps_total">No apps have measurable display time in this period.</string>
+    <string name="no_display_majority_apps">No launcher apps are in “%1$s” for this period.</string>
     <string name="saved_data_usage_access_note">Showing saved data. Usage access is required to sync new data.</string>
     <string name="sync_error_title">Action needed: usage data could not be updated</string>
     <string name="analysis_error_title">Saved data could not be analyzed</string>
@@ -235,14 +246,22 @@
     <!-- App ranking -->
     <string name="app_ranking_title">Most-used apps</string>
     <string name="selected_period">Period: %1$s</string>
+    <string name="app_ranking_view">View</string>
+    <string name="app_ranking_view_usage_time">Usage time</string>
+    <string name="app_ranking_view_display_share">Display share</string>
     <string name="app_ranking_basis">Ranking basis</string>
+    <string name="app_ranking_higher_share">Higher share</string>
+    <string name="app_ranking_cover_majority">Outer higher</string>
+    <string name="app_ranking_inner_majority">Inner higher</string>
     <string name="app_ranking_total">Total</string>
     <string name="app_ranking_order">Sorted by time on the %1$s display</string>
-    <string name="app_ranking_total_order">Sorted by total display time</string>
+    <string name="app_ranking_total_order">Sorted by classified outer + inner time</string>
+    <string name="app_ranking_majority_order">Apps in “%1$s” are sorted by measured time on that display.</string>
+    <string name="app_ranking_measurement_note">Shares use only classified outer + inner app time. An even split appears in neither list. Display-undetermined time is not estimated and is shown separately.</string>
     <string name="app_usage_selected">%1$s %2$s</string>
-    <string name="app_usage_counterpart">On %1$s: %2$s</string>
-    <string name="app_usage_total">Total %1$s</string>
-    <string name="app_usage_display_breakdown">Outer %1$s · Inner %2$s</string>
+    <string name="app_usage_total">Classified total %1$s</string>
+    <string name="app_usage_display_split">Outer %1$s (%2$s) · Inner %3$s (%4$s)</string>
+    <string name="app_usage_undetermined">Display undetermined %1$s</string>
 
     <!-- Diagnostics -->
     <string name="diagnostics_overview_title">Detection data overview</string>

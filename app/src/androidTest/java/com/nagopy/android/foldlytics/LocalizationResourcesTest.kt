@@ -21,6 +21,19 @@ class LocalizationResourcesTest {
         assertEquals("Most-used apps", context.getString(R.string.home_app_usage_link_title))
         assertEquals("App usage", context.getString(R.string.app_usage_screen_title))
         assertEquals("Total", context.getString(R.string.app_ranking_total))
+        assertEquals(
+            "Display share",
+            context.getString(R.string.app_ranking_view_display_share),
+        )
+        assertEquals("Inner higher", context.getString(R.string.app_ranking_inner_majority))
+        assertEquals(
+            "App display shares",
+            context.getString(R.string.content_desc_display_share_app_ranking),
+        )
+        assertEquals(
+            "over half",
+            context.getString(R.string.value_share_more_than_half),
+        )
         assertEquals("Overview", context.getString(R.string.inner_sessions_overview_title))
         assertEquals(
             "Inner-display use per opening",
@@ -48,6 +61,16 @@ class LocalizationResourcesTest {
         assertEquals("よく使ったアプリ", context.getString(R.string.home_app_usage_link_title))
         assertEquals("アプリの利用", context.getString(R.string.app_usage_screen_title))
         assertEquals("合計", context.getString(R.string.app_ranking_total))
+        assertEquals(
+            "画面割合",
+            context.getString(R.string.app_ranking_view_display_share),
+        )
+        assertEquals("内側が高い", context.getString(R.string.app_ranking_inner_majority))
+        assertEquals(
+            "アプリごとの画面割合",
+            context.getString(R.string.content_desc_display_share_app_ranking),
+        )
+        assertEquals("半分超", context.getString(R.string.value_share_more_than_half))
         assertEquals("利用概要", context.getString(R.string.inner_sessions_overview_title))
         assertEquals(
             "開閉ごとの内側画面利用",

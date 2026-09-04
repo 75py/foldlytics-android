@@ -60,7 +60,11 @@ Data coverage reports how much of the observed device use Foldlytics could class
 
 Foldlytics counts an app's display time while its activity is `ACTIVITY_RESUMED`, the screen is interactive, and the device is unlocked. An interval with an unknown display does not contribute to the app's cover or inner display time.
 
-In split screen and other multi-resume situations, more than one app can be `ACTIVITY_RESUMED` at the same time. The existing display-specific app ranking can therefore have app totals that exceed device use time. The per-session breakdown assigns such intervals to Other, so the displayed app total for a session never exceeds that session's inner active time. Both the existing ranking and session breakdown show only apps that can be launched from the device launcher.
+An app's cover and inner shares use only its classified display time: `cover / (cover + inner)` and `inner / (cover + inner)`. Display-undetermined time is not assigned to either display and is shown separately. The display-share view puts an app in the cover-higher or inner-higher list only when that display accounts for more than half of the app's classified time. An even split is in neither list. Within each list, apps are ranked by measured time on that display rather than by the percentage, so a brief 100% use does not outrank a longer use.
+
+In split screen and other multi-resume situations, more than one app can be `ACTIVITY_RESUMED` at the same time. The display-specific app rankings can therefore have app totals that exceed device use time. The per-session breakdown assigns such intervals to Other, so the displayed app total for a session never exceeds that session's inner active time. Both the rankings and session breakdown show only apps that can be launched from the device launcher.
+
+The display-share calculation uses the selected period's existing on-device app totals. It adds no event collection, permission, network transfer, or persisted usage field.
 
 ## Privacy impact of session analysis
 

@@ -34,6 +34,12 @@
     <string name="content_desc_cover_app_ranking">外側のアプリランキング</string>
     <string name="content_desc_inner_app_ranking">内側のアプリランキング</string>
     <string name="content_desc_total_app_ranking">表示時間合計のアプリランキング</string>
+    <string name="content_desc_usage_time_app_ranking">利用時間ランキング</string>
+    <string name="content_desc_display_share_app_ranking">アプリごとの画面割合</string>
+    <string name="content_desc_cover_majority_app_ranking">外側の割合が高いアプリ</string>
+    <string name="content_desc_inner_majority_app_ranking">内側の割合が高いアプリ</string>
+    <string name="content_desc_app_usage_card">%1$s、%2$s。%3$s。%4$s。</string>
+    <string name="content_desc_app_usage_card_with_undetermined">%1$s、%2$s。%3$s。%4$s。%5$s。</string>
     <string name="content_desc_summary">%1$sは外側%2$s、内側%3$s、内側%4$s</string>
     <string name="content_desc_live_state_cover_recording">現在の端末状態：外側ディスプレイを使用中です。利用状況を記録できます。</string>
     <string name="content_desc_live_state_cover_access_required">現在の端末状態：外側ディスプレイを使用中です。記録するには利用状況へのアクセスが必要です。</string>
@@ -85,6 +91,10 @@
     <string name="value_points">%1$+.1fポイント</string>
     <string name="value_percent_0">%1$.0f%%</string>
     <string name="value_percent_1">%1$.1f%%</string>
+    <string name="value_share_less_than_half">半分未満</string>
+    <string name="value_share_more_than_half">半分超</string>
+    <string name="value_share_less_than_point_one_percent" formatted="false">0.1%未満</string>
+    <string name="value_share_more_than_ninety_nine_point_nine_percent" formatted="false">99.9%超</string>
     <string name="value_degrees">%1$.1f°</string>
     <string name="value_rank">%1$d位</string>
     <plurals name="days_count">
@@ -139,6 +149,7 @@
     <string name="section_usage_trends">利用傾向</string>
     <string name="no_ranked_apps">この期間に%1$sの利用時間を集計できるアプリはありません。</string>
     <string name="no_ranked_apps_total">この期間に利用時間を集計できるアプリはありません。</string>
+    <string name="no_display_majority_apps">この期間に「%1$s」に該当するアプリはありません。</string>
     <string name="saved_data_usage_access_note">保存済みデータを表示しています。新しいデータの同期には利用状況アクセスが必要です。</string>
     <string name="sync_error_title">対応が必要です：利用状況データを更新できませんでした</string>
     <string name="analysis_error_title">保存データを集計できませんでした</string>
@@ -229,14 +240,22 @@
     <!-- App ranking -->
     <string name="app_ranking_title">よく使うアプリ</string>
     <string name="selected_period">対象期間：%1$s</string>
+    <string name="app_ranking_view">表示内容</string>
+    <string name="app_ranking_view_usage_time">利用時間</string>
+    <string name="app_ranking_view_display_share">画面割合</string>
     <string name="app_ranking_basis">ランキングの基準</string>
+    <string name="app_ranking_higher_share">割合が高い画面</string>
+    <string name="app_ranking_cover_majority">外側が高い</string>
+    <string name="app_ranking_inner_majority">内側が高い</string>
     <string name="app_ranking_total">合計</string>
     <string name="app_ranking_order">%1$sでの表示時間が長い順です</string>
-    <string name="app_ranking_total_order">表示時間の合計が長い順です</string>
+    <string name="app_ranking_total_order">外側・内側を判定できた表示時間の合計が長い順です</string>
+    <string name="app_ranking_majority_order">「%1$s」に該当するアプリを、その画面での表示時間が長い順に表示します。</string>
+    <string name="app_ranking_measurement_note">割合には外側・内側を判定できたアプリ表示時間だけを使います。半分ずつの場合はどちらにも表示しません。画面を判定できなかった時間は推測せず、別に表示します。</string>
     <string name="app_usage_selected">%1$s %2$s</string>
-    <string name="app_usage_counterpart">%1$sでは %2$s</string>
-    <string name="app_usage_total">合計 %1$s</string>
-    <string name="app_usage_display_breakdown">外側 %1$s ・ 内側 %2$s</string>
+    <string name="app_usage_total">判定時間合計 %1$s</string>
+    <string name="app_usage_display_split">外側 %1$s（%2$s）・ 内側 %3$s（%4$s）</string>
+    <string name="app_usage_undetermined">画面判定不能 %1$s</string>
 
     <!-- Diagnostics -->
     <string name="diagnostics_overview_title">判定データの概要</string>

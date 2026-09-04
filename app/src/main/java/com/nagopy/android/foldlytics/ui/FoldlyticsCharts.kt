@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -367,6 +368,30 @@ internal fun AppRankingBar(
             color = color,
             size = Size(size.width * fraction, size.height),
             cornerRadius = cornerRadius,
+        )
+    }
+}
+
+@Composable
+internal fun AppDisplayShareBar(
+    coverFraction: Float,
+    colors: PostureColors,
+    modifier: Modifier = Modifier,
+) {
+    val visibleCoverFraction = coverFraction
+        .takeIf { it.isFinite() }
+        ?.coerceIn(0f, 1f)
+        ?: 0f
+    Canvas(
+        modifier
+            .fillMaxWidth()
+            .height(8.dp)
+            .clip(RoundedCornerShape(50)),
+    ) {
+        drawRect(color = colors.inner)
+        drawRect(
+            color = colors.cover,
+            size = Size(size.width * visibleCoverFraction, size.height),
         )
     }
 }

@@ -89,7 +89,7 @@ After several months to a year, a user should be able to describe their use
 more precisely than "I think I used the large screen."
 
 They may find that they used the inner display on most recorded days and can
-name the apps that made a foldable worthwhile. They may see that inner display
+name the apps they displayed there most often. They may see that inner display
 use fell after the first month and decide that a conventional phone would suit
 them better. The record may also contain too many gaps to decide yet, in which
 case Foldlytics should make that limitation clear.
