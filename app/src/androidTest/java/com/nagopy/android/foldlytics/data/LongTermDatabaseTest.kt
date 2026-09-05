@@ -933,28 +933,30 @@ class LongTermDatabaseTest {
                 ),
             )
 
-            repository().ensureUpToDate(
+            val incrementalSessions = repository().withUpToDateSnapshot(
                 calibration = calibration,
                 syncedThroughMillis = end,
                 syncQueryBeginMillis = rebuildStart,
                 checkpointRevision = 0L,
                 zoneId = zoneId,
                 collectionGapStarts = emptyList(),
-            )
-            val incrementalSessions = repository().loadCompleteInnerSessions(start, end)
+            ) {
+                loadCompleteInnerSessions(start, end)
+            }
             database.dailyPostureSummaryDao().upsertState(
                 requireNotNull(database.dailyPostureSummaryDao().loadState())
                     .copy(aggregationVersion = 0),
             )
-            repository().ensureUpToDate(
+            val fullSessions = repository().withUpToDateSnapshot(
                 calibration = calibration,
                 syncedThroughMillis = end,
                 syncQueryBeginMillis = rebuildStart,
                 checkpointRevision = 0L,
                 zoneId = zoneId,
                 collectionGapStarts = emptyList(),
-            )
-            val fullSessions = repository().loadCompleteInnerSessions(start, end)
+            ) {
+                loadCompleteInnerSessions(start, end)
+            }
 
             assertEquals(1, incrementalSessions.size)
             assertEquals(2_000L, incrementalSessions.single().innerActiveMillis)
@@ -1547,28 +1549,30 @@ class LongTermDatabaseTest {
             ),
         )
 
-        repository().ensureUpToDate(
+        val incrementalSessions = repository().withUpToDateSnapshot(
             calibration = calibration,
             syncedThroughMillis = end,
             syncQueryBeginMillis = rebuildStart,
             checkpointRevision = 0L,
             zoneId = zoneId,
             collectionGapStarts = emptyList(),
-        )
-        val incrementalSessions = repository().loadCompleteInnerSessions(start, end)
+        ) {
+            loadCompleteInnerSessions(start, end)
+        }
         database.dailyPostureSummaryDao().upsertState(
             requireNotNull(database.dailyPostureSummaryDao().loadState())
                 .copy(aggregationVersion = 0),
         )
-        repository().ensureUpToDate(
+        val fullSessions = repository().withUpToDateSnapshot(
             calibration = calibration,
             syncedThroughMillis = end,
             syncQueryBeginMillis = rebuildStart,
             checkpointRevision = 0L,
             zoneId = zoneId,
             collectionGapStarts = emptyList(),
-        )
-        val fullSessions = repository().loadCompleteInnerSessions(start, end)
+        ) {
+            loadCompleteInnerSessions(start, end)
+        }
 
         assertEquals(1, incrementalSessions.size)
         assertEquals(2_000L, incrementalSessions.single().innerActiveMillis)
