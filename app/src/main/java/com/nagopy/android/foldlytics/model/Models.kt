@@ -22,6 +22,14 @@ data class DisplayConfiguration(
 
     fun isUsable(): Boolean =
         screenWidthDp > 0 && screenHeightDp > 0
+
+    /**
+     * [screenWidthDp] and [screenHeightDp] describe an app window in multi-window mode. They
+     * cannot safely establish the physical display posture there, even when they are usable for
+     * current UI diagnostics.
+     */
+    fun canBePostureEvidence(isInMultiWindowMode: Boolean): Boolean =
+        isUsable() && !isInMultiWindowMode
 }
 
 data class Calibration(

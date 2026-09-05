@@ -8,7 +8,7 @@ Foldlytics calculates its statistics from usage events available through Android
 
 Foldlytics requires Android Usage Access. It reads events for app display state, whether the screen is interactive, lock state, display configuration, and device startup or shutdown.
 
-Display configuration events and checkpoints provide evidence for the cover and inner states. When a usable display configuration is available, Foldlytics saves a checkpoint when the app starts, enters or leaves the foreground, is refreshed manually, or is calibrated. It stores the events and checkpoints in a local Room database. Daily summaries and inner-display sessions are derived caches that can be regenerated from this source data when calibration, the time zone, or aggregation logic changes.
+Display configuration events and checkpoints provide evidence for the cover and inner states. When a usable full-screen display configuration is available, Foldlytics saves a checkpoint when the app starts, enters or leaves the foreground, is refreshed manually, or is calibrated. Android reports `screenWidthDp` and `screenHeightDp` for the app window in multi-window mode, so Foldlytics does not save those values as checkpoints or calibration anchors while split screen, picture-in-picture, or another multi-window layout is active. It continues to show the current configuration for live diagnostics. It stores the events and checkpoints in a local Room database. Daily summaries and inner-display sessions are derived caches that can be regenerated from this source data when calibration, the time zone, or aggregation logic changes.
 
 ## Device use time
 
@@ -19,6 +19,8 @@ Classified time is the part of device use that Foldlytics can assign to the cove
 ## Cover and inner display classification
 
 Foldlytics compares the display dimensions in Android configuration events with the saved cover and inner calibration values. When both calibration values are available, the app assigns the current configuration to the closer one. These dimensions are integer dp values, so opposite calibration anchors are accepted only when their effective smallest width, normalized short side, or normalized long side differs by at least 2dp. Closer anchors are not saved or applied. Before calibration is complete, or when previously saved anchors fail this validation, an effective smallest screen width of at least 600dp counts as the inner display; a smaller value counts as the cover display.
+
+Calibration is available only while Foldlytics occupies the full display. A split-screen, picture-in-picture, or otherwise multi-window app size is not a physical-display measurement and cannot replace either anchor.
 
 If Android does not provide usable display dimensions, the posture is unknown. After a device restart or collection interruption, Foldlytics also leaves the posture unknown until it receives new evidence instead of carrying the previous state forward.
 

@@ -75,6 +75,7 @@ data class MainUiError(
 data class MainUiState(
     val hasUsageAccess: Boolean = false,
     val currentConfiguration: DisplayConfiguration? = null,
+    val currentConfigurationCanBePostureEvidence: Boolean = false,
     val calibration: Calibration = Calibration(),
     val calibrationValidationFailure: CalibrationValidationFailure? = null,
     val currentPosture: DisplayPosture = DisplayPosture.UNKNOWN,
@@ -139,7 +140,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             observeStoredAnalysis()
         }
-        saveCurrentCheckpoint(PostureCheckpointSource.APP_LAUNCH)
         checkPermissionAndRefresh()
     }
 
@@ -154,10 +154,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun updateConfiguration(configuration: DisplayConfiguration) {
+    fun updateConfiguration(
+        configuration: DisplayConfiguration,
+        isInMultiWindowMode: Boolean,
+    ) {
         _uiState.update {
             it.copy(
                 currentConfiguration = configuration,
+                currentConfigurationCanBePostureEvidence =
+                    configuration.canBePostureEvidence(isInMultiWindowMode),
                 calibrationValidationFailure = it.calibration.validationFailure,
             )
         }
@@ -179,6 +184,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun recordAppForegroundCheckpoint() {
         saveCurrentCheckpoint(PostureCheckpointSource.APP_FOREGROUND)
+    }
+
+    fun recordAppLaunchCheckpoint() {
+        saveCurrentCheckpoint(PostureCheckpointSource.APP_LAUNCH)
     }
 
     fun recordAppBackgroundCheckpoint() {
@@ -633,7 +642,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun saveCurrentCheckpoint(source: PostureCheckpointSource) {
         val configuration = _uiState.value.currentConfiguration ?: return
-        if (!configuration.isUsable()) return
+        if (!_uiState.value.currentConfigurationCanBePostureEvidence) return
         val checkpoint = PostureCheckpoint(
             timestampMillis = System.currentTimeMillis(),
             configuration = configuration,
@@ -678,7 +687,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         checkpointSource: PostureCheckpointSource,
     ) {
         val configuration = _uiState.value.currentConfiguration
-        if (configuration == null) {
+        if (configuration == null || !_uiState.value.currentConfigurationCanBePostureEvidence) {
             _uiState.update {
                 it.copy(
                     calibrationValidationFailure =
