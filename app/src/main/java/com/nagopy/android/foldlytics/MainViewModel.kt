@@ -8,14 +8,18 @@ import com.nagopy.android.foldlytics.data.CsvExportOutput
 import com.nagopy.android.foldlytics.data.LongTermCsvExporter
 import com.nagopy.android.foldlytics.data.StoredAnalysisLoader
 import com.nagopy.android.foldlytics.data.StoredAnalysisRequest
+import com.nagopy.android.foldlytics.data.StoredAnalysisSnapshot
 import com.nagopy.android.foldlytics.data.UsageReadUnavailableReason
 import com.nagopy.android.foldlytics.data.UsageSyncResult
+import com.nagopy.android.foldlytics.data.UsageSyncState
 import com.nagopy.android.foldlytics.data.toDisplayConfiguration
 import com.nagopy.android.foldlytics.model.AnalysisPeriod
+import com.nagopy.android.foldlytics.model.Calibration
 import com.nagopy.android.foldlytics.model.CalibrationAnchor
 import com.nagopy.android.foldlytics.model.CalibrationUpdateResult
 import com.nagopy.android.foldlytics.model.CalibrationValidationFailure
 import com.nagopy.android.foldlytics.model.CustomAnalysisRange
+import com.nagopy.android.foldlytics.model.DailyPostureSummary
 import com.nagopy.android.foldlytics.model.DisplayConfiguration
 import com.nagopy.android.foldlytics.model.PostureCheckpoint
 import com.nagopy.android.foldlytics.model.PostureCheckpointSource
@@ -24,6 +28,7 @@ import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,25 +38,91 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class MainViewModel(application: Application) : AndroidViewModel(application) {
-    private val foldlyticsApplication = application as FoldlyticsApplication
-    private val calibrationStore = CalibrationStore(application)
-    private val checkpointRepository = foldlyticsApplication.postureCheckpointRepository
-    private val syncRepository = foldlyticsApplication.usageSyncRepository
+/**
+ * The stored data needed by [MainViewModel]. Keeping this boundary here lets instrumentation
+ * tests exercise period changes with controlled analysis loads without opening the app database.
+ */
+internal interface MainViewModelDataSource {
+    fun hasUsageAccess(): Boolean
+
+    suspend fun sync(): UsageSyncResult
+
+    fun observeSyncState(): Flow<UsageSyncState?>
+
+    fun observeCheckpointRevision(): Flow<Long>
+
+    fun observeSyncHistoryRevision(): Flow<Long>
+
+    suspend fun saveCheckpoint(checkpoint: PostureCheckpoint)
+
+    suspend fun load(
+        request: StoredAnalysisRequest,
+        zoneId: ZoneId,
+    ): StoredAnalysisSnapshot
+
+    suspend fun loadSavedDailyHistory(
+        calibration: Calibration,
+        zoneId: ZoneId,
+    ): List<DailyPostureSummary>
+}
+
+private class ProductionMainViewModelDataSource(
+    application: FoldlyticsApplication,
+) : MainViewModelDataSource {
+    private val checkpointRepository = application.postureCheckpointRepository
+    private val syncRepository = application.usageSyncRepository
     private val storedAnalysisLoader = StoredAnalysisLoader(
         syncRepository = syncRepository,
         checkpointRepository = checkpointRepository,
-        dailySummaryRepository = foldlyticsApplication.dailySummaryRepository,
-        packageLabel = foldlyticsApplication.usageEventReader::packageLabel,
-        isLauncherApp = foldlyticsApplication.usageEventReader::isLauncherApp,
+        dailySummaryRepository = application.dailySummaryRepository,
+        packageLabel = application.usageEventReader::packageLabel,
+        isLauncherApp = application.usageEventReader::isLauncherApp,
     )
+
+    override fun hasUsageAccess(): Boolean = syncRepository.hasUsageAccess()
+
+    override suspend fun sync(): UsageSyncResult = syncRepository.sync()
+
+    override fun observeSyncState(): Flow<UsageSyncState?> = syncRepository.observeSyncState()
+
+    override fun observeCheckpointRevision(): Flow<Long> = checkpointRepository.observeRevision()
+
+    override fun observeSyncHistoryRevision(): Flow<Long> =
+        syncRepository.observeSyncHistoryRevision()
+
+    override suspend fun saveCheckpoint(checkpoint: PostureCheckpoint) {
+        checkpointRepository.save(checkpoint)
+    }
+
+    override suspend fun load(
+        request: StoredAnalysisRequest,
+        zoneId: ZoneId,
+    ): StoredAnalysisSnapshot = storedAnalysisLoader.load(request, zoneId)
+
+    override suspend fun loadSavedDailyHistory(
+        calibration: Calibration,
+        zoneId: ZoneId,
+    ) = storedAnalysisLoader.loadSavedDailyHistory(calibration, zoneId)
+}
+
+class MainViewModel internal constructor(
+    application: Application,
+    private val dataSource: MainViewModelDataSource,
+    private val calibrationStore: CalibrationStore,
+) : AndroidViewModel(application) {
+    constructor(application: Application) : this(
+        application = application,
+        dataSource = ProductionMainViewModelDataSource(application as FoldlyticsApplication),
+        calibrationStore = CalibrationStore(application),
+    )
+
     private val initialCalibration = calibrationStore.load()
     private val selectedPeriod = MutableStateFlow(AnalysisPeriod.HOURS_24)
     private val customRange = MutableStateFlow<CustomAnalysisRange?>(null)
     private val activeCalibration = MutableStateFlow(initialCalibration)
     private val analysisRevision = MutableStateFlow(0L)
     private val csvExporter = LongTermCsvExporter {
-        storedAnalysisLoader.loadSavedDailyHistory(
+        dataSource.loadSavedDailyHistory(
             calibration = activeCalibration.value,
             zoneId = ZoneId.systemDefault(),
         )
@@ -73,7 +144,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun checkPermissionAndRefresh() {
-        val hasAccess = syncRepository.hasUsageAccess()
+        val hasAccess = dataSource.hasUsageAccess()
         _uiState.update { it.copy(hasUsageAccess = hasAccess) }
         if (hasAccess) {
             refresh()
@@ -176,7 +247,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     },
                 )
             }
-            when (val result = syncRepository.sync()) {
+            when (val result = dataSource.sync()) {
                 is UsageSyncResult.Success -> {
                     _uiState.update { it.copy(isLoading = false) }
                 }
@@ -201,7 +272,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     _uiState.update { state ->
                         state.copy(
-                            hasUsageAccess = syncRepository.hasUsageAccess(),
+                            hasUsageAccess = dataSource.hasUsageAccess(),
                             isLoading = false,
                             error = syncError ?: state.error,
                         )
@@ -257,7 +328,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
         viewModelScope.launch {
             try {
-                checkpointRepository.save(checkpoint)
+                dataSource.saveCheckpoint(checkpoint)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -322,8 +393,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 selectedPeriod,
                 customRange,
                 activeCalibration,
-                syncRepository.observeSyncState(),
-                checkpointRepository.observeRevision(),
+                dataSource.observeSyncState(),
+                dataSource.observeCheckpointRevision(),
             ) { period, customRange, calibration, syncState, checkpointRevision ->
                 StoredAnalysisRequest(
                     period = period,
@@ -335,7 +406,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             val requestsWithSyncHistory = combine(
                 requests,
-                syncRepository.observeSyncHistoryRevision(),
+                dataSource.observeSyncHistoryRevision(),
             ) { request, _ -> request }
             combine(requestsWithSyncHistory, analysisRevision) { request, _ -> request }
                 .collectLatest { request ->
@@ -351,7 +422,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
                     try {
                         val snapshot = withContext(Dispatchers.IO) {
-                            storedAnalysisLoader.load(request, ZoneId.systemDefault())
+                            dataSource.load(request, ZoneId.systemDefault())
                         }
                         _uiState.update {
                             it.copy(
