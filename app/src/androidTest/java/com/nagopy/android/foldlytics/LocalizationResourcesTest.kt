@@ -22,16 +22,16 @@ class LocalizationResourcesTest {
         assertEquals("App usage", context.getString(R.string.app_usage_screen_title))
         assertEquals("Total", context.getString(R.string.app_ranking_total))
         assertEquals(
-            "Display share",
+            "Most-used display",
             context.getString(R.string.app_ranking_view_display_share),
         )
-        assertEquals("Inner higher", context.getString(R.string.app_ranking_inner_majority))
+        assertEquals("Mostly inner", context.getString(R.string.app_ranking_inner_majority))
         assertEquals(
-            "App display shares",
+            "Filter apps by their most-used display",
             context.getString(R.string.content_desc_display_share_app_ranking),
         )
         assertEquals(
-            "over half",
+            "over 50%",
             context.getString(R.string.value_share_more_than_half),
         )
         assertEquals("Overview", context.getString(R.string.inner_sessions_overview_title))
@@ -59,18 +59,18 @@ class LocalizationResourcesTest {
         assertEquals("利用サマリー", context.getString(R.string.summary_title))
         assertEquals("外側", context.getString(R.string.posture_cover))
         assertEquals("よく使ったアプリ", context.getString(R.string.home_app_usage_link_title))
-        assertEquals("アプリの利用", context.getString(R.string.app_usage_screen_title))
+        assertEquals("アプリの利用状況", context.getString(R.string.app_usage_screen_title))
         assertEquals("合計", context.getString(R.string.app_ranking_total))
         assertEquals(
-            "画面割合",
+            "よく使う画面",
             context.getString(R.string.app_ranking_view_display_share),
         )
-        assertEquals("内側が高い", context.getString(R.string.app_ranking_inner_majority))
+        assertEquals("内側中心", context.getString(R.string.app_ranking_inner_majority))
         assertEquals(
-            "アプリごとの画面割合",
+            "アプリをよく使う画面で絞り込む",
             context.getString(R.string.content_desc_display_share_app_ranking),
         )
-        assertEquals("半分超", context.getString(R.string.value_share_more_than_half))
+        assertEquals("50%超", context.getString(R.string.value_share_more_than_half))
         assertEquals("利用概要", context.getString(R.string.inner_sessions_overview_title))
         assertEquals(
             "開閉ごとの内側画面利用",

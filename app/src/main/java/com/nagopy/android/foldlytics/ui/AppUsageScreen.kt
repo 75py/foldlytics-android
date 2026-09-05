@@ -52,6 +52,13 @@ private val AppRankingBasis.selectorDescriptionRes: Int
         AppRankingBasis.INNER -> R.string.content_desc_inner_app_ranking
     }
 
+private val AppRankingBasis.displayNameRes: Int
+    get() = when (this) {
+        AppRankingBasis.COVER -> R.string.app_usage_outer_display
+        AppRankingBasis.INNER -> R.string.app_usage_inner_display
+        AppRankingBasis.TOTAL -> error("A total has no single display")
+    }
+
 private val AppRankingView.labelRes: Int
     get() = when (this) {
         AppRankingView.USAGE_TIME -> R.string.app_ranking_view_usage_time
@@ -75,6 +82,13 @@ private val AppDisplayMajority.labelRes: Int
     get() = when (this) {
         AppDisplayMajority.COVER -> R.string.app_ranking_cover_majority
         AppDisplayMajority.INNER -> R.string.app_ranking_inner_majority
+        AppDisplayMajority.EVEN -> error("An even split is not selectable")
+    }
+
+private val AppDisplayMajority.otherBasis: AppRankingBasis
+    get() = when (this) {
+        AppDisplayMajority.COVER -> AppRankingBasis.INNER
+        AppDisplayMajority.INNER -> AppRankingBasis.COVER
         AppDisplayMajority.EVEN -> error("An even split is not selectable")
     }
 
@@ -182,7 +196,8 @@ internal fun AppUsageScreen(
                             selectedView == AppRankingView.DISPLAY_SHARE &&
                                 hasMeasurableLauncherApp -> stringResource(
                                     R.string.no_display_majority_apps,
-                                    stringResource(selectedMajority.labelRes),
+                                    stringResource(selectedMajority.basis.displayNameRes),
+                                    stringResource(selectedMajority.otherBasis.displayNameRes),
                                 )
                             selectedView == AppRankingView.DISPLAY_SHARE ||
                                 selectedBasis == AppRankingBasis.TOTAL -> stringResource(
@@ -282,7 +297,8 @@ private fun AppRankingSelector(
             if (selectedView == AppRankingView.DISPLAY_SHARE) {
                 stringResource(
                     R.string.app_ranking_majority_order,
-                    stringResource(selectedMajority.labelRes),
+                    stringResource(selectedMajority.basis.displayNameRes),
+                    stringResource(selectedMajority.otherBasis.displayNameRes),
                 )
             } else {
                 when (selectedBasis) {
@@ -291,7 +307,7 @@ private fun AppRankingSelector(
                     AppRankingBasis.INNER,
                     -> stringResource(
                         R.string.app_ranking_order,
-                        stringResource(selectedBasis.labelRes),
+                        stringResource(selectedBasis.displayNameRes),
                     )
                 }
             },

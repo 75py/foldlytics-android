@@ -61,7 +61,7 @@ class AppUsageScreenTest {
         composeRule.onNodeWithText(
             context.getString(
                 R.string.app_ranking_order,
-                context.getString(R.string.posture_cover),
+                context.getString(R.string.app_usage_outer_display),
             ),
         ).assertIsDisplayed()
         composeRule.onNodeWithTag(APP_USAGE_INNER_SEGMENT_TAG).performClick()
@@ -71,7 +71,7 @@ class AppUsageScreenTest {
         composeRule.onNodeWithText(
             context.getString(
                 R.string.app_ranking_order,
-                context.getString(R.string.posture_inner),
+                context.getString(R.string.app_usage_inner_display),
             ),
         ).assertIsDisplayed()
         composeRule.onNodeWithTag(APP_USAGE_TOTAL_SEGMENT_TAG).performClick()
@@ -181,7 +181,8 @@ class AppUsageScreenTest {
         composeRule.onNodeWithText(
             context.getString(
                 R.string.app_ranking_majority_order,
-                context.getString(R.string.app_ranking_inner_majority),
+                context.getString(R.string.app_usage_inner_display),
+                context.getString(R.string.app_usage_outer_display),
             ),
         ).assertIsDisplayed()
 
@@ -228,6 +229,10 @@ class AppUsageScreenTest {
         composeRule.onNodeWithTag(APP_USAGE_COVER_MAJORITY_TAG).performClick()
         composeRule.onNodeWithTag(APP_USAGE_COVER_MAJORITY_TAG).assertIsSelected()
         composeRule.onNodeWithTag(APP_USAGE_INNER_MAJORITY_TAG).assertIsNotSelected()
+        composeRule.onNodeWithText(
+            "Apps used longer on the outer display than on the inner display. " +
+                "Sorted by time on the outer display, longest first.",
+        ).assertIsDisplayed()
         assertRankedFirst(context, "outer-long")
         composeRule.onNode(hasScrollAction()).performScrollToNode(
             hasTestTag("${APP_USAGE_CARD_TAG_PREFIX}outer-near-tie"),
@@ -274,6 +279,54 @@ class AppUsageScreenTest {
                     substring = true,
                 ) and
                 hasContentDescription("内側 3分0秒（75.0%）", substring = true),
+        ).assertExists()
+    }
+
+    @Test
+    fun japaneseCopyExplainsTheComparisonOrderAndUnknownTime() {
+        val context = localizedContext(Locale.JAPANESE)
+        setContent(
+            context,
+            summaryWithApps(
+                apps = listOf(
+                    app("reading", "読書", minutes(2), minutes(3), minutes(1)),
+                ),
+            ),
+        )
+
+        composeRule.onNodeWithText("よく使ったアプリ").assertIsDisplayed()
+        composeRule.onNodeWithText("利用時間の合計が長い順に表示しています。")
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("よく使う画面").performClick()
+        composeRule.onNodeWithText("内側中心").assertIsDisplayed()
+        composeRule.onNodeWithText(
+            "外側より内側で長く使ったアプリを、内側での利用時間が長い順に表示します。",
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText(
+            "割合は、アプリごとの外側・内側の利用時間から計算します。" +
+                "使用した画面が不明な時間は別に表示し、合計と割合には含めません。",
+        ).assertExists()
+        composeRule.onNodeWithText(
+            "外側と内側の利用時間が同じアプリは、どちらの一覧にも表示しません。",
+        ).assertExists()
+        composeRule.onNode(hasScrollAction()).performScrollToNode(
+            hasTestTag("${APP_USAGE_CARD_TAG_PREFIX}reading"),
+        )
+        composeRule.onNode(
+            hasTestTag("${APP_USAGE_CARD_TAG_PREFIX}reading") and
+                hasContentDescription("内側で 3分0秒", substring = true) and
+                hasContentDescription("使用した画面が不明：1分0秒", substring = true),
+        ).assertExists()
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(
+            hasTestTag(APP_USAGE_MAJORITY_SELECTOR_TAG),
+        )
+        composeRule.onNodeWithText("外側中心").performClick()
+        composeRule.onNodeWithText(
+            "内側より外側で長く使ったアプリを、外側での利用時間が長い順に表示します。",
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText(
+            "この期間に、内側より外側で長く使ったアプリはありません。",
         ).assertExists()
     }
 
@@ -367,7 +420,8 @@ class AppUsageScreenTest {
         composeRule.onNodeWithText(
             context.getString(
                 R.string.no_display_majority_apps,
-                context.getString(R.string.app_ranking_inner_majority),
+                context.getString(R.string.app_usage_inner_display),
+                context.getString(R.string.app_usage_outer_display),
             ),
         ).assertIsDisplayed()
     }

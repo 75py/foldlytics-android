@@ -44,11 +44,12 @@ shown as Other. The same usage events already stored on the device are used,
 with no new permission or automatic data transfer; the derived cache can be
 regenerated from the saved source events.
 
-The app-usage detail keeps total display time as its initial ranking and can be
-switched to cover or inner time. Its display-share view groups apps whose
-classified use is higher on the cover or inner display, then ranks each group
-by measured time on that display. Display-undetermined time is shown separately
-and is not included in either share.
+App usage starts with apps sorted by total usage time. You can also sort by time
+on the outer or inner display. In Most-used display, each app appears under the
+display where it was used longer. Each list is sorted by time on that display,
+longest first. Apps with equal time on both displays appear in neither list.
+Time when the display is unknown is shown separately and excluded from totals
+and percentages.
 
 ## Build and test
 
