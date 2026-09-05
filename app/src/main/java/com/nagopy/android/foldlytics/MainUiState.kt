@@ -59,3 +59,37 @@ data class MainUiState(
     val lastSyncInsertedEventCount: Int = 0,
     val error: MainUiError? = null,
 )
+
+/**
+ * Applies a live configuration update. [DisplayConfiguration] describes the app window, so in
+ * multi-window mode it stays available for diagnostics but must not be treated as posture
+ * evidence.
+ */
+fun MainUiState.withConfiguration(
+    configuration: DisplayConfiguration,
+    isInMultiWindowMode: Boolean,
+): MainUiState = copy(
+    currentConfiguration = configuration,
+    currentConfigurationCanBePostureEvidence =
+        configuration.canBePostureEvidence(isInMultiWindowMode),
+    calibrationValidationFailure = calibration.validationFailure,
+).withRecalculatedPosture()
+
+/** Applies a calibration that was just saved, cleared or reloaded from storage. */
+fun MainUiState.withCalibration(calibration: Calibration): MainUiState = copy(
+    calibration = calibration,
+    calibrationValidationFailure = calibration.validationFailure,
+).withRecalculatedPosture()
+
+/**
+ * Reclassifies the live posture. A configuration that cannot be posture evidence must never be
+ * reported as cover or inner, however complete the calibration is, because the saved anchors
+ * describe physical displays and not app windows.
+ */
+fun MainUiState.withRecalculatedPosture(): MainUiState = copy(
+    currentPosture = if (currentConfigurationCanBePostureEvidence) {
+        calibration.classify(currentConfiguration)
+    } else {
+        DisplayPosture.UNKNOWN
+    },
+)

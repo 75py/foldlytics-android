@@ -63,12 +63,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             currentConfiguration = application.resources.configuration.toDisplayConfiguration(),
             calibration = initialCalibration,
             calibrationValidationFailure = initialCalibration.validationFailure,
-        ),
+        ).withRecalculatedPosture(),
     )
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
     init {
-        recalculateCurrentPosture()
         observeStoredAnalysis()
         checkPermissionAndRefresh()
     }
@@ -88,15 +87,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         configuration: DisplayConfiguration,
         isInMultiWindowMode: Boolean,
     ) {
-        _uiState.update {
-            it.copy(
-                currentConfiguration = configuration,
-                currentConfigurationCanBePostureEvidence =
-                    configuration.canBePostureEvidence(isInMultiWindowMode),
-                calibrationValidationFailure = it.calibration.validationFailure,
-            )
-        }
-        recalculateCurrentPosture()
+        _uiState.update { it.withConfiguration(configuration, isInMultiWindowMode) }
     }
 
     fun updateFoldFeature(snapshot: FoldFeatureSnapshot) {
@@ -288,13 +279,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun reloadCalibrationAndRefresh() {
         val calibration = calibrationStore.load()
         activeCalibration.value = calibration
-        _uiState.update {
-            it.copy(
-                calibration = calibration,
-                calibrationValidationFailure = calibration.validationFailure,
-            )
-        }
-        recalculateCurrentPosture()
+        _uiState.update { it.withCalibration(calibration) }
         refresh()
     }
 
@@ -410,12 +395,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                 }
-        }
-    }
-
-    private fun recalculateCurrentPosture() {
-        _uiState.update {
-            it.copy(currentPosture = it.calibration.classify(it.currentConfiguration))
         }
     }
 }
