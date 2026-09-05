@@ -281,7 +281,7 @@ class DailySummaryRepository(
 
     private companion object {
         const val AGGREGATION_VERSION = 7
-        const val AGGREGATION_CHUNK_DAYS = 31L
+        const val AGGREGATION_CHUNK_DAYS = 93L
     }
 
     private data class RebuiltDailySummaries(
