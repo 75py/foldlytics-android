@@ -3,6 +3,16 @@
     <string name="app_name" translatable="false">Foldlytics</string>
 
     <!-- Navigation and actions -->
+    <string name="action_export_diagnostic_archive">Save full diagnostic data</string>
+    <string name="diagnostic_export_description">ZIP with all saved app usage history and calibration</string>
+    <string name="diagnostic_export_preparing">Preparing diagnostic data…</string>
+    <string name="diagnostic_export_saved">Diagnostic data saved.</string>
+    <string name="diagnostic_export_failed">Could not save diagnostic data. Please try again.</string>
+    <string name="report_inner_sessions_heading">Displayed inner-display sessions</string>
+    <string name="report_complete_sessions">Complete sessions: %1$d / detected opens: %2$d</string>
+    <string name="report_session_identity">Opened: %1$s (%2$d ms), sequence: %3$d</string>
+    <string name="report_session_duration">Inner active: %1$d ms; Other: %2$d ms</string>
+    <string name="report_session_app">%1$s (%2$s): %3$d ms</string>
     <string name="screen_diagnostics">Posture diagnostics</string>
     <string name="screen_calibration">Adjust fold detection</string>
     <string name="nav_home">Home</string>

@@ -5,6 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nagopy.android.foldlytics.data.CalibrationStore
 import com.nagopy.android.foldlytics.data.CsvExportOutput
+import com.nagopy.android.foldlytics.data.DiagnosticArchiveExporter
+import com.nagopy.android.foldlytics.data.DiagnosticArchiveOutput
 import com.nagopy.android.foldlytics.data.LongTermCsvExporter
 import com.nagopy.android.foldlytics.data.StoredAnalysisLoader
 import com.nagopy.android.foldlytics.data.StoredAnalysisRequest
@@ -36,6 +38,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 
 /**
@@ -128,6 +131,7 @@ class MainViewModel internal constructor(
         )
     }
     private var refreshJob: Job? = null
+    private val diagnosticExportMutex = Mutex()
 
     private val _uiState = MutableStateFlow(
         MainUiState(
@@ -315,6 +319,26 @@ class MainViewModel internal constructor(
     suspend fun exportLongTermCsv(output: CsvExportOutput) {
         withContext(Dispatchers.IO) {
             csvExporter.export(output)
+        }
+    }
+
+    suspend fun exportDiagnosticArchive(output: DiagnosticArchiveOutput) {
+        check(BuildConfig.ENABLE_DIAGNOSTIC_EXPORT) { "Diagnostic export is disabled" }
+        check(diagnosticExportMutex.tryLock()) { "Diagnostic export is already running" }
+        try {
+            val snapshot = _uiState.value
+            _uiState.update { it.copy(isExportingDiagnostic = true) }
+            val application = getApplication<FoldlyticsApplication>()
+            withContext(Dispatchers.IO) {
+                DiagnosticArchiveExporter(application, application.database).export(
+                    calibration = snapshot.calibration,
+                    diagnosticReport = DiagnosticReportFormatter.format(snapshot, application.resources),
+                    output = output,
+                )
+            }
+        } finally {
+            _uiState.update { it.copy(isExportingDiagnostic = false) }
+            diagnosticExportMutex.unlock()
         }
     }
 

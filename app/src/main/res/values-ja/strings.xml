@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Navigation and actions -->
+    <string name="action_export_diagnostic_archive">診断データ一式を保存</string>
+    <string name="diagnostic_export_description">保存済みの全アプリ利用履歴と調整値を含むZIP</string>
+    <string name="diagnostic_export_preparing">診断データを準備しています…</string>
+    <string name="diagnostic_export_saved">診断データを保存しました。</string>
+    <string name="diagnostic_export_failed">診断データを保存できませんでした。もう一度お試しください。</string>
+    <string name="report_inner_sessions_heading">画面に表示した内側利用セッション</string>
+    <string name="report_complete_sessions">完了した回：%1$d / 検出した開いた回数：%2$d</string>
+    <string name="report_session_identity">開始：%1$s（%2$d ms）、記録順：%3$d</string>
+    <string name="report_session_duration">内側利用：%1$d ms、その他：%2$d ms</string>
+    <string name="report_session_app">%1$s（%2$s）：%3$d ms</string>
     <string name="screen_diagnostics">姿勢判定ログ</string>
     <string name="screen_calibration">開閉判定の調整</string>
     <string name="nav_home">ホーム</string>

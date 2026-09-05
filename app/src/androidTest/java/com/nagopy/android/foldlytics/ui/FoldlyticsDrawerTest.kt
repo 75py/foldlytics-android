@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -42,6 +43,36 @@ class FoldlyticsDrawerTest {
             setLocale(Locale.US)
         }
         context.createConfigurationContext(configuration)
+    }
+
+    @Test
+    fun diagnosticExportIsAvailableBeforeAnalysisHasLoaded() {
+        var requested = false
+        openDrawer(520, 320, 1f, onExportDiagnostic = { requested = true })
+
+        composeRule.onNodeWithText(text(R.string.action_export_diagnostic_archive))
+            .performScrollTo()
+            .assertIsDisplayed()
+            .performClick()
+        composeRule.runOnIdle { assertTrue(requested) }
+    }
+
+    @Test
+    fun diagnosticExportIsHiddenWhenNotProvided() {
+        openDrawer(520, 320, 1f)
+
+        composeRule.onNodeWithText(text(R.string.action_export_diagnostic_archive))
+            .assertDoesNotExist()
+    }
+
+    @Test
+    fun diagnosticExportIsDisabledWhileArchiveIsBeingPrepared() {
+        openDrawer(520, 320, 1f, onExportDiagnostic = {}, isExportingDiagnostic = true)
+
+        composeRule.onNodeWithText(text(R.string.diagnostic_export_preparing))
+            .performScrollTo()
+            .assertIsDisplayed()
+            .assertIsNotEnabled()
     }
 
     @Test
@@ -131,6 +162,8 @@ class FoldlyticsDrawerTest {
         fontScale: Float,
         onOpenPrivacyPolicy: () -> Unit = {},
         onOpenOssLicenses: () -> Unit = {},
+        onExportDiagnostic: (() -> Unit)? = null,
+        isExportingDiagnostic: Boolean = false,
     ) {
         composeRule.setContent {
             CompositionLocalProvider(
@@ -145,7 +178,10 @@ class FoldlyticsDrawerTest {
                 ) {
                     FoldlyticsTheme {
                         FoldlyticsScreen(
-                            state = MainUiState(hasUsageAccess = true),
+                            state = MainUiState(
+                                hasUsageAccess = true,
+                                isExportingDiagnostic = isExportingDiagnostic,
+                            ),
                             onOpenUsageAccess = {},
                             onSaveCover = {},
                             onSaveInner = {},
@@ -155,6 +191,7 @@ class FoldlyticsDrawerTest {
                             onRefresh = {},
                             onShare = {},
                             onExportCsv = {},
+                            onExportDiagnostic = onExportDiagnostic,
                             onOpenPrivacyPolicy = onOpenPrivacyPolicy,
                             onOpenOssLicenses = onOpenOssLicenses,
                             appName = "Foldlytics",

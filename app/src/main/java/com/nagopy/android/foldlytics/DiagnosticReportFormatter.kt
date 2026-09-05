@@ -318,6 +318,52 @@ object DiagnosticReportFormatter {
                     )
                 }
             }
+            state.innerSessionSummary?.let { summary ->
+                appendLine()
+                appendLine(resources.getString(R.string.report_inner_sessions_heading))
+                appendField(
+                    R.string.label_analysis_range,
+                    resources.getString(
+                        R.string.date_range,
+                        formatInstant(summary.rangeStartMillis),
+                        formatInstant(summary.rangeEndMillis),
+                    ),
+                )
+                appendLine(
+                    resources.getString(
+                        R.string.report_complete_sessions,
+                        summary.completeSessionCount,
+                        summary.detectedOpenCount,
+                    ),
+                )
+                summary.longSessions.forEach { session ->
+                    appendLine(
+                        resources.getString(
+                            R.string.report_session_identity,
+                            formatInstant(session.openedAtMillis),
+                            session.openedAtMillis,
+                            session.openedSequenceAtTimestamp,
+                        ),
+                    )
+                    appendLine(
+                        resources.getString(
+                            R.string.report_session_duration,
+                            session.innerActiveMillis,
+                            session.otherInnerActiveMillis,
+                        ),
+                    )
+                    session.appUsages.forEach { app ->
+                        appendLine(
+                            resources.getString(
+                                R.string.report_session_app,
+                                app.label,
+                                app.packageName,
+                                app.innerActiveMillis,
+                            ),
+                        )
+                    }
+                }
+            }
             state.collectionHealth?.let { health ->
                 appendLine()
                 appendLine(resources.getString(R.string.report_collection_heading))

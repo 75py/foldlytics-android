@@ -55,6 +55,7 @@ data class MainUiState(
     val customRangeEndMillis: Long? = null,
     val isLoading: Boolean = false,
     val isAnalysisLoading: Boolean = false,
+    val isExportingDiagnostic: Boolean = false,
     val analysis: UsageAnalysis? = null,
     val periodSummary: PeriodUsageSummary? = null,
     val innerSessionSummary: InnerSessionSummary? = null,

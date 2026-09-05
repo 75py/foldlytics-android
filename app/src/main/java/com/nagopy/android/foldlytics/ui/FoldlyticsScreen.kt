@@ -100,6 +100,7 @@ fun FoldlyticsScreen(
     onOpenOssLicenses: () -> Unit,
     onDismissError: () -> Unit = {},
     onShareSummary: suspend (Bitmap) -> Boolean = { false },
+    onExportDiagnostic: (() -> Unit)? = null,
     appName: String? = null,
     screenshotSectionEndSpacing: Dp = 0.dp,
     screenshotHomeItemIndex: Int? = null,
@@ -159,6 +160,9 @@ fun FoldlyticsScreen(
                 onCalibration = { selectDestination(ScreenDestination.CALIBRATION) },
                 onExportCsv = { closeDrawerThen(onExportCsv) },
                 onShare = { closeDrawerThen(onShare) },
+                onExportDiagnostic = onExportDiagnostic?.let { action ->
+                    { closeDrawerThen(action) }
+                },
                 onUsageAccess = {
                     closeDrawerThen { showUsageAccessDisclosure = true }
                 },
@@ -356,6 +360,7 @@ private fun FoldlyticsDrawer(
     onCalibration: () -> Unit,
     onExportCsv: () -> Unit,
     onShare: () -> Unit,
+    onExportDiagnostic: (() -> Unit)?,
     onUsageAccess: () -> Unit,
     onPrivacyPolicy: () -> Unit,
     onOssLicenses: () -> Unit,
@@ -427,6 +432,33 @@ private fun FoldlyticsDrawer(
                     onClick = onShare,
                     modifier = Modifier.padding(horizontal = 12.dp),
                 )
+                if (onExportDiagnostic != null) {
+                    NavigationDrawerItem(
+                        label = {
+                            Column {
+                                Text(
+                                    stringResource(
+                                        if (state.isExportingDiagnostic) {
+                                            R.string.diagnostic_export_preparing
+                                        } else {
+                                            R.string.action_export_diagnostic_archive
+                                        },
+                                    ),
+                                )
+                                Text(
+                                    stringResource(R.string.diagnostic_export_description),
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        },
+                        selected = false,
+                        onClick = { if (!state.isExportingDiagnostic) onExportDiagnostic() },
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .alpha(if (state.isExportingDiagnostic) 0.38f else 1f)
+                            .semantics { if (state.isExportingDiagnostic) disabled() },
+                    )
+                }
                 HorizontalDivider(Modifier.padding(horizontal = 28.dp, vertical = 12.dp))
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.action_usage_access_settings)) },

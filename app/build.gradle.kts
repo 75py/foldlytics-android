@@ -6,6 +6,11 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// This diagnostic branch enables export for Play internal-test builds with the production ID.
+val diagnosticExportEnabled = providers.gradleProperty("enableDiagnosticExport")
+    .map(String::toBooleanStrict)
+    .orElse(true)
+
 android {
     namespace = "com.nagopy.android.foldlytics"
     compileSdk = 36
@@ -16,6 +21,7 @@ android {
         targetSdk = 36
         versionCode = 5
         versionName = "1.2.0"
+        buildConfigField("boolean", "ENABLE_DIAGNOSTIC_EXPORT", diagnosticExportEnabled.get().toString())
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

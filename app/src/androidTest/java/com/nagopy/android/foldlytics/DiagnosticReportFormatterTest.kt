@@ -4,6 +4,9 @@ import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nagopy.android.foldlytics.model.AnalysisPeriod
+import com.nagopy.android.foldlytics.model.InnerSessionAppUsage
+import com.nagopy.android.foldlytics.model.InnerSessionDetail
+import com.nagopy.android.foldlytics.model.InnerSessionSummary
 import com.nagopy.android.foldlytics.model.LongTermBucket
 import com.nagopy.android.foldlytics.model.LongTermInsights
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
@@ -23,6 +26,39 @@ class DiagnosticReportFormatterTest {
     @Before
     fun setUp() {
         context = InstrumentationRegistry.getInstrumentation().targetContext
+    }
+
+    @Test
+    fun reportIdentifiesDisplayedSessionsWithExactMillisecondsAndOtherTime() {
+        val report = format(
+            MainUiState(
+                innerSessionSummary = InnerSessionSummary(
+                    rangeStartMillis = 0,
+                    rangeEndMillis = 20_000,
+                    detectedOpenCount = 2,
+                    completeSessionCount = 1,
+                    medianInnerActiveMillis = 9_001,
+                    averageInnerActiveMillis = 9_001,
+                    longestInnerActiveMillis = 9_001,
+                    longSessions = listOf(
+                        InnerSessionDetail(
+                            openedAtMillis = 1_234,
+                            openedSequenceAtTimestamp = 3,
+                            innerActiveMillis = 9_001,
+                            otherInnerActiveMillis = 8_000,
+                            appUsages = listOf(
+                                InnerSessionAppUsage("app.reader", "Reader", 1_001),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        assertTrue(report.contains(context.getString(R.string.report_inner_sessions_heading)))
+        assertTrue(report.contains(context.getString(R.string.report_session_duration, 9_001L, 8_000L)))
+        assertTrue(report.contains(context.getString(R.string.report_session_app, "Reader", "app.reader", 1_001L)))
+        assertTrue(report.contains("1234 ms"))
     }
 
     @Test

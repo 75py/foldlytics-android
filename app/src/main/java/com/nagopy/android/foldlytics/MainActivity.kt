@@ -67,6 +67,31 @@ class MainActivity : ComponentActivity(), SensorEventListener {
             ).show()
         }
     }
+    private val createDiagnosticDocument = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip"),
+    ) { uri ->
+        if (uri == null || !BuildConfig.ENABLE_DIAGNOSTIC_EXPORT) return@registerForActivityResult
+        lifecycleScope.launch {
+            Toast.makeText(this@MainActivity, R.string.diagnostic_export_preparing, Toast.LENGTH_SHORT)
+                .show()
+            val saved = try {
+                viewModel.exportDiagnosticArchive {
+                    contentResolver.openOutputStream(uri, "wt")
+                        ?: error(getString(R.string.error_open_output))
+                }
+                true
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                false
+            }
+            Toast.makeText(
+                this@MainActivity,
+                if (saved) R.string.diagnostic_export_saved else R.string.diagnostic_export_failed,
+                if (saved) Toast.LENGTH_SHORT else Toast.LENGTH_LONG,
+            ).show()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -110,6 +135,11 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                     onDismissError = viewModel::clearError,
                     onShare = ::shareReport,
                     onExportCsv = ::exportLongTermCsv,
+                    onExportDiagnostic = if (BuildConfig.ENABLE_DIAGNOSTIC_EXPORT) {
+                        ::exportDiagnosticArchive
+                    } else {
+                        null
+                    },
                     onOpenPrivacyPolicy = ::openPrivacyPolicy,
                     onOpenOssLicenses = ::openOssLicenses,
                     onShareSummary = ::shareSummaryImage,
@@ -202,6 +232,10 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     private fun exportLongTermCsv() {
         createCsvDocument.launch("Foldlytics-all-daily-${LocalDate.now()}.csv")
+    }
+
+    private fun exportDiagnosticArchive() {
+        createDiagnosticDocument.launch("Foldlytics-diagnostic-${LocalDate.now()}.zip")
     }
 
     private fun openPrivacyPolicy() {
