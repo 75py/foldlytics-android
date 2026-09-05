@@ -2,7 +2,7 @@
 
 Google Play掲載用の日英テキスト案です。
 
-文字数上限は2026-08-16時点のPlay Console公式ヘルプに基づきます。
+文字数上限は2026-09-05に確認したPlay Console公式ヘルプに基づきます。
 
 - アプリ名 / App name: 30文字
 - 簡単な説明 / Short description: 80文字
@@ -19,8 +19,8 @@ Google Play掲載用の日英テキスト案です。
 ## 公開前の前提
 
 - 日本語UIで公開する場合は日本語をデフォルトのストア言語とする。
-- 英語ストア情報を一般公開する時点で、別途対応する英語UIと英語スクリーンショットを
-  用意する。
+- 日英のUIとストア画像を用意済み。提出時は各言語の画像が公開するバージョンの
+  画面と一致していることを確認する。
 - サポートURL、連絡先、Data safetyの回答は、提出時点の実装を再確認して入力する。
 
 ## 日本語（ja-JP）
@@ -35,39 +35,42 @@ Foldlytics：折りたたみ利用分析
 
 ### 簡単な説明
 
-43 / 80文字
+53 / 80文字
 
 ```text
-外側・内側の利用時間、検出した「開いた」回数、アプリ別の使い方を端末内で記録できます。
+折りたたみスマホの外側・内側をどれくらい使っていますか？利用時間と画面ごとによく使うアプリを振り返れます。
 ```
 
 ### 詳しい説明
 
-987 / 4,000文字
+956 / 4,000文字
 
 ```text
 折りたたみスマホを、実際どれくらい開いて使っていますか？
 
-Foldlyticsは、対応する折りたたみAndroid端末で、外側と内側のディスプレイをどう使っているか記録するアプリです。記録を見れば、折りたたみ機能が自分の使い方に合っているか、次のスマホも折りたたみにするかを考える材料になります。
+Foldlyticsは、外側・内側の画面を使った時間や、画面ごとによく使うアプリを振り返れるアプリです。毎日の記録から、自分が折りたたみスマホをどう使っているかが見えてきます。
 
-確認できること
-・外側／内側ディスプレイごとの利用時間と割合
-・検出した「開いた」回数
-・1回の内側画面利用ごとの件数、中央値、平均値、最長時間
-・長く使った最大3回の開始日時、内側利用時間、アプリ別上位3件、その他の時間
-・内側利用割合と開いた回数の推移
-・表示時間の合計、外側／内側それぞれでよく使うアプリのランキング
-・プリセット期間と、日付を指定した任意期間の集計
-・データ充足率と収集状態
-・保存している全期間の日次CSV
+■ 外側と内側、どれくらい使っている？
+それぞれの画面を使った時間と、内側を使った割合を確認できます。検出した「開いた」回数も表示します。
 
-利用にはAndroidの「利用状況へのアクセス」が必要です。Foldlyticsは、表示されたアプリ、画面の点灯・ロック状態、画面構成、その時刻をAndroidから読み取ります。アプリを閉じている間は、約6時間ごとのバックグラウンド同期をスケジュールします。
+■ 開いたあと、どれくらい使っている？
+開いてから閉じるまでに内側画面を使った時間を振り返れます。平均や最長時間に加え、長く使った回のアプリ別内訳も確認できます。
 
-データは、アプリのデータを消去するかアンインストールするまで端末内に保存されます。内側画面の利用時間も、同じ利用状況イベントから端末内で集計します。この機能のために新しい権限やデータの外部送信を追加しません。広告・分析SDKは使用せず、外部サーバーへ自動送信しません。CSV保存と診断レポートの共有は、ユーザーが操作した場合にだけ実行します。
+■ どのアプリを、どちらの画面で使っている？
+よく使うアプリを利用時間順に表示します。アプリごとの外側・内側の割合や、どちらの画面で長く使っているかも分かります。
 
-「開いた」回数は、Androidから取得できた画面構成イベントに基づく検出値です。物理ヒンジを開いた絶対回数ではありません。1回の内側画面利用は、選択期間内に「開いた」とその後の「閉じた」の両方を検出できた回です。0秒の利用も中央値・平均値・最長時間に含めますが、長く使った最大3回には表示しません。アプリ別の内訳は上位3件までを表示し、残りや判定できない時間は「その他」にまとめます。画面・ロックの情報から利用中か非利用かを判断できない時間を含む回は、利用時間の統計から除外します。取得できるイベントは、機種やAndroidバージョンによって異なる場合があります。
+■ 使い方は変わってきた？
+期間を切り替えたり、日付を指定したりして、内側の利用割合や検出した「開いた」回数の変化をグラフで確認できます。
 
-Android 10以降の対応する折りたたみ端末向けです。
+利用サマリーは、画像にして共有できます。保存済みの全期間の記録を、日ごとに集計したCSVとして書き出すこともできます。
+
+データは端末内に保存
+利用履歴は端末内で処理し、外部サーバーへ自動送信しません。広告やアクセス解析SDKは使用していません。CSV保存、サマリー画像や診断レポートの共有は、自分で操作したときだけ行われます。保存した履歴は、Androidの設定からアプリデータを消去するか、アンインストールすると削除できます。
+
+ご利用にあたって
+Android 10以降の対応する折りたたみ端末と、Androidの「利用状況へのアクセス」の許可が必要です。表示されたアプリ、画面の点灯・ロック状態などの記録を読み取り、アプリを閉じている間も定期的に記録を更新します。
+
+「開いた」回数はAndroidの記録から検出するため、実際の開閉をすべて数えられるとは限りません。1回ごとの利用時間は、選んだ期間内で開いてから閉じるまでを確認できた回が対象です。利用状態が分からない時間を含む回は、その統計から除きます。使用した画面が分からない時間は、外側・内側の利用時間や割合に含めません。取得できる記録は、機種やAndroidのバージョンによって異なります。
 ```
 
 ### ストア画像用の短いコピー
@@ -99,39 +102,42 @@ Foldlytics: Foldable Stats
 
 ### Short description
 
-65 / 80 characters
+79 / 80 characters
 
 ```text
-Track display time, detected opens, and app usage on your device.
+See how much you use each display on your foldable and which apps you use most.
 ```
 
 ### Full description
 
-2,177 / 4,000 characters
+2,141 / 4,000 characters
 
 ```text
 How often do you actually unfold your phone?
 
-Foldlytics records how you use the cover and inner displays on a compatible foldable Android device. The history can help you decide whether a foldable suits the way you use your phone, and whether you want another one next time.
+Foldlytics helps you look back at the time you spend on each display and the apps you use there. Discover how your foldable fits into your everyday life.
 
-What you can review
-• Time spent on the cover and inner displays
-• Detected open counts
-• Inner-display use for each opening, with median, average, and longest time
-• The three longest uses, with start time, inner-display time, top three apps, and Other time
-• Trends for inner display use and detected opens
-• App rankings by total display time and by each display
-• Preset periods and custom date ranges
-• Data coverage and collection status
-• Daily CSV export for all saved history
+■ How much do you use each display?
+See your cover and inner display time, the percentage spent on the inner display, and the number of detected opens.
 
-Foldlytics requires Android Usage Access. It reads which apps were displayed, whether the screen was on, whether the device was locked, display configuration, and timestamps. While the app is closed, it schedules background sync approximately every six hours.
+■ How long do you use the inner display after opening your phone?
+See how much time you spend using the inner display between opening and closing your phone. Review average and longest times, with app breakdowns for the longest sessions.
 
-Your data stays on your device until you clear the app's data or uninstall it. Inner-display use is calculated on-device from the same usage events. This feature adds no permission or external data transfer. Foldlytics does not use advertising or analytics SDKs and does not automatically send data to an external server. CSV export and diagnostic report sharing occur only when you choose them.
+■ Which apps do you use on each display?
+Find your most-used apps, ranked by usage time. See each app's cover and inner display percentages and which display you use it on more.
 
-Open counts come from display configuration events provided by Android. They are detections, not an absolute count of physical unfolds. Inner-display use is summarized from an opening to its following close within the selected period; known zero-time uses still count in the median, average, and longest values, but are not shown among the three longest uses. The breakdown shows up to three apps, while remaining app time and time that cannot be identified are grouped as Other. A use containing any time that cannot be classified as active or inactive from the available screen and lock information is left out of the use statistics. Available events can vary by device and Android version.
+■ Has your usage changed?
+Choose a preset period or your own date range to explore charts of your inner display share and detected opens over time.
 
-Requires Android 10 or later and a compatible foldable device.
+Share your usage summary as an image, or export daily totals for all your saved history as a CSV file.
+
+Your history stays on your device
+Foldlytics processes your usage history on your device and does not automatically send it to an external server. There are no ads or analytics SDKs. CSV export, summary image sharing, and diagnostic report sharing happen only when you choose them. Delete your saved history by clearing the app's data in Android settings or uninstalling the app.
+
+Before you start
+You need a compatible foldable device running Android 10 or later and Android Usage Access permission. Foldlytics reads records of which apps were displayed, screen and lock states, and related events. It updates your history periodically even while the app is closed.
+
+Open counts are detected from Android's records, so they may not capture every physical unfold. Per-opening statistics include sessions where both the opening and closing were detected within your chosen period. Sessions containing time with an uncertain usage state are left out of those statistics. Time with an unknown display is excluded from cover and inner display totals and percentages. Available records vary by device and Android version.
 ```
 
 ### Short copy for store graphics
@@ -153,6 +159,10 @@ Screenshot headline candidates:
 
 ## 表現上の統一ルール
 
+- 機能名の列挙よりも、利用者が何を知り、振り返れるかを先に伝える。
+- 0秒の扱いや内訳の件数など、細かな集計ルールは[集計方法と制約](../../docs/MEASUREMENT-ja.md)
+  に任せ、ストア本文には利用判断に必要な制約を残す。
+- バージョン間の変更説明ではなく、初めて読む人に現在のアプリを説明する。
 - 日本語は`外側` / `内側`、英語は`cover display` / `inner display`を使う。
 - `開いた回数`だけで終わらせず、本文では`検出した` / `detected`を付ける。
 - `送信しない`ではなく`自動送信しない`とし、ユーザー操作によるCSV保存・共有を
