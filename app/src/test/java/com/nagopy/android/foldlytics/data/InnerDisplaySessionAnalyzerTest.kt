@@ -493,6 +493,55 @@ class InnerDisplaySessionAnalyzerTest {
     }
 
     @Test
+    fun terminalAfterRecoveredDuplicateResumeBlocksExclusiveOtherPackageAllocation() {
+        val analyzer = analyzer()
+
+        analyzer.processChunk(
+            records = activeCoverRecords() + listOf(
+                record(1_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+                record(2_000, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+                record(3_000, UsageEventKind.ACTIVITY_PAUSED, "app.a", "A"),
+                record(4_000, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+                record(5_000, UsageEventKind.ACTIVITY_PAUSED, "app.a", "A"),
+                record(6_000, UsageEventKind.ACTIVITY_RESUMED, "app.b", "B"),
+                record(8_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            ),
+            checkpoints = emptyList(),
+            collectionGapStarts = emptyList(),
+            chunkEndMillis = 9_000,
+        )
+
+        val session = analyzer.sessionsAtEnd().single()
+        assertEquals(7_000L, session.innerActiveMillis)
+        assertEquals(mapOf("app.a" to 3_000L), session.appUsageMillis)
+        assertEquals(4_000L, session.innerActiveMillis - session.appUsageMillis.values.sum())
+    }
+
+    @Test
+    fun stopAfterPausedPredecessorBlocksExclusiveOtherPackageAllocation() {
+        val analyzer = analyzer()
+
+        analyzer.processChunk(
+            records = activeCoverRecords() + listOf(
+                record(1_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+                record(2_000, UsageEventKind.ACTIVITY_PAUSED, "app.a", "A"),
+                record(3_000, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+                record(4_000, UsageEventKind.ACTIVITY_STOPPED, "app.a", "A"),
+                record(5_000, UsageEventKind.ACTIVITY_RESUMED, "app.b", "B"),
+                record(7_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            ),
+            checkpoints = emptyList(),
+            collectionGapStarts = emptyList(),
+            chunkEndMillis = 8_000,
+        )
+
+        val session = analyzer.sessionsAtEnd().single()
+        assertEquals(6_000L, session.innerActiveMillis)
+        assertEquals(mapOf("app.a" to 2_000L), session.appUsageMillis)
+        assertEquals(4_000L, session.innerActiveMillis - session.appUsageMillis.values.sum())
+    }
+
+    @Test
     fun repeatedTimestampResumePauseResumeAllocatesFromThatTimestamp() {
         val analyzer = analyzer()
 

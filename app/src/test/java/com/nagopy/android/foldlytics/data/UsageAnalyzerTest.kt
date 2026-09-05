@@ -500,7 +500,7 @@ class UsageAnalyzerTest {
         assertEquals(6_000L, result.coverMillis)
         assertEquals(2_000L, result.apps.first { it.packageName == "app.a" }.coverMillis)
         assertEquals(3_000L, result.apps.first { it.packageName == "app.b" }.coverMillis)
-        assertEquals(3_000L, result.multiResumeMillis)
+        assertEquals(0L, result.multiResumeMillis)
     }
 
     @Test
@@ -519,6 +519,49 @@ class UsageAnalyzerTest {
 
         assertEquals(6_000L, result.coverMillis)
         assertEquals(4_000L, result.apps.single().coverMillis)
+    }
+
+    @Test
+    fun terminalAfterRecoveredDuplicateResumeLeavesLaterOtherPackageOnlyRankingTime() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(1_000, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(2_000, UsageEventKind.ACTIVITY_PAUSED, "app.a", "A"),
+            record(3_000, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(4_000, UsageEventKind.ACTIVITY_PAUSED, "app.a", "A"),
+            record(5_000, UsageEventKind.ACTIVITY_RESUMED, "app.b", "B"),
+        )
+
+        val result = analyzer.analyze(records, 0, 7_000, calibration)
+
+        assertEquals(7_000L, result.coverMillis)
+        assertEquals(3_000L, result.apps.first { it.packageName == "app.a" }.coverMillis)
+        assertEquals(2_000L, result.apps.first { it.packageName == "app.b" }.coverMillis)
+        assertEquals(0L, result.multiResumeMillis)
+    }
+
+    @Test
+    fun stopAfterPausedPredecessorLeavesLaterOtherPackageOnlyRankingTime() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(1_000, UsageEventKind.ACTIVITY_PAUSED, "app.a", "A"),
+            record(2_000, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(3_000, UsageEventKind.ACTIVITY_STOPPED, "app.a", "A"),
+            record(4_000, UsageEventKind.ACTIVITY_RESUMED, "app.b", "B"),
+        )
+
+        val result = analyzer.analyze(records, 0, 6_000, calibration)
+
+        assertEquals(6_000L, result.coverMillis)
+        assertEquals(2_000L, result.apps.first { it.packageName == "app.a" }.coverMillis)
+        assertEquals(2_000L, result.apps.first { it.packageName == "app.b" }.coverMillis)
+        assertEquals(0L, result.multiResumeMillis)
     }
 
     @Test

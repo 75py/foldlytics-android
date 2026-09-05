@@ -74,15 +74,42 @@ class ActivityVisibilityTrackerTest {
     }
 
     @Test
-    fun resumedEventRecoversFromUncertainSameClassEvidence() {
+    fun resumedEventRestoresDefiniteVisibilityButKeepsLatentAmbiguity() {
         tracker.apply(record(UsageEventKind.ACTIVITY_RESUMED))
         tracker.apply(record(UsageEventKind.ACTIVITY_RESUMED))
         tracker.apply(record(UsageEventKind.ACTIVITY_PAUSED))
         tracker.apply(record(UsageEventKind.ACTIVITY_RESUMED))
 
         assertEquals(setOf("app.a"), tracker.snapshot.assignablePackages)
-        assertEquals(emptySet<String>(), tracker.snapshot.possiblePackages)
         assertEquals("app.a", tracker.snapshot.exclusiveAssignablePackageOrNull())
+
+        tracker.apply(record(UsageEventKind.ACTIVITY_PAUSED))
+
+        assertEquals(emptySet<String>(), tracker.snapshot.assignablePackages)
+        assertEquals(setOf("app.a"), tracker.snapshot.possiblePackages)
+        assertNull(tracker.snapshot.exclusiveAssignablePackageOrNull())
+    }
+
+    @Test
+    fun stopAfterPausedPredecessorAndNewResumeLeavesPackageUncertain() {
+        tracker.apply(record(UsageEventKind.ACTIVITY_RESUMED))
+        tracker.apply(record(UsageEventKind.ACTIVITY_PAUSED))
+        tracker.apply(record(UsageEventKind.ACTIVITY_RESUMED))
+        tracker.apply(record(UsageEventKind.ACTIVITY_STOPPED))
+
+        assertEquals(emptySet<String>(), tracker.snapshot.assignablePackages)
+        assertEquals(setOf("app.a"), tracker.snapshot.possiblePackages)
+        assertNull(tracker.snapshot.exclusiveAssignablePackageOrNull())
+    }
+
+    @Test
+    fun pauseAfterPausedPredecessorAndNewResumeClearsVisiblePackage() {
+        tracker.apply(record(UsageEventKind.ACTIVITY_RESUMED))
+        tracker.apply(record(UsageEventKind.ACTIVITY_PAUSED))
+        tracker.apply(record(UsageEventKind.ACTIVITY_RESUMED))
+        tracker.apply(record(UsageEventKind.ACTIVITY_PAUSED))
+
+        assertTrue(tracker.snapshot.candidatePackages.isEmpty())
     }
 
     @Test
@@ -96,6 +123,26 @@ class ActivityVisibilityTrackerTest {
 
         assertEquals(setOf("app.a"), tracker.snapshot.assignablePackages)
         assertEquals("app.a", tracker.snapshot.exclusiveAssignablePackageOrNull())
+    }
+
+    @Test
+    fun longSameClassHistoryKeepsBoundedEvidenceState() {
+        repeat(10_000) {
+            tracker.apply(record(UsageEventKind.ACTIVITY_RESUMED))
+        }
+        assertTrue(tracker.possibleStateCount <= 9)
+        assertEquals(setOf("app.a"), tracker.snapshot.assignablePackages)
+
+        repeat(10_000) { index ->
+            val kind = if (index % 2 == 0) {
+                UsageEventKind.ACTIVITY_PAUSED
+            } else {
+                UsageEventKind.ACTIVITY_STOPPED
+            }
+            tracker.apply(record(kind))
+        }
+
+        assertTrue(tracker.possibleStateCount <= 9)
     }
 
     @Test

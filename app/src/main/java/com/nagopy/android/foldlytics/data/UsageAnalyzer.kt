@@ -137,7 +137,7 @@ class UsageAnalyzer(
             val activitySnapshot = activityTracker.snapshot
             val activePackages = activitySnapshot.assignablePackages
             addDailyInterval(start, end, activePackages)
-            if (activitySnapshot.hasMultipleCandidatePackages) multiResumeMillis += duration
+            if (activePackages.size > 1) multiResumeMillis += duration
 
             activePackages.forEach { packageName ->
                 val accumulator = accumulators.getOrPut(packageName) { MutableAppUsage() }

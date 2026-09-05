@@ -6,17 +6,18 @@ import com.nagopy.android.foldlytics.model.UsageRecord
 internal class ActivityVisibilityTracker {
     private val activities = linkedMapOf<ActivityKey, ActivityState>()
 
+    val possibleStateCount: Int
+        get() = activities.values.sumOf(ActivityState::possibleStateCount)
+
     val snapshot: ActivityVisibilitySnapshot
         get() {
             val definitePackages = linkedSetOf<String>()
             val possiblePackages = linkedSetOf<String>()
             activities.forEach { (key, state) ->
-                when (state) {
-                    ActivityState.DEFINITE,
-                    ActivityState.DUPLICATE,
-                    -> definitePackages += key.packageName
-
-                    ActivityState.UNCERTAIN -> possiblePackages += key.packageName
+                if (state.isDefinitelyVisible) {
+                    definitePackages += key.packageName
+                } else if (state.isPossiblyVisible) {
+                    possiblePackages += key.packageName
                 }
             }
             return ActivityVisibilitySnapshot(
@@ -42,29 +43,25 @@ internal class ActivityVisibilityTracker {
 
     private fun resume(record: UsageRecord) {
         val key = record.activityKeyOrNull() ?: return
-        activities[key] = when (activities[key]) {
-            null,
-            ActivityState.UNCERTAIN,
-            -> ActivityState.DEFINITE
-
-            ActivityState.DEFINITE,
-            ActivityState.DUPLICATE,
-            -> ActivityState.DUPLICATE
-        }
+        update(key, (activities[key] ?: ActivityState.INACTIVE).onResume())
     }
 
     private fun pauseOrStop(record: UsageRecord) {
         val key = record.activityKeyOrNull() ?: return
-        activities[key] = when (activities[key]) {
-            null -> return
-            ActivityState.DEFINITE -> {
-                activities.remove(key)
-                return
-            }
+        val state = activities[key] ?: ActivityState.INACTIVE
+        val nextState = when (record.kind) {
+            UsageEventKind.ACTIVITY_PAUSED -> state.onPause()
+            UsageEventKind.ACTIVITY_STOPPED -> state.onStop()
+            else -> state
+        }
+        update(key, nextState)
+    }
 
-            ActivityState.DUPLICATE,
-            ActivityState.UNCERTAIN,
-            -> ActivityState.UNCERTAIN
+    private fun update(key: ActivityKey, state: ActivityState) {
+        if (state.hasEvidence) {
+            activities[key] = state
+        } else {
+            activities.remove(key)
         }
     }
 
@@ -81,12 +78,121 @@ internal class ActivityVisibilityTracker {
         val className: String,
     )
 
-    private enum class ActivityState {
-        DEFINITE,
-        // Same package/class duplicate resumes still prove the package is visible.
-        DUPLICATE,
-        // A later pause/stop may or may not leave another same-class instance resumed.
-        UNCERTAIN,
+    private data class ActivityState(
+        val possibleCounts: Set<ActivityCounts>,
+    ) {
+        val possibleStateCount: Int = possibleCounts.size
+
+        val hasEvidence: Boolean = possibleCounts.any(ActivityCounts::hasEvidence)
+
+        val isDefinitelyVisible: Boolean =
+            possibleCounts.isNotEmpty() && possibleCounts.all(ActivityCounts::isVisible)
+
+        val isPossiblyVisible: Boolean =
+            possibleCounts.any(ActivityCounts::isVisible)
+
+        fun onResume(): ActivityState = transform { counts ->
+            buildList {
+                if (counts.resumedCount.isPositive) {
+                    add(counts)
+                }
+                if (counts.pausedAwaitingStopCount.isPositive) {
+                    counts.pausedAwaitingStopCount.decrementPossibilities()
+                        .forEach { pausedAfterResume ->
+                            add(
+                                counts.copy(
+                                    resumedCount = counts.resumedCount.increment(),
+                                    pausedAwaitingStopCount = pausedAfterResume,
+                                ),
+                            )
+                        }
+                }
+                add(counts.copy(resumedCount = counts.resumedCount.increment()))
+            }
+        }
+
+        fun onPause(): ActivityState = transform { counts ->
+            if (counts.resumedCount.isPositive) {
+                counts.resumedCount.decrementPossibilities().map { resumedAfterPause ->
+                    counts.copy(
+                        resumedCount = resumedAfterPause,
+                        pausedAwaitingStopCount = counts.pausedAwaitingStopCount.increment(),
+                    )
+                }
+            } else {
+                listOf(
+                    counts.copy(
+                        pausedAwaitingStopCount = counts.pausedAwaitingStopCount.increment(),
+                    ),
+                )
+            }
+        }
+
+        fun onStop(): ActivityState = transform { counts ->
+            buildList {
+                if (counts.pausedAwaitingStopCount.isPositive) {
+                    counts.pausedAwaitingStopCount.decrementPossibilities()
+                        .forEach { pausedAfterStop ->
+                            add(counts.copy(pausedAwaitingStopCount = pausedAfterStop))
+                        }
+                }
+                if (counts.resumedCount.isPositive) {
+                    counts.resumedCount.decrementPossibilities()
+                        .forEach { resumedAfterStop ->
+                            add(counts.copy(resumedCount = resumedAfterStop))
+                        }
+                }
+                if (
+                    !counts.pausedAwaitingStopCount.isPositive &&
+                    !counts.resumedCount.isPositive
+                ) {
+                    add(counts)
+                }
+            }
+        }
+
+        private fun transform(
+            block: (ActivityCounts) -> List<ActivityCounts>,
+        ): ActivityState = ActivityState(
+            possibleCounts = possibleCounts.flatMapTo(linkedSetOf(), block),
+        )
+
+        companion object {
+            val INACTIVE = ActivityState(setOf(ActivityCounts()))
+        }
+    }
+
+    private data class ActivityCounts(
+        val resumedCount: EvidenceCount = EvidenceCount.ZERO,
+        val pausedAwaitingStopCount: EvidenceCount = EvidenceCount.ZERO,
+    ) {
+        val hasEvidence: Boolean =
+            resumedCount.isPositive || pausedAwaitingStopCount.isPositive
+
+        val isVisible: Boolean = resumedCount.isPositive
+    }
+
+    private enum class EvidenceCount {
+        ZERO,
+        ONE,
+        MANY,
+        ;
+
+        val isPositive: Boolean
+            get() = this != ZERO
+
+        fun increment(): EvidenceCount = when (this) {
+            ZERO -> ONE
+            ONE,
+            MANY,
+            -> MANY
+        }
+
+        fun decrementPossibilities(): Set<EvidenceCount> = when (this) {
+            ZERO -> setOf(ZERO)
+            ONE -> setOf(ZERO)
+            MANY -> setOf(ONE, MANY)
+        }
     }
 }
 
