@@ -60,6 +60,7 @@ class UsageAnalyzer(
         var keyguardHidden = false
         var posture = DisplayPosture.UNKNOWN
         var unknownReason = UnknownPostureReason.NO_BASELINE
+        val configurationTracker = DisplayConfigurationTracker()
         val activityTracker = ActivityVisibilityTracker()
         val accumulators = linkedMapOf<String, MutableAppUsage>()
         val postureEvents = mutableListOf<PostureEvent>()
@@ -156,10 +157,15 @@ class UsageAnalyzer(
             rawEventType: Int? = null,
             checkpoint: PostureCheckpoint? = null,
         ) {
-            val classification = calibration.classifyWithDetails(configuration)
+            val resolvedConfiguration = if (checkpoint != null) {
+                configurationTracker.replaceBaseline(checkpoint.configuration)
+            } else {
+                configurationTracker.applyDelta(configuration)
+            }
+            val classification = calibration.classifyWithDetails(resolvedConfiguration)
             val nextPosture = classification.posture
             val previousPosture = posture
-            val nextUnknownReason = if (configuration == null || !configuration.isUsable()) {
+            val nextUnknownReason = if (resolvedConfiguration?.isUsable() != true) {
                 UnknownPostureReason.CONFIGURATION_UNAVAILABLE
             } else {
                 null
@@ -220,6 +226,7 @@ class UsageAnalyzer(
                 keyguardHidden = false
                 posture = DisplayPosture.UNKNOWN
                 unknownReason = UnknownPostureReason.COLLECTION_INTERRUPTION
+                configurationTracker.reset()
                 activityTracker.reset()
                 if (entry.timestampMillis in rangeStartMillis until rangeEndMillis) {
                     evidenceGapCount += 1
@@ -285,6 +292,7 @@ class UsageAnalyzer(
                     keyguardHidden = false
                     posture = DisplayPosture.UNKNOWN
                     unknownReason = UnknownPostureReason.AFTER_DEVICE_RESTART
+                    configurationTracker.reset()
                     activityTracker.reset()
                     if (record.timestampMillis in rangeStartMillis until rangeEndMillis) {
                         evidenceGapCount += 1

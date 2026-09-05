@@ -176,7 +176,7 @@ class LongTermDatabaseTest {
             calibrationKey = "calibration",
             zoneId = zoneId.id,
             checkpointRevision = 0L,
-            aggregationVersion = 7,
+            aggregationVersion = 8,
         )
         val first = session(1_000L, 100L)
         val second = session(5_000L, 200L)
@@ -780,7 +780,7 @@ class LongTermDatabaseTest {
         )
 
         assertEquals(full, incremental)
-        assertEquals(7, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
+        assertEquals(8, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
     }
 
     @Test
@@ -929,7 +929,7 @@ class LongTermDatabaseTest {
                     calibrationKey = calibration.dailySummaryCacheKey(),
                     zoneId = zoneId.id,
                     checkpointRevision = 0L,
-                    aggregationVersion = 7,
+                    aggregationVersion = 8,
                 ),
             )
 
@@ -1476,7 +1476,7 @@ class LongTermDatabaseTest {
         }
         assertEquals(listOf(openedAt), sessions.map { it.openedAtMillis })
         assertEquals(1_000L, sessions.single().innerActiveMillis)
-        assertEquals(7, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
+        assertEquals(8, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
         assertEquals(1, database.dailyPostureSummaryDao().loadAll().single().openedCount)
     }
 
@@ -1546,7 +1546,7 @@ class LongTermDatabaseTest {
                 calibrationKey = calibration.dailySummaryCacheKey(),
                 zoneId = zoneId.id,
                 checkpointRevision = 0L,
-                aggregationVersion = 7,
+                aggregationVersion = 8,
             ),
         )
 

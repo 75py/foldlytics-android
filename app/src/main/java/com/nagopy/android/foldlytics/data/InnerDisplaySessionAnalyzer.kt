@@ -22,6 +22,7 @@ class InnerDisplaySessionAnalyzer(
     private var screenInteractive = EvidenceState.UNKNOWN
     private var keyguardHidden = EvidenceState.UNKNOWN
     private var posture = DisplayPosture.UNKNOWN
+    private val configurationTracker = DisplayConfigurationTracker()
     private val activityTracker = ActivityVisibilityTracker()
     private var pendingSession: PendingSession? = null
     private val completedSessions = mutableListOf<InnerDisplaySession>()
@@ -154,7 +155,12 @@ class InnerDisplaySessionAnalyzer(
         sequenceAtTimestamp: Int,
     ) {
         val previousPosture = posture
-        val nextPosture = calibration.classify(configuration)
+        val resolvedConfiguration = if (isConfigurationEvent) {
+            configurationTracker.applyDelta(configuration)
+        } else {
+            configurationTracker.replaceBaseline(requireNotNull(configuration))
+        }
+        val nextPosture = calibration.classify(resolvedConfiguration)
         val confirmsClose = isConfigurationEvent &&
             previousPosture == DisplayPosture.INNER &&
             nextPosture == DisplayPosture.COVER
@@ -190,6 +196,7 @@ class InnerDisplaySessionAnalyzer(
         screenInteractive = EvidenceState.UNKNOWN
         keyguardHidden = EvidenceState.UNKNOWN
         posture = DisplayPosture.UNKNOWN
+        configurationTracker.reset()
         activityTracker.reset()
         pendingSession = null
     }
