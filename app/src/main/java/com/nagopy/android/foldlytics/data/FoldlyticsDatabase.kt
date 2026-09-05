@@ -14,6 +14,7 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Transaction
+import androidx.room.Update
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.nagopy.android.foldlytics.model.DailyAppUsageSummary
@@ -382,6 +383,18 @@ interface UsageEventDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertEvents(events: List<UsageEventEntity>): List<Long>
 
+    @Query(
+        """
+        SELECT * FROM usage_events
+        WHERE timestamp_millis IN (:timestamps)
+        ORDER BY timestamp_millis ASC, sequence_at_timestamp ASC, event_key ASC
+        """,
+    )
+    suspend fun loadEventsAtTimestamps(timestamps: List<Long>): List<UsageEventEntity>
+
+    @Update
+    suspend fun updateEvents(events: List<UsageEventEntity>): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertSyncState(state: UsageSyncStateEntity)
 
@@ -475,7 +488,37 @@ interface UsageEventDao {
         state: UsageSyncStateEntity,
         attempt: SyncHistoryEntity,
     ): Int {
-        val insertedCount = insertEvents(events).count { it != -1L }
+        val insertResults = insertEvents(events)
+        val insertedEvents = events.zip(insertResults)
+            .filter { (_, result) -> result != -1L }
+            .map { (event, _) -> event }
+        val insertedCount = insertedEvents.size
+        if (insertedEvents.isNotEmpty()) {
+            // A recovered occurrence must not keep a new query's compact sequence beside
+            // retained legacy rows whose sequence came from a differently filtered query.
+            val insertedKeys = insertedEvents.mapTo(mutableSetOf(), UsageEventEntity::eventKey)
+            val insertedTimestamps = insertedEvents
+                .map(UsageEventEntity::timestampMillis)
+                .distinct()
+            val storedAtAffectedTimestamps = insertedTimestamps
+                .chunked(EVENT_TIMESTAMP_QUERY_BATCH_SIZE)
+                .flatMap { timestamps -> loadEventsAtTimestamps(timestamps) }
+            val incomingByTimestamp = events.groupBy(UsageEventEntity::timestampMillis)
+            val reconciledEvents = storedAtAffectedTimestamps
+                .groupBy(UsageEventEntity::timestampMillis)
+                .flatMap { (timestampMillis, stored) ->
+                    val retained = stored.filterNot { it.eventKey in insertedKeys }
+                    if (retained.isEmpty()) {
+                        emptyList()
+                    } else {
+                        reconcileUsageEventOrder(
+                            retained = retained,
+                            incoming = incomingByTimestamp[timestampMillis].orEmpty(),
+                        )
+                    }
+                }
+            if (reconciledEvents.isNotEmpty()) updateEvents(reconciledEvents)
+        }
         upsertSyncState(state.copy(lastInsertedEventCount = insertedCount))
         insertSyncHistory(attempt.copy(insertedEventCount = insertedCount))
         return insertedCount
@@ -918,6 +961,62 @@ internal fun List<UsageRecord>.toEntities(): List<UsageEventEntity> {
     }
 }
 
+internal fun reconcileUsageEventOrder(
+    retained: List<UsageEventEntity>,
+    incoming: List<UsageEventEntity>,
+): List<UsageEventEntity> {
+    val timestamps = (retained.asSequence() + incoming.asSequence())
+        .map(UsageEventEntity::timestampMillis)
+        .distinct()
+        .take(2)
+        .toList()
+    require(timestamps.size <= 1) { "Event order can only be reconciled within one timestamp" }
+
+    val retainedOrder = retained
+        .sortedWith(USAGE_EVENT_ORDER)
+        .distinctBy(UsageEventEntity::eventKey)
+    val incomingOrder = incoming
+        .sortedWith(USAGE_EVENT_ORDER)
+        .distinctBy(UsageEventEntity::eventKey)
+    if (incomingOrder.isEmpty()) return retainedOrder
+
+    val incomingIndexByKey = incomingOrder.withIndex().associate { (index, event) ->
+        event.eventKey to index
+    }
+    val commonKeys = retainedOrder.mapNotNull { event ->
+        event.eventKey.takeIf(incomingIndexByKey::containsKey)
+    }
+    val commonOrderMatches = commonKeys.zipWithNext().all { (first, second) ->
+        requireNotNull(incomingIndexByKey[first]) < requireNotNull(incomingIndexByKey[second])
+    }
+    val merged = if (commonOrderMatches) {
+        // Shared identities anchor the merge. Rows absent from a partial reread keep their
+        // relative order, while the incoming order supplies recovered occurrences.
+        buildList {
+            var retainedIndex = 0
+            var incomingIndex = 0
+            commonKeys.forEach { commonKey ->
+                while (retainedOrder[retainedIndex].eventKey != commonKey) {
+                    add(retainedOrder[retainedIndex++])
+                }
+                while (incomingOrder[incomingIndex].eventKey != commonKey) {
+                    add(incomingOrder[incomingIndex++])
+                }
+                retainedIndex += 1
+                add(incomingOrder[incomingIndex++])
+            }
+            addAll(retainedOrder.subList(retainedIndex, retainedOrder.size))
+            addAll(incomingOrder.subList(incomingIndex, incomingOrder.size))
+        }
+    } else {
+        val incomingKeys = incomingIndexByKey.keys
+        incomingOrder + retainedOrder.filterNot { it.eventKey in incomingKeys }
+    }
+    return merged.mapIndexed { sequenceAtTimestamp, event ->
+        event.copy(sequenceAtTimestamp = sequenceAtTimestamp)
+    }
+}
+
 internal fun UsageRecord.toEntity(): UsageEventEntity = toEntity(eventKey = legacyEventKey())
 
 private fun UsageRecord.toEntity(eventKey: String): UsageEventEntity {
@@ -1137,3 +1236,8 @@ private fun stableKey(vararg fields: String?): String {
             (byte.toInt() and 0xff).toString(16).padStart(2, '0')
         }
 }
+
+private const val EVENT_TIMESTAMP_QUERY_BATCH_SIZE = 500
+
+private val USAGE_EVENT_ORDER = compareBy<UsageEventEntity> { it.sequenceAtTimestamp }
+    .thenBy(UsageEventEntity::eventKey)

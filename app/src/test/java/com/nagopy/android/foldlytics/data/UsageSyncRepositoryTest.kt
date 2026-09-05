@@ -249,6 +249,143 @@ class UsageSyncRepositoryTest {
     }
 
     @Test
+    fun legacyCollapsedDuplicateRecoveryReconcilesSequenceShiftsInEitherDirection() {
+        val cover = DisplayConfiguration(
+            screenWidthDp = 443,
+            screenHeightDp = 994,
+            smallestScreenWidthDp = 443,
+            orientation = 1,
+            densityDpi = 420,
+        )
+        val baseline = listOf(
+            record(
+                timestampMillis = 0L,
+                sequenceAtTimestamp = 0,
+                kind = UsageEventKind.CONFIGURATION_CHANGED,
+                rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                packageName = null,
+                className = null,
+                configuration = cover,
+            ),
+            record(
+                timestampMillis = 0L,
+                sequenceAtTimestamp = 1,
+                kind = UsageEventKind.SCREEN_INTERACTIVE,
+                rawEventType = UsageEvents.Event.SCREEN_INTERACTIVE,
+                packageName = null,
+                className = null,
+            ),
+            record(
+                timestampMillis = 0L,
+                sequenceAtTimestamp = 2,
+                kind = UsageEventKind.KEYGUARD_HIDDEN,
+                rawEventType = UsageEvents.Event.KEYGUARD_HIDDEN,
+                packageName = null,
+                className = null,
+            ),
+        )
+
+        listOf(100 to 0, 0 to 100).forEach { (legacyStart, rereadStart) ->
+            val legacyResume = record(
+                timestampMillis = 1_000L,
+                sequenceAtTimestamp = legacyStart,
+            )
+            val legacyPause = record(
+                timestampMillis = 1_000L,
+                sequenceAtTimestamp = legacyStart + 1,
+                kind = UsageEventKind.ACTIVITY_PAUSED,
+                rawEventType = UsageEvents.Event.ACTIVITY_PAUSED,
+            )
+            val reread = listOf(
+                legacyResume.copy(sequenceAtTimestamp = rereadStart),
+                legacyPause.copy(sequenceAtTimestamp = rereadStart + 1),
+                legacyResume.copy(sequenceAtTimestamp = rereadStart + 2),
+            )
+
+            val recovered = reconcileUsageEventOrder(
+                retained = listOf(legacyResume.toEntity(), legacyPause.toEntity()),
+                incoming = reread.toEntities(),
+            ).map(UsageEventEntity::toModel)
+            val analysis = UsageAnalyzer(packageLabel = { it }).analyze(
+                records = baseline + recovered,
+                rangeStartMillis = 0L,
+                rangeEndMillis = 2_000L,
+                calibration = Calibration(cover = cover),
+            )
+
+            assertEquals(
+                listOf(
+                    UsageEventKind.ACTIVITY_RESUMED,
+                    UsageEventKind.ACTIVITY_PAUSED,
+                    UsageEventKind.ACTIVITY_RESUMED,
+                ),
+                recovered.map(UsageRecord::kind),
+            )
+            assertEquals(listOf(0, 1, 2), recovered.map(UsageRecord::sequenceAtTimestamp))
+            assertEquals(1_000L, analysis.apps.single().coverMillis)
+        }
+    }
+
+    @Test
+    fun recoveryPreservesRowsMissingFromPartialRereadAroundSharedAnchors() {
+        val retainedBefore = record(
+            timestampMillis = 1_000L,
+            sequenceAtTimestamp = 98,
+            kind = UsageEventKind.SCREEN_INTERACTIVE,
+            rawEventType = UsageEvents.Event.SCREEN_INTERACTIVE,
+            packageName = null,
+            className = null,
+        )
+        val legacyResume = record(timestampMillis = 1_000L, sequenceAtTimestamp = 100)
+        val legacyPause = record(
+            timestampMillis = 1_000L,
+            sequenceAtTimestamp = 101,
+            kind = UsageEventKind.ACTIVITY_PAUSED,
+            rawEventType = UsageEvents.Event.ACTIVITY_PAUSED,
+        )
+        val retainedAfter = record(
+            timestampMillis = 1_000L,
+            sequenceAtTimestamp = 102,
+            kind = UsageEventKind.SCREEN_NON_INTERACTIVE,
+            rawEventType = UsageEvents.Event.SCREEN_NON_INTERACTIVE,
+            packageName = null,
+            className = null,
+        )
+        val incoming = listOf(
+            legacyResume.copy(sequenceAtTimestamp = 0),
+            legacyPause.copy(sequenceAtTimestamp = 1),
+            legacyResume.copy(sequenceAtTimestamp = 2),
+        ).toEntities()
+
+        val reconciled = reconcileUsageEventOrder(
+            retained = listOf(
+                retainedBefore.toEntity(),
+                legacyResume.toEntity(),
+                legacyPause.toEntity(),
+                retainedAfter.toEntity(),
+            ),
+            incoming = incoming,
+        )
+
+        assertEquals(
+            listOf(
+                UsageEventKind.SCREEN_INTERACTIVE,
+                UsageEventKind.ACTIVITY_RESUMED,
+                UsageEventKind.ACTIVITY_PAUSED,
+                UsageEventKind.SCREEN_NON_INTERACTIVE,
+                UsageEventKind.ACTIVITY_RESUMED,
+            ),
+            reconciled.map(UsageEventEntity::toModel).map(UsageRecord::kind),
+        )
+        assertEquals((0..4).toList(), reconciled.map(UsageEventEntity::sequenceAtTimestamp))
+        assertTrue(
+            reconciled.map(UsageEventEntity::eventKey).containsAll(
+                listOf(retainedBefore.toEntity().eventKey, retainedAfter.toEntity().eventKey),
+            ),
+        )
+    }
+
+    @Test
     fun overlappingSyncPreservesSameMillisecondResumePauseResumeForAnalysis() = runBlocking {
         val cover = DisplayConfiguration(
             screenWidthDp = 443,
