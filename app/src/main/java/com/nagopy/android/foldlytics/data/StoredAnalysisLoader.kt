@@ -129,119 +129,121 @@ class StoredAnalysisLoader(
             window.rangeEndMillis,
         )
         val collectionGaps = detectCollectionGaps(allSyncAttempts)
-        val dailySummaries = dailySummaryRepository.ensureUpToDate(
+        return dailySummaryRepository.withUpToDateSnapshot(
             calibration = request.calibration,
             syncedThroughMillis = syncState.lastSuccessfulEndMillis,
             syncQueryBeginMillis = syncState.lastQueryBeginMillis,
             checkpointRevision = request.checkpointRevision,
             zoneId = zoneId,
             collectionGapStarts = collectionGaps.map(CollectionGap::startMillis),
-        )
-        val recordRangeStartMillis = dailySummaries
-            .minOfOrNull(DailyPostureSummary::dayStartMillis)
-        val recordRangeEndMillis = syncState.lastSuccessfulEndMillis.takeIf {
-            recordRangeStartMillis != null && it > recordRangeStartMillis
-        }
-        val availablePeriods = availableAnalysisPeriods(
-            recordRangeStartMillis = recordRangeStartMillis,
-            recordRangeEndMillis = recordRangeEndMillis,
-            zoneId = zoneId,
-        )
-        val validCustomRange = request.customRange?.takeIf { range ->
-            recordRangeStartMillis != null &&
-                recordRangeEndMillis != null &&
-                isValidCustomAnalysisRange(
-                    range = range,
-                    recordRangeStartMillis = recordRangeStartMillis,
-                    recordRangeEndMillis = recordRangeEndMillis,
-                    zoneId = zoneId,
-                )
-        }
-        val effectivePeriod = request.period.takeIf { period ->
-            period in availablePeriods &&
-                (period != AnalysisPeriod.CUSTOM || validCustomRange != null)
-        } ?: AnalysisPeriod.HOURS_24
-        val diagnosticAnalysis = analyzer.analyze(
-            records = records,
-            rangeStartMillis = window.rangeStartMillis,
-            rangeEndMillis = window.rangeEndMillis,
-            calibration = request.calibration,
-            checkpoints = checkpoints,
-            zoneId = zoneId,
-            collectionGapStarts = collectionGaps.map(CollectionGap::startMillis),
-            deviceStateCheckpoints = deviceStateCheckpoints,
-        )
-        val longTermInsights = if (effectivePeriod == AnalysisPeriod.CUSTOM) {
-            val range = requireNotNull(validCustomRange)
-            longTermAnalyzer.analyzeRange(
-                summaries = dailySummaries,
-                rangeStartMillis = range.startMillis,
-                rangeEndMillis = minOf(range.endMillis, syncState.lastSuccessfulEndMillis),
-                recordingEndMillis = syncState.lastSuccessfulEndMillis,
+        ) {
+            val summaries = dailySummaries
+            val recordRangeStartMillis = summaries
+                .minOfOrNull(DailyPostureSummary::dayStartMillis)
+            val recordRangeEndMillis = syncState.lastSuccessfulEndMillis.takeIf {
+                recordRangeStartMillis != null && it > recordRangeStartMillis
+            }
+            val availablePeriods = availableAnalysisPeriods(
+                recordRangeStartMillis = recordRangeStartMillis,
+                recordRangeEndMillis = recordRangeEndMillis,
                 zoneId = zoneId,
             )
-        } else {
-            effectivePeriod.longTermPeriod?.let { period ->
-                longTermAnalyzer.analyze(
-                    summaries = dailySummaries,
-                    period = period,
-                    rangeEndMillis = syncState.lastSuccessfulEndMillis,
+            val validCustomRange = request.customRange?.takeIf { range ->
+                recordRangeStartMillis != null &&
+                    recordRangeEndMillis != null &&
+                    isValidCustomAnalysisRange(
+                        range = range,
+                        recordRangeStartMillis = recordRangeStartMillis,
+                        recordRangeEndMillis = recordRangeEndMillis,
+                        zoneId = zoneId,
+                    )
+            }
+            val effectivePeriod = request.period.takeIf { period ->
+                period in availablePeriods &&
+                    (period != AnalysisPeriod.CUSTOM || validCustomRange != null)
+            } ?: AnalysisPeriod.HOURS_24
+            val diagnosticAnalysis = analyzer.analyze(
+                records = records,
+                rangeStartMillis = window.rangeStartMillis,
+                rangeEndMillis = window.rangeEndMillis,
+                calibration = request.calibration,
+                checkpoints = checkpoints,
+                zoneId = zoneId,
+                collectionGapStarts = collectionGaps.map(CollectionGap::startMillis),
+                deviceStateCheckpoints = deviceStateCheckpoints,
+            )
+            val longTermInsights = if (effectivePeriod == AnalysisPeriod.CUSTOM) {
+                val range = requireNotNull(validCustomRange)
+                longTermAnalyzer.analyzeRange(
+                    summaries = summaries,
+                    rangeStartMillis = range.startMillis,
+                    rangeEndMillis = minOf(range.endMillis, syncState.lastSuccessfulEndMillis),
+                    recordingEndMillis = syncState.lastSuccessfulEndMillis,
                     zoneId = zoneId,
                 )
+            } else {
+                effectivePeriod.longTermPeriod?.let { period ->
+                    longTermAnalyzer.analyze(
+                        summaries = summaries,
+                        period = period,
+                        rangeEndMillis = syncState.lastSuccessfulEndMillis,
+                        zoneId = zoneId,
+                    )
+                }
             }
-        }
-        val periodSummary = if (longTermInsights == null) {
-            diagnosticAnalysis.toPeriodSummary(effectivePeriod)
-        } else {
-            val apps = dailySummaryRepository.loadAggregatedAppUsage(
-                beginMillis = longTermInsights.rangeStartMillis,
-                endMillis = longTermInsights.rangeEndMillis,
-            ).map { stored ->
-                AppUsage(
-                    packageName = stored.packageName,
-                    label = packageLabel(stored.packageName),
-                    coverMillis = stored.coverMillis,
-                    innerMillis = stored.innerMillis,
-                    excludedMillis = stored.excludedMillis,
-                    isLauncherApp = isLauncherApp(stored.packageName),
+            val periodSummary = if (longTermInsights == null) {
+                diagnosticAnalysis.toPeriodSummary(effectivePeriod)
+            } else {
+                val apps = loadAggregatedAppUsage(
+                    beginMillis = longTermInsights.rangeStartMillis,
+                    endMillis = longTermInsights.rangeEndMillis,
+                ).map { stored ->
+                    AppUsage(
+                        packageName = stored.packageName,
+                        label = packageLabel(stored.packageName),
+                        coverMillis = stored.coverMillis,
+                        innerMillis = stored.innerMillis,
+                        excludedMillis = stored.excludedMillis,
+                        isLauncherApp = isLauncherApp(stored.packageName),
+                    )
+                }.sortedWith(
+                    compareByDescending<AppUsage> { it.classifiedMillis }
+                        .thenByDescending { it.observedMillis },
                 )
-            }.sortedWith(
-                compareByDescending<AppUsage> { it.classifiedMillis }
-                    .thenByDescending { it.observedMillis },
+                longTermInsights.toPeriodSummary(effectivePeriod, apps)
+            }
+            val selectedRangeStart = longTermInsights?.rangeStartMillis ?: window.rangeStartMillis
+            val selectedRangeEnd =
+                longTermInsights?.rangeEndMillis ?: syncState.lastSuccessfulEndMillis
+            val innerSessionSummary = innerSessionSummarizer.summarize(
+                sessions = loadCompleteInnerSessions(
+                    beginMillis = selectedRangeStart,
+                    endMillis = selectedRangeEnd,
+                ),
+                rangeStartMillis = selectedRangeStart,
+                rangeEndMillis = selectedRangeEnd,
+                detectedOpenCount = periodSummary.openedCount,
             )
-            longTermInsights.toPeriodSummary(effectivePeriod, apps)
+            val periodSyncAttempts = collectionHealthAttemptsForRange(
+                attempts = allSyncAttempts,
+                rangeStartMillis = selectedRangeStart,
+                rangeEndMillis = selectedRangeEnd,
+                currentMillis = currentMillis,
+                isCustomRange = effectivePeriod == AnalysisPeriod.CUSTOM,
+            )
+            StoredAnalysisSnapshot(
+                selectedPeriod = effectivePeriod,
+                availablePeriods = availablePeriods,
+                recordRangeStartMillis = recordRangeStartMillis,
+                recordRangeEndMillis = recordRangeEndMillis,
+                customRange = validCustomRange,
+                analysis = diagnosticAnalysis,
+                periodSummary = periodSummary,
+                innerSessionSummary = innerSessionSummary,
+                longTermInsights = longTermInsights,
+                collectionHealth = longTermAnalyzer.collectionHealth(periodSyncAttempts),
+            )
         }
-        val selectedRangeStart = longTermInsights?.rangeStartMillis ?: window.rangeStartMillis
-        val selectedRangeEnd =
-            longTermInsights?.rangeEndMillis ?: syncState.lastSuccessfulEndMillis
-        val innerSessionSummary = innerSessionSummarizer.summarize(
-            sessions = dailySummaryRepository.loadCompleteInnerSessions(
-                beginMillis = selectedRangeStart,
-                endMillis = selectedRangeEnd,
-            ),
-            rangeStartMillis = selectedRangeStart,
-            rangeEndMillis = selectedRangeEnd,
-            detectedOpenCount = periodSummary.openedCount,
-        )
-        val periodSyncAttempts = collectionHealthAttemptsForRange(
-            attempts = allSyncAttempts,
-            rangeStartMillis = selectedRangeStart,
-            rangeEndMillis = selectedRangeEnd,
-            currentMillis = currentMillis,
-            isCustomRange = effectivePeriod == AnalysisPeriod.CUSTOM,
-        )
-        return StoredAnalysisSnapshot(
-            selectedPeriod = effectivePeriod,
-            availablePeriods = availablePeriods,
-            recordRangeStartMillis = recordRangeStartMillis,
-            recordRangeEndMillis = recordRangeEndMillis,
-            customRange = validCustomRange,
-            analysis = diagnosticAnalysis,
-            periodSummary = periodSummary,
-            innerSessionSummary = innerSessionSummary,
-            longTermInsights = longTermInsights,
-            collectionHealth = longTermAnalyzer.collectionHealth(periodSyncAttempts),
-        )
     }
 
     private fun UsageAnalysis.toPeriodSummary(period: AnalysisPeriod): PeriodUsageSummary =

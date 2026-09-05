@@ -13,7 +13,11 @@ import java.io.Writer
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -270,6 +274,205 @@ class StoredAnalysisRoomTest {
         assertFalse(database.dailyPostureSummaryDao().loadAll().any())
     }
 
+    /**
+     * The screen holds its daily totals in memory but reads the app and session breakdown from
+     * tables a rebuild replaces wholesale. This parks the screen between the two - inside the read
+     * window, at the first package label the diagnostic analysis asks for - and lets a CSV export
+     * for the other calibration run there. Every value the screen returns has to come from its own
+     * calibration, and the export still has to write its own.
+     */
+    @Test(timeout = CONCURRENCY_TEST_TIMEOUT_MILLIS)
+    fun screenSnapshotStaysConsistentWhileAnExportRebuildsForAnotherCalibration() = runBlocking {
+        persistRecordedHistory()
+        // One repository, the way the application scope shares it between the screen and the export.
+        val shared = repository()
+
+        val screenInsideWindow = CountDownLatch(1)
+        val releaseScreen = CountDownLatch(1)
+        val parked = AtomicBoolean(false)
+        val screenLoader = loader(dailySummaryRepository = shared) { packageName ->
+            if (parked.compareAndSet(false, true)) {
+                screenInsideWindow.countDown()
+                releaseScreen.await()
+            }
+            packageName
+        }
+
+        val screen = async(Dispatchers.IO) {
+            screenLoader.load(request(AnalysisPeriod.DAYS_7), zoneId)
+        }
+        // The screen now holds its daily rows and has not read the detail tables yet.
+        screenInsideWindow.await()
+
+        val exportReached = CountDownLatch(1)
+        val export = async(Dispatchers.IO) {
+            val output = StringWriter()
+            LongTermCsvExporter {
+                exportReached.countDown()
+                loader(dailySummaryRepository = shared)
+                    .loadSavedDailyHistory(swappedCalibration, zoneId)
+            }.export { output.asNonClosing() }
+            output.toString()
+        }
+        // The competing export is running and heading for its own rebuild.
+        exportReached.await()
+        releaseScreen.countDown()
+
+        val snapshot = screen.await()
+        val csvRows = export.await()
+            .lineSequence()
+            .filter(String::isNotEmpty)
+            .drop(1)
+            .map(::parseCsvRow)
+            .toList()
+
+        val insights = requireNotNull(snapshot.longTermInsights)
+        assertEquals(coverMillisPerDay * 7, insights.coverMillis)
+        assertEquals(innerMillisPerDay * 7, insights.innerMillis)
+        val summary = requireNotNull(snapshot.periodSummary)
+        assertEquals(coverMillisPerDay * 7, summary.coverMillis)
+        assertEquals(innerMillisPerDay * 7, summary.innerMillis)
+        // The app breakdown has to match those totals, not the export's swapped anchors.
+        assertEquals(
+            mapOf(
+                COVER_APP to (coverMillisPerDay * 7 to 0L),
+                INNER_APP to (0L to innerMillisPerDay * 7),
+            ),
+            summary.apps.associate { it.packageName to (it.coverMillis to it.innerMillis) },
+        )
+        val sessions = requireNotNull(snapshot.innerSessionSummary)
+        assertEquals(7, sessions.completeSessionCount)
+        assertEquals(innerMillisPerDay, sessions.medianInnerActiveMillis)
+
+        // The export wrote its own calibration throughout, with cover and inner the other way round.
+        assertEquals(recordedDayCount.toInt(), csvRows.size)
+        csvRows.forEach { row ->
+            assertEquals(innerMillisPerDay, row.coverMillis)
+            assertEquals(coverMillisPerDay, row.innerMillis)
+        }
+    }
+
+    /**
+     * The same split across two loaders sharing the application repository, which is what a second
+     * view model after an activity recreation looks like.
+     */
+    @Test(timeout = CONCURRENCY_TEST_TIMEOUT_MILLIS)
+    fun screenSnapshotStaysConsistentWhileASecondLoaderRebuildsForAnotherCalibration() =
+        runBlocking {
+            persistRecordedHistory()
+            val shared = repository()
+
+            val screenInsideWindow = CountDownLatch(1)
+            val releaseScreen = CountDownLatch(1)
+            val parked = AtomicBoolean(false)
+            val screenLoader = loader(dailySummaryRepository = shared) { packageName ->
+                if (parked.compareAndSet(false, true)) {
+                    screenInsideWindow.countDown()
+                    releaseScreen.await()
+                }
+                packageName
+            }
+
+            val screen = async(Dispatchers.IO) {
+                screenLoader.load(request(AnalysisPeriod.DAYS_7), zoneId)
+            }
+            screenInsideWindow.await()
+
+            val secondReached = CountDownLatch(1)
+            val second = async(Dispatchers.IO) {
+                secondReached.countDown()
+                loader(dailySummaryRepository = shared)
+                    .load(request(AnalysisPeriod.DAYS_7, swappedCalibration), zoneId)
+            }
+            secondReached.await()
+            releaseScreen.countDown()
+
+            val first = screen.await()
+            val other = second.await()
+
+            assertConsistentWith(calibration, first)
+            assertConsistentWith(swappedCalibration, other)
+        }
+
+    /**
+     * Pins the hazard the scoped read closes. Capturing the daily rows and then reading the detail
+     * tables as a separate call - what a loader does when the two are separate repository calls -
+     * lets a rebuild for another calibration land in between, and the two halves then disagree.
+     * The repository no longer exposes the detail reads outside a scope, so this sequence is only
+     * reachable through the DAO, and it is spelled out here so the reason cannot be refactored away
+     * by accident.
+     */
+    @Test
+    fun detailReadsTakenOutsideAScopeCanDisagreeWithAlreadyCapturedDailyRows() = runBlocking {
+        persistRecordedHistory()
+        val shared = repository()
+
+        val capturedDailyRows = shared.ensureUpToDate(
+            calibration = calibration,
+            syncedThroughMillis = syncedThroughMillis,
+            syncQueryBeginMillis = 0L,
+            checkpointRevision = 0L,
+            zoneId = zoneId,
+            collectionGapStarts = emptyList(),
+        )
+        // A CSV export for the calibration the user just replaced rewrites every aggregate table.
+        shared.ensureUpToDate(
+            calibration = swappedCalibration,
+            syncedThroughMillis = syncedThroughMillis,
+            syncQueryBeginMillis = 0L,
+            checkpointRevision = 0L,
+            zoneId = zoneId,
+            collectionGapStarts = emptyList(),
+        )
+        val detailReadAfterwards = database.dailyPostureSummaryDao()
+            .loadAggregatedAppUsage(dayStart(0), syncedThroughMillis)
+
+        // The captured rows still describe the first calibration.
+        assertEquals(
+            coverMillisPerDay * recordedDayCount,
+            capturedDailyRows.sumOf { it.coverMillis },
+        )
+        // The detail tables now describe the second one, so pairing them would split the snapshot.
+        assertEquals(
+            0L,
+            detailReadAfterwards.single { it.packageName == COVER_APP }.coverMillis,
+        )
+        assertEquals(
+            coverMillisPerDay * recordedDayCount,
+            detailReadAfterwards.single { it.packageName == COVER_APP }.innerMillis,
+        )
+    }
+
+    /**
+     * Asserts a snapshot's daily totals and its app breakdown both come from [expected]. Swapping
+     * the anchors moves every millisecond to the other posture and every app to the other column,
+     * so pairing one calibration's totals with the other's breakdown cannot pass here.
+     */
+    private fun assertConsistentWith(
+        expected: Calibration,
+        snapshot: StoredAnalysisSnapshot,
+    ) {
+        val useSwapped = expected == swappedCalibration
+        val coverPerDay = if (useSwapped) innerMillisPerDay else coverMillisPerDay
+        val innerPerDay = if (useSwapped) coverMillisPerDay else innerMillisPerDay
+        val coverApp = if (useSwapped) INNER_APP else COVER_APP
+        val innerApp = if (useSwapped) COVER_APP else INNER_APP
+
+        val insights = requireNotNull(snapshot.longTermInsights)
+        assertEquals(coverPerDay * 7, insights.coverMillis)
+        assertEquals(innerPerDay * 7, insights.innerMillis)
+        val summary = requireNotNull(snapshot.periodSummary)
+        assertEquals(coverPerDay * 7, summary.coverMillis)
+        assertEquals(innerPerDay * 7, summary.innerMillis)
+        assertEquals(
+            mapOf(
+                coverApp to (coverPerDay * 7 to 0L),
+                innerApp to (0L to innerPerDay * 7),
+            ),
+            summary.apps.associate { it.packageName to (it.coverMillis to it.innerMillis) },
+        )
+    }
+
     private suspend fun persistRecordedHistory() {
         (0 until recordedDayCount).forEach { day ->
             database.usageEventDao().insertEvents(eventsForDay(dayStart(day)))
@@ -411,7 +614,10 @@ class StoredAnalysisRoomTest {
         .toInstant()
         .toEpochMilli()
 
-    private fun request(period: AnalysisPeriod) = StoredAnalysisRequest(
+    private fun request(
+        period: AnalysisPeriod,
+        calibration: Calibration = this.calibration,
+    ) = StoredAnalysisRequest(
         period = period,
         customRange = null,
         calibration = calibration,
@@ -424,20 +630,25 @@ class StoredAnalysisRoomTest {
         checkpointRevision = 0L,
     )
 
-    private fun loader() = StoredAnalysisLoader(
+    private fun loader(
+        dailySummaryRepository: DailySummaryRepository = repository(),
+        packageLabel: (String) -> String = { it },
+    ) = StoredAnalysisLoader(
         syncRepository = UsageSyncRepository(
             eventSource = OfflineEventSource,
             eventStore = RoomUsageEventStore(database.usageEventDao()),
         ),
         checkpointRepository = PostureCheckpointRepository(database.postureCheckpointDao()),
-        dailySummaryRepository = DailySummaryRepository(
-            usageEventDao = database.usageEventDao(),
-            checkpointDao = database.postureCheckpointDao(),
-            summaryDao = database.dailyPostureSummaryDao(),
-        ),
-        packageLabel = { it },
+        dailySummaryRepository = dailySummaryRepository,
+        packageLabel = packageLabel,
         isLauncherApp = { false },
         currentTimeMillis = { syncedThroughMillis },
+    )
+
+    private fun repository() = DailySummaryRepository(
+        usageEventDao = database.usageEventDao(),
+        checkpointDao = database.postureCheckpointDao(),
+        summaryDao = database.dailyPostureSummaryDao(),
     )
 
     private suspend fun exportRows(
@@ -508,5 +719,8 @@ class StoredAnalysisRoomTest {
     private companion object {
         const val COVER_APP = "app.cover"
         const val INNER_APP = "app.inner"
+
+        /** Fails a wedged interleaving instead of hanging the run; never reached when passing. */
+        const val CONCURRENCY_TEST_TIMEOUT_MILLIS = 120_000L
     }
 }

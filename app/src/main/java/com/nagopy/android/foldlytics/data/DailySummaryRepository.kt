@@ -19,27 +19,26 @@ class DailySummaryRepository(
     private val analyzer = UsageAnalyzer { packageName -> packageName }
     private val aggregationMutex = Mutex()
 
-    suspend fun loadAggregatedAppUsage(
-        beginMillis: Long,
-        endMillis: Long,
-    ): List<AggregatedAppUsage> =
-        summaryDao.loadAggregatedAppUsage(beginMillis, endMillis)
-
-    suspend fun loadCompleteInnerSessions(
-        beginMillis: Long,
-        endMillis: Long,
-    ): List<InnerDisplaySession> {
-        val sessions = summaryDao.loadCompleteInnerSessions(beginMillis, endMillis)
-        if (sessions.isEmpty()) return emptyList()
-        val appUsages = summaryDao.loadCompleteInnerSessionAppUsages(beginMillis, endMillis)
-            .groupBy { it.openedAtMillis to it.openedSequenceAtTimestamp }
-        return sessions.map { session ->
-            session.toModel(
-                appUsages = appUsages[
-                    session.openedAtMillis to session.openedSequenceAtTimestamp
-                ].orEmpty(),
-            )
-        }
+    suspend fun <T> withUpToDateSnapshot(
+        calibration: Calibration,
+        syncedThroughMillis: Long,
+        syncQueryBeginMillis: Long,
+        checkpointRevision: Long,
+        zoneId: ZoneId,
+        collectionGapStarts: List<Long>,
+        read: suspend DailySummarySnapshot.() -> T,
+    ): T = aggregationMutex.withLock {
+        DailySummarySnapshot(
+            dailySummaries = ensureUpToDateLocked(
+                calibration = calibration,
+                syncedThroughMillis = syncedThroughMillis,
+                syncQueryBeginMillis = syncQueryBeginMillis,
+                checkpointRevision = checkpointRevision,
+                zoneId = zoneId,
+                collectionGapStarts = collectionGapStarts,
+            ),
+            summaryDao = summaryDao,
+        ).read()
     }
 
     suspend fun ensureUpToDate(
@@ -49,7 +48,25 @@ class DailySummaryRepository(
         checkpointRevision: Long,
         zoneId: ZoneId,
         collectionGapStarts: List<Long>,
-    ): List<DailyPostureSummary> = aggregationMutex.withLock {
+    ): List<DailyPostureSummary> = withUpToDateSnapshot(
+        calibration = calibration,
+        syncedThroughMillis = syncedThroughMillis,
+        syncQueryBeginMillis = syncQueryBeginMillis,
+        checkpointRevision = checkpointRevision,
+        zoneId = zoneId,
+        collectionGapStarts = collectionGapStarts,
+    ) {
+        dailySummaries
+    }
+
+    private suspend fun ensureUpToDateLocked(
+        calibration: Calibration,
+        syncedThroughMillis: Long,
+        syncQueryBeginMillis: Long,
+        checkpointRevision: Long,
+        zoneId: ZoneId,
+        collectionGapStarts: List<Long>,
+    ): List<DailyPostureSummary> {
         val rangeEnd = syncedThroughMillis.coerceAtLeast(0L)
         val calibrationKey = calibration.dailySummaryCacheKey()
         val existingState = summaryDao.loadState()
@@ -66,7 +83,7 @@ class DailySummaryRepository(
             existingState.checkpointRevision == checkpointRevision &&
             existingState.lastAggregatedSyncHistoryId == latestSyncHistoryId
         ) {
-            return@withLock summaryDao.loadAll().map(DailyPostureSummaryEntity::toModel)
+            return summaryDao.loadAll().map(DailyPostureSummaryEntity::toModel)
         }
 
         val fullRebuild = existingState == null ||
@@ -140,7 +157,7 @@ class DailySummaryRepository(
             } else {
                 summaryDao.upsertState(state)
             }
-            return@withLock summaryDao.loadAll().map(DailyPostureSummaryEntity::toModel)
+            return summaryDao.loadAll().map(DailyPostureSummaryEntity::toModel)
         }
 
         val rebuilt = analyzeInChunks(
@@ -168,7 +185,7 @@ class DailySummaryRepository(
                 state = state,
             )
         }
-        summaryDao.loadAll().map(DailyPostureSummaryEntity::toModel)
+        return summaryDao.loadAll().map(DailyPostureSummaryEntity::toModel)
     }
 
     private suspend fun analyzeInChunks(
@@ -273,6 +290,34 @@ class DailySummaryRepository(
         val innerSessions: List<InnerDisplaySession> = emptyList(),
         val innerSessionAppUsages: List<InnerDisplaySessionAppUsageEntity> = emptyList(),
     )
+}
+
+class DailySummarySnapshot internal constructor(
+    val dailySummaries: List<DailyPostureSummary>,
+    private val summaryDao: DailyPostureSummaryDao,
+) {
+    suspend fun loadAggregatedAppUsage(
+        beginMillis: Long,
+        endMillis: Long,
+    ): List<AggregatedAppUsage> =
+        summaryDao.loadAggregatedAppUsage(beginMillis, endMillis)
+
+    suspend fun loadCompleteInnerSessions(
+        beginMillis: Long,
+        endMillis: Long,
+    ): List<InnerDisplaySession> {
+        val sessions = summaryDao.loadCompleteInnerSessions(beginMillis, endMillis)
+        if (sessions.isEmpty()) return emptyList()
+        val appUsages = summaryDao.loadCompleteInnerSessionAppUsages(beginMillis, endMillis)
+            .groupBy { it.openedAtMillis to it.openedSequenceAtTimestamp }
+        return sessions.map { session ->
+            session.toModel(
+                appUsages = appUsages[
+                    session.openedAtMillis to session.openedSequenceAtTimestamp
+                ].orEmpty(),
+            )
+        }
+    }
 }
 
 internal fun Calibration.dailySummaryCacheKey(): String =

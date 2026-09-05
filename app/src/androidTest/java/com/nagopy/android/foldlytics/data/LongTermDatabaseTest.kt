@@ -129,18 +129,19 @@ class LongTermDatabaseTest {
             zoneId = zoneId,
         )
         val summaryRepository = repository()
-        summaryRepository.ensureUpToDate(
+        val sessions = summaryRepository.withUpToDateSnapshot(
             calibration = Calibration(cover = configuration, inner = innerConfiguration),
             syncedThroughMillis = window.rangeEndMillis,
             syncQueryBeginMillis = window.seedStartMillis,
             checkpointRevision = 0L,
             zoneId = zoneId,
             collectionGapStarts = emptyList(),
-        )
-        val sessions = summaryRepository.loadCompleteInnerSessions(
-            window.rangeStartMillis,
-            window.rangeEndMillis,
-        )
+        ) {
+            loadCompleteInnerSessions(
+                window.rangeStartMillis,
+                window.rangeEndMillis,
+            )
+        }
 
         assertEquals(1, analysis.openedCount)
         assertEquals(1, sessions.size)
@@ -200,7 +201,7 @@ class LongTermDatabaseTest {
             state = state,
         )
 
-        val afterIncremental = repository().loadCompleteInnerSessions(0L, 10_000L)
+        val afterIncremental = loadCompleteInnerSessions(0L, 10_000L)
         assertEquals(listOf(1_000L, 5_000L), afterIncremental.map { it.openedAtMillis })
         assertEquals(mapOf("app.one" to 100L), afterIncremental[0].appUsageMillis)
         assertEquals(mapOf("app.three" to 300L), afterIncremental[1].appUsageMillis)
@@ -212,7 +213,7 @@ class LongTermDatabaseTest {
             innerSessionAppUsages = listOf(appUsage(1_000L, "app.final", 100L)),
             state = state,
         )
-        val afterFull = repository().loadCompleteInnerSessions(0L, 10_000L)
+        val afterFull = loadCompleteInnerSessions(0L, 10_000L)
         assertEquals(listOf(1_000L), afterFull.map { it.openedAtMillis })
         assertEquals(mapOf("app.final" to 100L), afterFull.single().appUsageMillis)
     }
@@ -828,15 +829,16 @@ class LongTermDatabaseTest {
             summaryDao = database.dailyPostureSummaryDao(),
         )
 
-        repository.ensureUpToDate(
+        val appUsage = repository.withUpToDateSnapshot(
             calibration = Calibration(cover = configuration),
             syncedThroughMillis = end,
             syncQueryBeginMillis = start,
             checkpointRevision = 0L,
             zoneId = zoneId,
             collectionGapStarts = emptyList(),
-        )
-        val appUsage = repository.loadAggregatedAppUsage(start, end).single()
+        ) {
+            loadAggregatedAppUsage(start, end).single()
+        }
 
         assertEquals("app.example", appUsage.packageName)
         assertEquals(end - start, appUsage.coverMillis)
@@ -1096,15 +1098,19 @@ class LongTermDatabaseTest {
             ),
         )
 
-        val summaries = repository().ensureUpToDate(
+        val repository = repository()
+        val aggregation = repository.withUpToDateSnapshot(
             calibration = Calibration(cover = configuration),
             syncedThroughMillis = end,
             syncQueryBeginMillis = start,
             checkpointRevision = 0L,
             zoneId = zoneId,
             collectionGapStarts = emptyList(),
-        )
-        val appUsage = repository().loadAggregatedAppUsage(start, end).single()
+        ) {
+            dailySummaries to loadAggregatedAppUsage(start, end).single()
+        }
+        val summaries = aggregation.first
+        val appUsage = aggregation.second
 
         assertEquals(2, summaries.size)
         assertEquals(
@@ -1253,16 +1259,16 @@ class LongTermDatabaseTest {
         )
         val repository = repository()
 
-        repository.ensureUpToDate(
+        val session = repository.withUpToDateSnapshot(
             calibration = Calibration(cover = configuration, inner = innerConfiguration),
             syncedThroughMillis = end,
             syncQueryBeginMillis = start,
             checkpointRevision = 0L,
             zoneId = zoneId,
             collectionGapStarts = emptyList(),
-        )
-
-        val session = repository.loadCompleteInnerSessions(start, end).single()
+        ) {
+            loadCompleteInnerSessions(start, end).single()
+        }
         assertEquals(chunkBoundary - 1_000L, session.openedAtMillis)
         assertEquals(chunkBoundary + 1_000L, session.closedAtMillis)
         assertEquals(2_000L, session.innerActiveMillis)
@@ -1329,15 +1335,17 @@ class LongTermDatabaseTest {
         val repository = repository()
         val calibration = Calibration(cover = configuration, inner = innerConfiguration)
 
-        repository.ensureUpToDate(
+        val initialSessions = repository.withUpToDateSnapshot(
             calibration = calibration,
             syncedThroughMillis = initialEnd,
             syncQueryBeginMillis = start,
             checkpointRevision = 0L,
             zoneId = zoneId,
             collectionGapStarts = emptyList(),
-        )
-        assertEquals(emptyList<Any>(), repository.loadCompleteInnerSessions(start, initialEnd))
+        ) {
+            loadCompleteInnerSessions(start, initialEnd)
+        }
+        assertEquals(emptyList<Any>(), initialSessions)
         database.openHelper.readableDatabase.query(
             "SELECT package_name, inner_active_millis FROM inner_display_session_app_usage",
         ).use { cursor ->
@@ -1347,16 +1355,16 @@ class LongTermDatabaseTest {
             assertFalse(cursor.moveToNext())
         }
 
-        repository.ensureUpToDate(
+        val session = repository.withUpToDateSnapshot(
             calibration = calibration,
             syncedThroughMillis = extendedEnd,
             syncQueryBeginMillis = initialEnd - TimeUnit.HOURS.toMillis(1L),
             checkpointRevision = 0L,
             zoneId = zoneId,
             collectionGapStarts = emptyList(),
-        )
-
-        val session = repository.loadCompleteInnerSessions(start, extendedEnd).single()
+        ) {
+            loadCompleteInnerSessions(start, extendedEnd).single()
+        }
         assertEquals(openedAt, session.openedAtMillis)
         assertEquals(closedAt, session.closedAtMillis)
         assertEquals(closedAt - openedAt, session.innerActiveMillis)
@@ -1452,16 +1460,17 @@ class LongTermDatabaseTest {
             ),
         )
 
-        repository().ensureUpToDate(
+        val repository = repository()
+        val sessions = repository.withUpToDateSnapshot(
             calibration = calibration,
             syncedThroughMillis = end,
             syncQueryBeginMillis = start,
             checkpointRevision = 0L,
             zoneId = zoneId,
             collectionGapStarts = emptyList(),
-        )
-
-        val sessions = repository().loadCompleteInnerSessions(start, end)
+        ) {
+            loadCompleteInnerSessions(start, end)
+        }
         assertEquals(listOf(openedAt), sessions.map { it.openedAtMillis })
         assertEquals(1_000L, sessions.single().innerActiveMillis)
         assertEquals(7, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
@@ -1665,5 +1674,21 @@ class LongTermDatabaseTest {
         checkpointDao = database.postureCheckpointDao(),
         summaryDao = database.dailyPostureSummaryDao(),
     )
+
+    private suspend fun loadCompleteInnerSessions(
+        beginMillis: Long,
+        endMillis: Long,
+    ) = database.dailyPostureSummaryDao().let { summaryDao ->
+        val sessions = summaryDao.loadCompleteInnerSessions(beginMillis, endMillis)
+        val appUsages = summaryDao.loadCompleteInnerSessionAppUsages(beginMillis, endMillis)
+            .groupBy { it.openedAtMillis to it.openedSequenceAtTimestamp }
+        sessions.map { session ->
+            session.toModel(
+                appUsages = appUsages[
+                    session.openedAtMillis to session.openedSequenceAtTimestamp
+                ].orEmpty(),
+            )
+        }
+    }
 
 }
