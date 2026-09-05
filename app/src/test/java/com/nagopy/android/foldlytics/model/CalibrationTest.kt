@@ -151,6 +151,18 @@ class CalibrationTest {
         assertEquals(DisplayPosture.INNER, calibration.classify(inner))
     }
 
+    @Test
+    fun allowsUsableFullScreenConfigurationAsPostureEvidence() {
+        assertTrue(cover.canBePostureEvidence(isInMultiWindowMode = false))
+    }
+
+    @Test
+    fun rejectsUsableMultiWindowConfigurationAsPostureEvidence() {
+        val innerSplitScreenWindow = configuration(width = 380, height = 900, smallest = 380)
+
+        assertFalse(innerSplitScreenWindow.canBePostureEvidence(isInMultiWindowMode = true))
+    }
+
     private fun configuration(
         width: Int,
         height: Int,

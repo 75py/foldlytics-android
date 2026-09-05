@@ -80,7 +80,8 @@ class MainActivity : ComponentActivity(), SensorEventListener {
             null
         }
         viewModel.updateHingeSensor(available = hingeSensor != null)
-        viewModel.updateConfiguration(resources.configuration.toDisplayConfiguration())
+        updateConfiguration(resources.configuration)
+        viewModel.recordAppLaunchCheckpoint()
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -120,7 +121,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     override fun onResume() {
         super.onResume()
-        viewModel.updateConfiguration(resources.configuration.toDisplayConfiguration())
+        updateConfiguration(resources.configuration)
         viewModel.recordAppForegroundCheckpoint()
         viewModel.checkPermissionAndRefresh()
         hingeSensor?.let {
@@ -136,7 +137,15 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        viewModel.updateConfiguration(newConfig.toDisplayConfiguration())
+        updateConfiguration(newConfig)
+    }
+
+    override fun onMultiWindowModeChanged(
+        isInMultiWindowMode: Boolean,
+        newConfig: Configuration,
+    ) {
+        super.onMultiWindowModeChanged(isInMultiWindowMode, newConfig)
+        updateConfiguration(newConfig, isInMultiWindowMode)
     }
 
     override fun onSensorChanged(event: SensorEvent) {
@@ -148,6 +157,16 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+
+    private fun updateConfiguration(
+        configuration: Configuration,
+        isInMultiWindowMode: Boolean = this.isInMultiWindowMode,
+    ) {
+        viewModel.updateConfiguration(
+            configuration = configuration.toDisplayConfiguration(),
+            isInMultiWindowMode = isInMultiWindowMode,
+        )
+    }
 
     private fun openUsageAccessSettings() {
         val appPage = Intent(

@@ -760,6 +760,34 @@ class UsageAnalyzerTest {
     }
 
     @Test
+    fun splitScreenWindowCheckpointDoesNotReplaceInnerDisplayEvidence() {
+        val innerSplitScreenWindow = configuration(width = 380, height = 900, smallest = 380)
+        val checkpoints = listOfNotNull(
+            PostureCheckpoint(
+                timestampMillis = 4_000,
+                configuration = innerSplitScreenWindow,
+                source = PostureCheckpointSource.APP_FOREGROUND,
+            ).takeIf {
+                it.configuration.canBePostureEvidence(isInMultiWindowMode = true)
+            },
+        )
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(1_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+        )
+
+        val result = analyzer.analyze(records, 0, 6_000, calibration, checkpoints)
+
+        assertEquals(DisplayPosture.COVER, calibration.classify(innerSplitScreenWindow))
+        assertEquals(1_000L, result.coverMillis)
+        assertEquals(5_000L, result.innerMillis)
+        assertEquals(1, result.openedCount)
+        assertEquals(0, result.closedCount)
+    }
+
+    @Test
     fun countsDetectedTransitionsWhileScreenIsOff() {
         val records = listOf(
             record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
