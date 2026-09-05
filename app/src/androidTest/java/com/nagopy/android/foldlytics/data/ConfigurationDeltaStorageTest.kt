@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nagopy.android.foldlytics.model.Calibration
 import com.nagopy.android.foldlytics.model.DisplayConfiguration
+import com.nagopy.android.foldlytics.model.InnerDisplaySession
 import com.nagopy.android.foldlytics.model.PostureCheckpoint
 import com.nagopy.android.foldlytics.model.PostureCheckpointSource
 import com.nagopy.android.foldlytics.model.UsageRecord
@@ -164,10 +165,101 @@ class ConfigurationDeltaStorageTest {
             assertEquals(0L, detail.otherInnerActiveMillis)
             assertEquals("app.reader", detail.appUsages.single().packageName)
         }
-        assertEquals(8, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
+        assertEquals(9, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
         // Reconstruction must leave the source delta intact for future reanalysis.
         val savedDelta = database.usageEventDao().loadEvents(start + 2_000, start + 2_001)
         assertEquals(emptyDelta, savedDelta.single().toModel().configuration)
+    }
+
+    @Test
+    fun rebuildsVersionEightSessionAppBreakdownWhenDefiniteActivityEmerges() = runBlocking {
+        val close = start + 1_000
+        val end = close + 1
+        persist(
+            configurationEvent(start, cover),
+            event(start + 1, UsageEvents.Event.SCREEN_INTERACTIVE),
+            event(start + 2, UsageEvents.Event.KEYGUARD_HIDDEN),
+            event(start + 50, UsageEvents.Event.ACTIVITY_RESUMED, packageName = "app.ambiguous"),
+            event(start + 60, UsageEvents.Event.ACTIVITY_RESUMED, packageName = "app.ambiguous"),
+            configurationEvent(start + 100, inner),
+            event(
+                start + 100,
+                UsageEvents.Event.ACTIVITY_PAUSED,
+                packageName = "app.ambiguous",
+                sequenceAtTimestamp = 1,
+            ),
+            event(
+                start + 100,
+                UsageEvents.Event.ACTIVITY_STOPPED,
+                packageName = "app.ambiguous",
+                sequenceAtTimestamp = 2,
+            ),
+            event(start + 300, UsageEvents.Event.ACTIVITY_RESUMED, packageName = "app.definite"),
+            configurationEvent(close, cover),
+        )
+        val syncHistoryId = database.usageEventDao().insertSyncHistory(
+            SyncHistoryEntity(
+                attemptedAtMillis = end,
+                queryBeginMillis = start,
+                queryEndMillis = end,
+                status = "SUCCESS",
+                readEventCount = 10,
+                insertedEventCount = 10,
+            ),
+        )
+        val sourceBeforeRefresh = database.usageEventDao().loadEvents(start, end + 1)
+
+        database.dailyPostureSummaryDao().replaceAll(
+            summaries = emptyList(),
+            appUsage = emptyList(),
+            innerSessions = listOf(
+                InnerDisplaySessionEntity(
+                    openedAtMillis = start + 100,
+                    openedSequenceAtTimestamp = 0,
+                    closedAtMillis = close,
+                    innerActiveMillis = 900L,
+                ),
+            ),
+            innerSessionAppUsages = emptyList(),
+            state = DailySummaryStateEntity(
+                lastAggregatedThroughMillis = end,
+                calibrationKey = calibration.dailySummaryCacheKey(),
+                zoneId = zoneId.id,
+                checkpointRevision = 0L,
+                aggregationVersion = 8,
+                lastAggregatedSyncHistoryId = syncHistoryId,
+            ),
+        )
+
+        fun assertRebuiltSession(session: InnerDisplaySession) {
+            assertEquals(900L, session.innerActiveMillis)
+            assertEquals(mapOf("app.definite" to 700L), session.appUsageMillis)
+        }
+
+        repository().withUpToDateSnapshot(
+            calibration = calibration,
+            syncedThroughMillis = end,
+            syncQueryBeginMillis = end,
+            checkpointRevision = 0L,
+            zoneId = zoneId,
+            collectionGapStarts = emptyList(),
+        ) {
+            assertRebuiltSession(loadCompleteInnerSessions(start, end + 1).single())
+        }
+        assertEquals(sourceBeforeRefresh, database.usageEventDao().loadEvents(start, end + 1))
+
+        repository().withUpToDateSnapshot(
+            calibration = calibration,
+            syncedThroughMillis = end,
+            syncQueryBeginMillis = end,
+            checkpointRevision = 0L,
+            zoneId = zoneId,
+            collectionGapStarts = emptyList(),
+        ) {
+            assertRebuiltSession(loadCompleteInnerSessions(start, end + 1).single())
+        }
+        assertEquals(sourceBeforeRefresh, database.usageEventDao().loadEvents(start, end + 1))
+        assertEquals(9, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
     }
 
     @Test
@@ -226,6 +318,7 @@ class ConfigurationDeltaStorageTest {
         type: Int,
         configuration: DisplayConfiguration? = null,
         packageName: String? = null,
+        sequenceAtTimestamp: Int = 0,
     ) = UsageRecord(
         timestampMillis = timestamp,
         kind = type.toUsageEventKind(),
@@ -233,6 +326,7 @@ class ConfigurationDeltaStorageTest {
         configuration = configuration,
         packageName = packageName,
         className = packageName?.let { "$it.MainActivity" },
+        sequenceAtTimestamp = sequenceAtTimestamp,
     )
 
     private fun repository() = DailySummaryRepository(

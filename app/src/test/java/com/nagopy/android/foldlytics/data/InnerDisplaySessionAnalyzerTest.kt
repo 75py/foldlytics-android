@@ -329,7 +329,7 @@ class InnerDisplaySessionAnalyzerTest {
     }
 
     @Test
-    fun leavesMultiResumeIntervalsUnallocated() {
+    fun leavesTwoDefinitelyResumedPackagesUnallocatedThenRecoversWhenOnePauses() {
         val analyzer = analyzer()
 
         analyzer.processChunk(
@@ -356,7 +356,7 @@ class InnerDisplaySessionAnalyzerTest {
     }
 
     @Test
-    fun leavesIntervalsWithoutAResumedPackageUnallocated() {
+    fun leavesIntervalsWithoutADefinitelyResumedPackageUnallocated() {
         val analyzer = analyzer()
 
         analyzer.processChunk(
@@ -378,6 +378,28 @@ class InnerDisplaySessionAnalyzerTest {
         assertEquals(3_000L, session.innerActiveMillis)
         assertEquals(mapOf("app.a" to 1_000L), session.appUsageMillis)
         assertEquals(2_000L, session.innerActiveMillis - session.appUsageMillis.values.sum())
+    }
+
+    @Test
+    fun leavesSessionWithNoDefinitelyResumedPackageEntirelyUnallocated() {
+        val analyzer = analyzer()
+
+        analyzer.processChunk(
+            records = listOf(
+                record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+                record(0, UsageEventKind.SCREEN_INTERACTIVE),
+                record(0, UsageEventKind.KEYGUARD_HIDDEN),
+                record(1_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+                record(3_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            ),
+            checkpoints = emptyList(),
+            collectionGapStarts = emptyList(),
+            chunkEndMillis = 4_000,
+        )
+
+        val session = analyzer.sessionsAtEnd().single()
+        assertEquals(2_000L, session.innerActiveMillis)
+        assertEquals(emptyMap<String, Long>(), session.appUsageMillis)
     }
 
     @Test
@@ -451,7 +473,7 @@ class InnerDisplaySessionAnalyzerTest {
     }
 
     @Test
-    fun unresolvedPackagePreventsFalseExclusiveSessionAllocationToAnotherPackage() {
+    fun attributesSingleDefinitePackageDespiteHistoricalAmbiguityInAnotherPackage() {
         val analyzer = analyzer()
 
         analyzer.processChunk(
@@ -469,8 +491,37 @@ class InnerDisplaySessionAnalyzerTest {
 
         val session = analyzer.sessionsAtEnd().single()
         assertEquals(5_000L, session.innerActiveMillis)
-        assertEquals(mapOf("app.a" to 2_000L), session.appUsageMillis)
-        assertEquals(3_000L, session.innerActiveMillis - session.appUsageMillis.values.sum())
+        assertEquals(mapOf("app.a" to 2_000L, "app.b" to 2_000L), session.appUsageMillis)
+        assertEquals(1_000L, session.innerActiveMillis - session.appUsageMillis.values.sum())
+    }
+
+    @Test
+    fun attributesNewSessionToSingleDefinitePackageAfterHistoricalAmbiguity() {
+        val analyzer = analyzer()
+
+        analyzer.processChunk(
+            records = listOf(
+                record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+                record(0, UsageEventKind.SCREEN_INTERACTIVE),
+                record(0, UsageEventKind.KEYGUARD_HIDDEN),
+                record(100, UsageEventKind.ACTIVITY_RESUMED, "test.app.a", "A"),
+                record(200, UsageEventKind.ACTIVITY_RESUMED, "test.app.a", "A"),
+                record(300, UsageEventKind.ACTIVITY_PAUSED, "test.app.a", "A"),
+                record(1_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+                record(2_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+                record(3_000, UsageEventKind.ACTIVITY_RESUMED, "test.app.b", "B"),
+                record(4_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+                record(6_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            ),
+            checkpoints = emptyList(),
+            collectionGapStarts = emptyList(),
+            chunkEndMillis = 7_000,
+        )
+
+        val sessions = analyzer.sessionsAtEnd()
+        assertEquals(2, sessions.size)
+        assertEquals(emptyMap<String, Long>(), sessions[0].appUsageMillis)
+        assertEquals(mapOf("test.app.b" to 2_000L), sessions[1].appUsageMillis)
     }
 
     @Test
@@ -496,7 +547,7 @@ class InnerDisplaySessionAnalyzerTest {
     }
 
     @Test
-    fun terminalAfterRecoveredDuplicateResumeBlocksExclusiveOtherPackageAllocation() {
+    fun singleDefinitePackageRemainsAttributableAfterAnotherPackageBecomesAmbiguous() {
         val analyzer = analyzer()
 
         analyzer.processChunk(
@@ -516,12 +567,12 @@ class InnerDisplaySessionAnalyzerTest {
 
         val session = analyzer.sessionsAtEnd().single()
         assertEquals(7_000L, session.innerActiveMillis)
-        assertEquals(mapOf("app.a" to 3_000L), session.appUsageMillis)
-        assertEquals(4_000L, session.innerActiveMillis - session.appUsageMillis.values.sum())
+        assertEquals(mapOf("app.a" to 3_000L, "app.b" to 2_000L), session.appUsageMillis)
+        assertEquals(2_000L, session.innerActiveMillis - session.appUsageMillis.values.sum())
     }
 
     @Test
-    fun stopAfterPausedPredecessorBlocksExclusiveOtherPackageAllocation() {
+    fun singleDefinitePackageRemainsAttributableAfterAmbiguousStopHistory() {
         val analyzer = analyzer()
 
         analyzer.processChunk(
@@ -540,8 +591,8 @@ class InnerDisplaySessionAnalyzerTest {
 
         val session = analyzer.sessionsAtEnd().single()
         assertEquals(6_000L, session.innerActiveMillis)
-        assertEquals(mapOf("app.a" to 2_000L), session.appUsageMillis)
-        assertEquals(4_000L, session.innerActiveMillis - session.appUsageMillis.values.sum())
+        assertEquals(mapOf("app.a" to 2_000L, "app.b" to 2_000L), session.appUsageMillis)
+        assertEquals(2_000L, session.innerActiveMillis - session.appUsageMillis.values.sum())
     }
 
     @Test

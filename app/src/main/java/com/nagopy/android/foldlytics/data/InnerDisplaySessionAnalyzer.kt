@@ -97,7 +97,7 @@ class InnerDisplaySessionAnalyzer(
             when (innerIntervalState()) {
                 InnerIntervalState.ACTIVE -> {
                     pending.innerActiveMillis += duration
-                    val packageName = activityTracker.snapshot.exclusiveAssignablePackageOrNull()
+                    val packageName = activityTracker.snapshot.singleDefinitePackageForSessionOrNull()
                     if (packageName != null) {
                         pending.appUsageMillis[packageName] =
                             pending.appUsageMillis.getOrDefault(packageName, 0L) + duration

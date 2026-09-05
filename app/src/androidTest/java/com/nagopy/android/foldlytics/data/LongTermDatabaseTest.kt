@@ -176,7 +176,7 @@ class LongTermDatabaseTest {
             calibrationKey = "calibration",
             zoneId = zoneId.id,
             checkpointRevision = 0L,
-            aggregationVersion = 8,
+            aggregationVersion = 9,
         )
         val first = session(1_000L, 100L)
         val second = session(5_000L, 200L)
@@ -358,7 +358,7 @@ class LongTermDatabaseTest {
     }
 
     @Test
-    fun activitySeedPreservesSameClassDuplicateAmbiguityForSessionAttribution() = runBlocking {
+    fun activitySeedAttributesDefinitePackageDespiteSameClassDuplicateAmbiguity() = runBlocking {
         val begin = 10_000L
         val end = 16_000L
         database.usageEventDao().insertEvents(
@@ -452,11 +452,11 @@ class LongTermDatabaseTest {
         )
         val session = analyzer.sessionsAtEnd().single()
         assertEquals(2_000L, session.innerActiveMillis)
-        assertEquals(emptyMap<String, Long>(), session.appUsageMillis)
+        assertEquals(mapOf("app.b" to 2_000L), session.appUsageMillis)
     }
 
     @Test
-    fun activitySeedPreservesRecoveredDuplicateAmbiguityForLaterPause() = runBlocking {
+    fun activitySeedAttributesDefinitePackageAfterRecoveredDuplicateAmbiguity() = runBlocking {
         val begin = 10_000L
         val end = 16_000L
         database.usageEventDao().insertEvents(
@@ -565,11 +565,11 @@ class LongTermDatabaseTest {
         )
         val session = analyzer.sessionsAtEnd().single()
         assertEquals(2_000L, session.innerActiveMillis)
-        assertEquals(emptyMap<String, Long>(), session.appUsageMillis)
+        assertEquals(mapOf("app.b" to 2_000L), session.appUsageMillis)
     }
 
     @Test
-    fun activitySeedPreservesPausedPredecessorAmbiguityForLaterStop() = runBlocking {
+    fun activitySeedAttributesDefinitePackageAfterPausedPredecessorAmbiguity() = runBlocking {
         val begin = 10_000L
         val end = 16_000L
         database.usageEventDao().insertEvents(
@@ -670,7 +670,7 @@ class LongTermDatabaseTest {
         )
         val session = analyzer.sessionsAtEnd().single()
         assertEquals(2_000L, session.innerActiveMillis)
-        assertEquals(emptyMap<String, Long>(), session.appUsageMillis)
+        assertEquals(mapOf("app.b" to 2_000L), session.appUsageMillis)
     }
 
     @Test
@@ -780,7 +780,7 @@ class LongTermDatabaseTest {
         )
 
         assertEquals(full, incremental)
-        assertEquals(8, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
+        assertEquals(9, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
     }
 
     @Test
@@ -846,7 +846,7 @@ class LongTermDatabaseTest {
     }
 
     @Test
-    fun incrementalAggregationPreservesDuplicateActivityAmbiguityAcrossRebuildStart() =
+    fun incrementalAggregationAttributesDefinitePackageAcrossDuplicateActivityAmbiguity() =
         runBlocking {
             val start = LocalDate.of(2024, 1, 1)
                 .atStartOfDay(zoneId)
@@ -929,7 +929,7 @@ class LongTermDatabaseTest {
                     calibrationKey = calibration.dailySummaryCacheKey(),
                     zoneId = zoneId.id,
                     checkpointRevision = 0L,
-                    aggregationVersion = 8,
+                    aggregationVersion = 9,
                 ),
             )
 
@@ -960,12 +960,15 @@ class LongTermDatabaseTest {
 
             assertEquals(1, incrementalSessions.size)
             assertEquals(2_000L, incrementalSessions.single().innerActiveMillis)
-            assertEquals(emptyMap<String, Long>(), incrementalSessions.single().appUsageMillis)
+            assertEquals(
+                mapOf("app.b" to 2_000L),
+                incrementalSessions.single().appUsageMillis,
+            )
             assertEquals(fullSessions, incrementalSessions)
         }
 
     @Test
-    fun incrementalAggregationPreservesRecoveredDuplicateAmbiguityAcrossRebuildStart() =
+    fun incrementalAggregationAttributesDefinitePackageAcrossRecoveredDuplicateAmbiguity() =
         runBlocking {
             assertIncrementalAmbiguousSessionMatchesFullRebuild(
                 seedActivityEvents = { start ->
@@ -1013,7 +1016,7 @@ class LongTermDatabaseTest {
         }
 
     @Test
-    fun incrementalAggregationPreservesPausedPredecessorStopAcrossRebuildStart() =
+    fun incrementalAggregationAttributesDefinitePackageAcrossPausedPredecessorStop() =
         runBlocking {
             assertIncrementalAmbiguousSessionMatchesFullRebuild(
                 seedActivityEvents = { start ->
@@ -1476,7 +1479,7 @@ class LongTermDatabaseTest {
         }
         assertEquals(listOf(openedAt), sessions.map { it.openedAtMillis })
         assertEquals(1_000L, sessions.single().innerActiveMillis)
-        assertEquals(8, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
+        assertEquals(9, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
         assertEquals(1, database.dailyPostureSummaryDao().loadAll().single().openedCount)
     }
 
@@ -1546,7 +1549,7 @@ class LongTermDatabaseTest {
                 calibrationKey = calibration.dailySummaryCacheKey(),
                 zoneId = zoneId.id,
                 checkpointRevision = 0L,
-                aggregationVersion = 8,
+                aggregationVersion = 9,
             ),
         )
 
@@ -1577,7 +1580,10 @@ class LongTermDatabaseTest {
 
         assertEquals(1, incrementalSessions.size)
         assertEquals(2_000L, incrementalSessions.single().innerActiveMillis)
-        assertEquals(emptyMap<String, Long>(), incrementalSessions.single().appUsageMillis)
+        assertEquals(
+            mapOf("app.b" to 2_000L),
+            incrementalSessions.single().appUsageMillis,
+        )
         assertEquals(fullSessions, incrementalSessions)
     }
 

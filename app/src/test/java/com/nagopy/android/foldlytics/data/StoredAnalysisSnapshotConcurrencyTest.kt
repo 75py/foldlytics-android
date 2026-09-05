@@ -177,7 +177,7 @@ class StoredAnalysisSnapshotConcurrencyTest {
             calibrationKey = CALIBRATION.dailySummaryCacheKey(),
             zoneId = ZoneOffset.UTC.id,
             checkpointRevision = 0L,
-            aggregationVersion = 8,
+            aggregationVersion = 9,
             lastAggregatedSyncHistoryId = 1L,
         )
         val DAILY_SUMMARIES = (7 downTo 1).map { daysBeforeEnd ->
