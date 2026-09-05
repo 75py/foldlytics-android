@@ -253,7 +253,8 @@
     <string name="app_ranking_order">%1$sでの表示時間が長い順です</string>
     <string name="app_ranking_total_order">外側・内側を判定できた表示時間の合計が長い順です</string>
     <string name="app_ranking_majority_order">「%1$s」に該当するアプリを、その画面での表示時間が長い順に表示します。</string>
-    <string name="app_ranking_measurement_note">割合には外側・内側を判定できたアプリ表示時間だけを使います。半分ずつの場合はどちらにも表示しません。画面を判定できなかった時間は推測せず、別に表示します。</string>
+    <string name="app_ranking_measurement_note">割合には外側・内側を判定できたアプリ表示時間だけを使います。画面を判定できなかった時間は推測せず、別に表示します。</string>
+    <string name="app_ranking_even_split_note">半分ずつの場合はどちらにも表示しません。</string>
     <string name="app_usage_selected">%1$s %2$s</string>
     <string name="app_usage_total">判定時間合計 %1$s</string>
     <string name="app_usage_display_split">外側 %1$s（%2$s）・ 内側 %3$s（%4$s）</string>

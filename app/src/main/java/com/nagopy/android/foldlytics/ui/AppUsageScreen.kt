@@ -303,6 +303,13 @@ private fun AppRankingSelector(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (selectedView == AppRankingView.DISPLAY_SHARE) {
+            Text(
+                stringResource(R.string.app_ranking_even_split_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

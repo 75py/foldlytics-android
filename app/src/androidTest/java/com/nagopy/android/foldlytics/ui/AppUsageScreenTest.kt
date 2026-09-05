@@ -309,6 +309,43 @@ class AppUsageScreenTest {
     }
 
     @Test
+    fun evenSplitExclusionGuidanceOnlyAppearsInDisplayShareView() {
+        val context = localizedContext(Locale.ENGLISH)
+        val exclusionNote = context.getString(R.string.app_ranking_even_split_note)
+        val measurementNote = context.getString(R.string.app_ranking_measurement_note)
+        setContent(
+            context,
+            summaryWithApps(
+                apps = listOf(
+                    app("even", "Even split", coverMillis = minutes(3), innerMillis = minutes(3)),
+                ),
+            ),
+        )
+
+        composeRule.onNodeWithTag(APP_USAGE_TIME_VIEW_TAG).assertIsSelected()
+        composeRule.onNodeWithText(measurementNote).assertExists()
+        composeRule.onNodeWithText(exclusionNote, substring = true).assertDoesNotExist()
+        assertRankedFirst(context, "even")
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(
+            hasTestTag(APP_USAGE_VIEW_SELECTOR_TAG),
+        )
+        composeRule.onNodeWithTag(APP_USAGE_DISPLAY_SHARE_VIEW_TAG).performClick()
+        composeRule.onNodeWithText(measurementNote).assertExists()
+        composeRule.onNodeWithText(exclusionNote, substring = true).assertExists()
+        composeRule.onNodeWithTag("${APP_USAGE_CARD_TAG_PREFIX}even").assertDoesNotExist()
+
+        composeRule.onNodeWithTag(APP_USAGE_COVER_MAJORITY_TAG).performClick()
+        composeRule.onNodeWithText(exclusionNote, substring = true).assertExists()
+        composeRule.onNodeWithTag("${APP_USAGE_CARD_TAG_PREFIX}even").assertDoesNotExist()
+
+        composeRule.onNodeWithTag(APP_USAGE_TIME_VIEW_TAG).performClick()
+        composeRule.onNodeWithText(measurementNote).assertExists()
+        composeRule.onNodeWithText(exclusionNote, substring = true).assertDoesNotExist()
+        assertRankedFirst(context, "even")
+    }
+
+    @Test
     fun displayShareViewExplainsWhenMeasurableAppsHaveNoMajority() {
         val context = localizedContext(Locale.ENGLISH)
         setContent(

@@ -259,7 +259,8 @@
     <string name="app_ranking_order">Sorted by time on the %1$s display</string>
     <string name="app_ranking_total_order">Sorted by classified outer + inner time</string>
     <string name="app_ranking_majority_order">Apps in “%1$s” are sorted by measured time on that display.</string>
-    <string name="app_ranking_measurement_note">Shares use only classified outer + inner app time. An even split appears in neither list. Display-undetermined time is not estimated and is shown separately.</string>
+    <string name="app_ranking_measurement_note">Shares use only classified outer + inner app time. Display-undetermined time is not estimated and is shown separately.</string>
+    <string name="app_ranking_even_split_note">An even split appears in neither list.</string>
     <string name="app_usage_selected">%1$s %2$s</string>
     <string name="app_usage_total">Classified total %1$s</string>
     <string name="app_usage_display_split">Outer %1$s (%2$s) · Inner %3$s (%4$s)</string>
