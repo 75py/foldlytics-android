@@ -108,8 +108,9 @@ trend buckets, open counts, and rankings agree with one another.
    `generate-phone-screenshots.sh` for the upload-ready images and contact sheets. The helper
    removes only its fixture directories from the test emulator when it exits.
 
-   Use this Gradle connected-test helper because direct `am instrument` does not initialize the
-   Compose UI test v2 host used by this fixture.
+   Use this Gradle connected-test helper to automate building and installing the test APKs.
+   Keep the emulator screen awake and unlocked during capture. Direct `am instrument` can also
+   run the installed fixture; captures were verified after waking and unlocking the emulator.
 
 3. Set `FOLDLYTICS_STORE_FONT` when the default macOS Hiragino font is unavailable.
 
@@ -146,11 +147,17 @@ adb pull /sdcard/Download/Foldlytics/display-share-ja /private/tmp/pr16-display-
 adb pull /sdcard/Download/Foldlytics/display-share-en /private/tmp/pr16-display-share-en
 ```
 
-Use `ANDROID_SERIAL` to select the intended emulator if needed. Run through Gradle because the
-Compose UI test v2 host is not initialized by direct `am instrument`. Each locale produces
+Use `ANDROID_SERIAL` to select the intended emulator if needed. Gradle automates building and
+installing the test APKs; direct `am instrument` also works with the fixture installed. Keep the
+emulator screen awake and unlocked during capture. Each locale produces
 `inner-overview.png`, `inner-apps.png`, `outer-overview.png`, and `outer-apps.png`: the overview
 starts at the period and selectors; the app capture scrolls the leading card into view. Each run
 replaces only its own `display-share-ja` or `display-share-en` MediaStore directory.
+
+Prefer a fresh disposable AVD for review captures. Reinstalling the app can leave MediaStore
+files from the previous installation, and new captures may receive a suffix such as `(1)`.
+Check the actual output filenames and image dimensions before pulling files, particularly when
+switching between closed and opened displays; an unsuffixed file may be an older capture.
 
 These scenarios reuse the store fixture's fixed 90-day period and generic localized labels,
 with a separate synthetic app dataset:
