@@ -177,7 +177,7 @@ class StoredAnalysisSnapshotConcurrencyTest {
             calibrationKey = CALIBRATION.dailySummaryCacheKey(),
             zoneId = ZoneOffset.UTC.id,
             checkpointRevision = 0L,
-            aggregationVersion = 6,
+            aggregationVersion = 7,
             lastAggregatedSyncHistoryId = 1L,
         )
         val DAILY_SUMMARIES = (7 downTo 1).map { daysBeforeEnd ->
@@ -369,7 +369,7 @@ class StoredAnalysisSnapshotConcurrencyTest {
             rawEventTypes: List<Int>,
         ): List<UsageEventEntity> = emptyList()
 
-        override suspend fun loadLatestActivityEventsBefore(
+        override suspend fun loadActivityEventsBefore(
             endMillis: Long,
             rawEventTypes: List<Int>,
         ): List<UsageEventEntity> = emptyList()
