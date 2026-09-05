@@ -852,7 +852,7 @@ class LongTermDatabaseTest {
                 .atStartOfDay(zoneId)
                 .toInstant()
                 .toEpochMilli()
-            val rebuildStart = LocalDate.of(2024, 2, 1)
+            val rebuildStart = LocalDate.of(2024, 4, 3)
                 .atStartOfDay(zoneId)
                 .toInstant()
                 .toEpochMilli()
@@ -1059,12 +1059,12 @@ class LongTermDatabaseTest {
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
-        val observation = LocalDate.of(2024, 1, 31)
+        val observation = LocalDate.of(2024, 4, 2)
             .atTime(12, 0)
             .atZone(zoneId)
             .toInstant()
             .toEpochMilli()
-        val end = LocalDate.of(2024, 2, 2)
+        val end = LocalDate.of(2024, 4, 4)
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
@@ -1116,7 +1116,7 @@ class LongTermDatabaseTest {
 
         assertEquals(2, summaries.size)
         assertEquals(
-            LocalDate.of(2024, 1, 31).atStartOfDay(zoneId).toInstant().toEpochMilli(),
+            LocalDate.of(2024, 4, 2).atStartOfDay(zoneId).toInstant().toEpochMilli(),
             summaries[0].dayStartMillis,
         )
         assertEquals(TimeUnit.HOURS.toMillis(12), summaries[0].coverMillis)
@@ -1133,15 +1133,16 @@ class LongTermDatabaseTest {
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
-        val startup = LocalDate.of(2024, 1, 15)
+        val startup = LocalDate.of(2024, 4, 2)
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
-        val laterConfiguration = LocalDate.of(2024, 1, 20)
-            .atStartOfDay(zoneId)
+        val laterConfiguration = LocalDate.of(2024, 4, 2)
+            .atTime(12, 0)
+            .atZone(zoneId)
             .toInstant()
             .toEpochMilli()
-        val end = LocalDate.of(2024, 2, 2)
+        val end = LocalDate.of(2024, 4, 4)
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
@@ -1198,18 +1199,18 @@ class LongTermDatabaseTest {
             collectionGapStarts = emptyList(),
         )
 
-        assertEquals(TimeUnit.DAYS.toMillis(14), summaries.sumOf { it.coverMillis })
+        assertEquals(TimeUnit.DAYS.toMillis(92), summaries.sumOf { it.coverMillis })
         assertEquals(0L, summaries.sumOf { it.innerMillis })
         assertEquals(0L, summaries.filter { it.dayStartMillis >= startup }.sumOf { it.coverMillis })
     }
 
     @Test
-    fun carriesInnerSessionAndDeviceStateAcrossThirtyOneDayAggregationChunk() = runBlocking {
+    fun carriesInnerSessionAndDeviceStateAcrossNinetyThreeDayAggregationChunk() = runBlocking {
         val start = LocalDate.of(2024, 1, 1)
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
-        val chunkBoundary = LocalDate.of(2024, 2, 1)
+        val chunkBoundary = LocalDate.of(2024, 4, 3)
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
@@ -1283,7 +1284,7 @@ class LongTermDatabaseTest {
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
-        val initialEnd = LocalDate.of(2024, 2, 1)
+        val initialEnd = LocalDate.of(2024, 4, 3)
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
@@ -1487,7 +1488,7 @@ class LongTermDatabaseTest {
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
-        val rebuildStart = LocalDate.of(2024, 2, 1)
+        val rebuildStart = LocalDate.of(2024, 4, 3)
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
