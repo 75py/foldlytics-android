@@ -97,14 +97,19 @@ class HighDensityLongTermDatabaseTest {
         )
 
         val initialAggregationStarted = SystemClock.elapsedRealtime()
-        val initial = repository().ensureUpToDate(
+        val repository = repository()
+        val initialAggregation = repository.withUpToDateSnapshot(
             calibration = calibration,
             syncedThroughMillis = initialEnd,
             syncQueryBeginMillis = initialEnd - SYNC_OVERLAP_MILLIS,
             checkpointRevision = 0L,
             zoneId = zoneId,
             collectionGapStarts = emptyList(),
-        )
+        ) {
+            dailySummaries to loadAggregatedAppUsage(firstStart, initialEnd)
+        }
+        val initial = initialAggregation.first
+        val initialAppUsage = initialAggregation.second
         val initialAggregationMillis =
             SystemClock.elapsedRealtime() - initialAggregationStarted
         assertEquals(INITIAL_DAYS.toInt(), initial.size)
@@ -119,7 +124,6 @@ class HighDensityLongTermDatabaseTest {
             initial.sumOf { it.innerMillis },
         )
         assertEquals(0L, initial.sumOf { it.excludedMillis })
-        val initialAppUsage = repository().loadAggregatedAppUsage(firstStart, initialEnd)
         assertEquals(32, initialAppUsage.size)
         assertEquals(
             EXPECTED_APP_MILLIS_PER_POSTURE_PER_DAY * INITIAL_DAYS,

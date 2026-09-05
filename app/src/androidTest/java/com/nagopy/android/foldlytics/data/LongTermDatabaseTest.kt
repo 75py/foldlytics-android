@@ -129,18 +129,19 @@ class LongTermDatabaseTest {
             zoneId = zoneId,
         )
         val summaryRepository = repository()
-        summaryRepository.ensureUpToDate(
+        val sessions = summaryRepository.withUpToDateSnapshot(
             calibration = Calibration(cover = configuration, inner = innerConfiguration),
             syncedThroughMillis = window.rangeEndMillis,
             syncQueryBeginMillis = window.seedStartMillis,
             checkpointRevision = 0L,
             zoneId = zoneId,
             collectionGapStarts = emptyList(),
-        )
-        val sessions = summaryRepository.loadCompleteInnerSessions(
-            window.rangeStartMillis,
-            window.rangeEndMillis,
-        )
+        ) {
+            loadCompleteInnerSessions(
+                window.rangeStartMillis,
+                window.rangeEndMillis,
+            )
+        }
 
         assertEquals(1, analysis.openedCount)
         assertEquals(1, sessions.size)
@@ -175,7 +176,7 @@ class LongTermDatabaseTest {
             calibrationKey = "calibration",
             zoneId = zoneId.id,
             checkpointRevision = 0L,
-            aggregationVersion = 6,
+            aggregationVersion = 7,
         )
         val first = session(1_000L, 100L)
         val second = session(5_000L, 200L)
@@ -200,7 +201,7 @@ class LongTermDatabaseTest {
             state = state,
         )
 
-        val afterIncremental = repository().loadCompleteInnerSessions(0L, 10_000L)
+        val afterIncremental = loadCompleteInnerSessions(0L, 10_000L)
         assertEquals(listOf(1_000L, 5_000L), afterIncremental.map { it.openedAtMillis })
         assertEquals(mapOf("app.one" to 100L), afterIncremental[0].appUsageMillis)
         assertEquals(mapOf("app.three" to 300L), afterIncremental[1].appUsageMillis)
@@ -212,7 +213,7 @@ class LongTermDatabaseTest {
             innerSessionAppUsages = listOf(appUsage(1_000L, "app.final", 100L)),
             state = state,
         )
-        val afterFull = repository().loadCompleteInnerSessions(0L, 10_000L)
+        val afterFull = loadCompleteInnerSessions(0L, 10_000L)
         assertEquals(listOf(1_000L), afterFull.map { it.openedAtMillis })
         assertEquals(mapOf("app.final" to 100L), afterFull.single().appUsageMillis)
     }
@@ -357,6 +358,322 @@ class LongTermDatabaseTest {
     }
 
     @Test
+    fun activitySeedPreservesSameClassDuplicateAmbiguityForSessionAttribution() = runBlocking {
+        val begin = 10_000L
+        val end = 16_000L
+        database.usageEventDao().insertEvents(
+            listOf(
+                event(
+                    key = "seed-cover",
+                    timestampMillis = 0L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = configuration,
+                ),
+                event(
+                    key = "seed-screen-on",
+                    timestampMillis = 0L,
+                    sequence = 1,
+                    rawEventType = UsageEvents.Event.SCREEN_INTERACTIVE,
+                ),
+                event(
+                    key = "seed-unlocked",
+                    timestampMillis = 0L,
+                    sequence = 2,
+                    rawEventType = UsageEvents.Event.KEYGUARD_HIDDEN,
+                ),
+                event(
+                    key = "seed-app-a-resumed-1",
+                    timestampMillis = 1_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                    packageName = "app.a",
+                ),
+                event(
+                    key = "seed-app-a-resumed-2",
+                    timestampMillis = 2_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                    packageName = "app.a",
+                ),
+                event(
+                    key = "app-a-paused",
+                    timestampMillis = begin + 1_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.ACTIVITY_PAUSED,
+                    packageName = "app.a",
+                ),
+                event(
+                    key = "app-b-resumed",
+                    timestampMillis = begin + 2_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                    packageName = "app.b",
+                ),
+                event(
+                    key = "opened",
+                    timestampMillis = begin + 3_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = innerConfiguration,
+                ),
+                event(
+                    key = "closed",
+                    timestampMillis = begin + 5_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = configuration,
+                ),
+            ),
+        )
+        val loadedEvents = database.usageEventDao()
+            .loadUsageEventsForAnalysis(begin, end)
+        val records = loadedEvents.map(UsageEventEntity::toModel)
+        val analyzer = InnerDisplaySessionAnalyzer(
+            calibration = Calibration(cover = configuration, inner = innerConfiguration),
+            analysisStartMillis = begin,
+        )
+
+        analyzer.processChunk(
+            records = records,
+            checkpoints = emptyList(),
+            collectionGapStarts = emptyList(),
+            chunkEndMillis = end,
+        )
+
+        assertEquals(
+            listOf(
+                "seed-app-a-resumed-1",
+                "seed-app-a-resumed-2",
+                "app-a-paused",
+                "app-b-resumed",
+            ),
+            loadedEvents.filter { it.packageName != null }.map(UsageEventEntity::eventKey),
+        )
+        val session = analyzer.sessionsAtEnd().single()
+        assertEquals(2_000L, session.innerActiveMillis)
+        assertEquals(emptyMap<String, Long>(), session.appUsageMillis)
+    }
+
+    @Test
+    fun activitySeedPreservesRecoveredDuplicateAmbiguityForLaterPause() = runBlocking {
+        val begin = 10_000L
+        val end = 16_000L
+        database.usageEventDao().insertEvents(
+            listOf(
+                event(
+                    key = "seed-cover",
+                    timestampMillis = 0L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = configuration,
+                ),
+                event(
+                    key = "seed-screen-on",
+                    timestampMillis = 0L,
+                    sequence = 1,
+                    rawEventType = UsageEvents.Event.SCREEN_INTERACTIVE,
+                ),
+                event(
+                    key = "seed-unlocked",
+                    timestampMillis = 0L,
+                    sequence = 2,
+                    rawEventType = UsageEvents.Event.KEYGUARD_HIDDEN,
+                ),
+                event(
+                    key = "seed-app-a-resumed-1",
+                    timestampMillis = 1_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                    packageName = "app.a",
+                ),
+                event(
+                    key = "seed-app-a-resumed-2",
+                    timestampMillis = 2_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                    packageName = "app.a",
+                ),
+                event(
+                    key = "seed-app-a-paused",
+                    timestampMillis = 3_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.ACTIVITY_PAUSED,
+                    packageName = "app.a",
+                ),
+                event(
+                    key = "seed-app-a-resumed-3",
+                    timestampMillis = 4_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                    packageName = "app.a",
+                ),
+                event(
+                    key = "app-a-paused-final",
+                    timestampMillis = begin + 1_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.ACTIVITY_PAUSED,
+                    packageName = "app.a",
+                ),
+                event(
+                    key = "app-b-resumed",
+                    timestampMillis = begin + 2_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                    packageName = "app.b",
+                ),
+                event(
+                    key = "opened",
+                    timestampMillis = begin + 3_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = innerConfiguration,
+                ),
+                event(
+                    key = "closed",
+                    timestampMillis = begin + 5_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = configuration,
+                ),
+            ),
+        )
+        val loadedEvents = database.usageEventDao()
+            .loadUsageEventsForAnalysis(begin, end)
+        val analyzer = InnerDisplaySessionAnalyzer(
+            calibration = Calibration(cover = configuration, inner = innerConfiguration),
+            analysisStartMillis = begin,
+        )
+
+        analyzer.processChunk(
+            records = loadedEvents.map(UsageEventEntity::toModel),
+            checkpoints = emptyList(),
+            collectionGapStarts = emptyList(),
+            chunkEndMillis = end,
+        )
+
+        assertEquals(
+            listOf(
+                "seed-app-a-resumed-1",
+                "seed-app-a-resumed-2",
+                "seed-app-a-paused",
+                "seed-app-a-resumed-3",
+                "app-a-paused-final",
+                "app-b-resumed",
+            ),
+            loadedEvents.filter { it.packageName != null }.map(UsageEventEntity::eventKey),
+        )
+        val session = analyzer.sessionsAtEnd().single()
+        assertEquals(2_000L, session.innerActiveMillis)
+        assertEquals(emptyMap<String, Long>(), session.appUsageMillis)
+    }
+
+    @Test
+    fun activitySeedPreservesPausedPredecessorAmbiguityForLaterStop() = runBlocking {
+        val begin = 10_000L
+        val end = 16_000L
+        database.usageEventDao().insertEvents(
+            listOf(
+                event(
+                    key = "seed-cover",
+                    timestampMillis = 0L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = configuration,
+                ),
+                event(
+                    key = "seed-screen-on",
+                    timestampMillis = 0L,
+                    sequence = 1,
+                    rawEventType = UsageEvents.Event.SCREEN_INTERACTIVE,
+                ),
+                event(
+                    key = "seed-unlocked",
+                    timestampMillis = 0L,
+                    sequence = 2,
+                    rawEventType = UsageEvents.Event.KEYGUARD_HIDDEN,
+                ),
+                event(
+                    key = "seed-app-a-resumed-1",
+                    timestampMillis = 1_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                    packageName = "app.a",
+                ),
+                event(
+                    key = "seed-app-a-paused",
+                    timestampMillis = 2_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.ACTIVITY_PAUSED,
+                    packageName = "app.a",
+                ),
+                event(
+                    key = "seed-app-a-resumed-2",
+                    timestampMillis = 3_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                    packageName = "app.a",
+                ),
+                event(
+                    key = "app-a-stopped",
+                    timestampMillis = begin + 1_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.ACTIVITY_STOPPED,
+                    packageName = "app.a",
+                ),
+                event(
+                    key = "app-b-resumed",
+                    timestampMillis = begin + 2_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                    packageName = "app.b",
+                ),
+                event(
+                    key = "opened",
+                    timestampMillis = begin + 3_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = innerConfiguration,
+                ),
+                event(
+                    key = "closed",
+                    timestampMillis = begin + 5_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = configuration,
+                ),
+            ),
+        )
+        val loadedEvents = database.usageEventDao()
+            .loadUsageEventsForAnalysis(begin, end)
+        val analyzer = InnerDisplaySessionAnalyzer(
+            calibration = Calibration(cover = configuration, inner = innerConfiguration),
+            analysisStartMillis = begin,
+        )
+
+        analyzer.processChunk(
+            records = loadedEvents.map(UsageEventEntity::toModel),
+            checkpoints = emptyList(),
+            collectionGapStarts = emptyList(),
+            chunkEndMillis = end,
+        )
+
+        assertEquals(
+            listOf(
+                "seed-app-a-resumed-1",
+                "seed-app-a-paused",
+                "seed-app-a-resumed-2",
+                "app-a-stopped",
+                "app-b-resumed",
+            ),
+            loadedEvents.filter { it.packageName != null }.map(UsageEventEntity::eventKey),
+        )
+        val session = analyzer.sessionsAtEnd().single()
+        assertEquals(2_000L, session.innerActiveMillis)
+        assertEquals(emptyMap<String, Long>(), session.appUsageMillis)
+    }
+
+    @Test
     fun multipleBackgroundSyncsRebuildEarliestOverlapAndMatchFullRebuild() = runBlocking {
         val firstDayStart = LocalDate.of(2026, 1, 1)
             .atStartOfDay(zoneId)
@@ -463,7 +780,7 @@ class LongTermDatabaseTest {
         )
 
         assertEquals(full, incremental)
-        assertEquals(6, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
+        assertEquals(7, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
     }
 
     @Test
@@ -512,15 +829,16 @@ class LongTermDatabaseTest {
             summaryDao = database.dailyPostureSummaryDao(),
         )
 
-        repository.ensureUpToDate(
+        val appUsage = repository.withUpToDateSnapshot(
             calibration = Calibration(cover = configuration),
             syncedThroughMillis = end,
             syncQueryBeginMillis = start,
             checkpointRevision = 0L,
             zoneId = zoneId,
             collectionGapStarts = emptyList(),
-        )
-        val appUsage = repository.loadAggregatedAppUsage(start, end).single()
+        ) {
+            loadAggregatedAppUsage(start, end).single()
+        }
 
         assertEquals("app.example", appUsage.packageName)
         assertEquals(end - start, appUsage.coverMillis)
@@ -528,17 +846,225 @@ class LongTermDatabaseTest {
     }
 
     @Test
+    fun incrementalAggregationPreservesDuplicateActivityAmbiguityAcrossRebuildStart() =
+        runBlocking {
+            val start = LocalDate.of(2024, 1, 1)
+                .atStartOfDay(zoneId)
+                .toInstant()
+                .toEpochMilli()
+            val rebuildStart = LocalDate.of(2024, 4, 3)
+                .atStartOfDay(zoneId)
+                .toInstant()
+                .toEpochMilli()
+            val end = rebuildStart + 6_000L
+            val calibration = Calibration(cover = configuration, inner = innerConfiguration)
+            database.usageEventDao().insertEvents(
+                listOf(
+                    event(
+                        key = "cover",
+                        timestampMillis = start,
+                        sequence = 0,
+                        rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                        eventConfiguration = configuration,
+                    ),
+                    event(
+                        key = "screen-on",
+                        timestampMillis = start,
+                        sequence = 1,
+                        rawEventType = UsageEvents.Event.SCREEN_INTERACTIVE,
+                    ),
+                    event(
+                        key = "unlocked",
+                        timestampMillis = start,
+                        sequence = 2,
+                        rawEventType = UsageEvents.Event.KEYGUARD_HIDDEN,
+                    ),
+                    event(
+                        key = "app-a-resumed-1",
+                        timestampMillis = start + 1_000L,
+                        sequence = 0,
+                        rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                        packageName = "app.a",
+                    ),
+                    event(
+                        key = "app-a-resumed-2",
+                        timestampMillis = start + 2_000L,
+                        sequence = 0,
+                        rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                        packageName = "app.a",
+                    ),
+                    event(
+                        key = "app-a-paused",
+                        timestampMillis = rebuildStart + 1_000L,
+                        sequence = 0,
+                        rawEventType = UsageEvents.Event.ACTIVITY_PAUSED,
+                        packageName = "app.a",
+                    ),
+                    event(
+                        key = "app-b-resumed",
+                        timestampMillis = rebuildStart + 2_000L,
+                        sequence = 0,
+                        rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                        packageName = "app.b",
+                    ),
+                    event(
+                        key = "opened",
+                        timestampMillis = rebuildStart + 3_000L,
+                        sequence = 0,
+                        rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                        eventConfiguration = innerConfiguration,
+                    ),
+                    event(
+                        key = "closed",
+                        timestampMillis = rebuildStart + 5_000L,
+                        sequence = 0,
+                        rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                        eventConfiguration = configuration,
+                    ),
+                ),
+            )
+            database.dailyPostureSummaryDao().upsertState(
+                DailySummaryStateEntity(
+                    lastAggregatedThroughMillis = rebuildStart,
+                    calibrationKey = calibration.dailySummaryCacheKey(),
+                    zoneId = zoneId.id,
+                    checkpointRevision = 0L,
+                    aggregationVersion = 7,
+                ),
+            )
+
+            val incrementalSessions = repository().withUpToDateSnapshot(
+                calibration = calibration,
+                syncedThroughMillis = end,
+                syncQueryBeginMillis = rebuildStart,
+                checkpointRevision = 0L,
+                zoneId = zoneId,
+                collectionGapStarts = emptyList(),
+            ) {
+                loadCompleteInnerSessions(start, end)
+            }
+            database.dailyPostureSummaryDao().upsertState(
+                requireNotNull(database.dailyPostureSummaryDao().loadState())
+                    .copy(aggregationVersion = 0),
+            )
+            val fullSessions = repository().withUpToDateSnapshot(
+                calibration = calibration,
+                syncedThroughMillis = end,
+                syncQueryBeginMillis = rebuildStart,
+                checkpointRevision = 0L,
+                zoneId = zoneId,
+                collectionGapStarts = emptyList(),
+            ) {
+                loadCompleteInnerSessions(start, end)
+            }
+
+            assertEquals(1, incrementalSessions.size)
+            assertEquals(2_000L, incrementalSessions.single().innerActiveMillis)
+            assertEquals(emptyMap<String, Long>(), incrementalSessions.single().appUsageMillis)
+            assertEquals(fullSessions, incrementalSessions)
+        }
+
+    @Test
+    fun incrementalAggregationPreservesRecoveredDuplicateAmbiguityAcrossRebuildStart() =
+        runBlocking {
+            assertIncrementalAmbiguousSessionMatchesFullRebuild(
+                seedActivityEvents = { start ->
+                    listOf(
+                        event(
+                            key = "app-a-resumed-1",
+                            timestampMillis = start + 1_000L,
+                            sequence = 0,
+                            rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                            packageName = "app.a",
+                        ),
+                        event(
+                            key = "app-a-resumed-2",
+                            timestampMillis = start + 2_000L,
+                            sequence = 0,
+                            rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                            packageName = "app.a",
+                        ),
+                        event(
+                            key = "app-a-paused",
+                            timestampMillis = start + 3_000L,
+                            sequence = 0,
+                            rawEventType = UsageEvents.Event.ACTIVITY_PAUSED,
+                            packageName = "app.a",
+                        ),
+                        event(
+                            key = "app-a-resumed-3",
+                            timestampMillis = start + 4_000L,
+                            sequence = 0,
+                            rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                            packageName = "app.a",
+                        ),
+                    )
+                },
+                terminalEvent = { rebuildStart ->
+                    event(
+                        key = "app-a-paused-final",
+                        timestampMillis = rebuildStart + 1_000L,
+                        sequence = 0,
+                        rawEventType = UsageEvents.Event.ACTIVITY_PAUSED,
+                        packageName = "app.a",
+                    )
+                },
+            )
+        }
+
+    @Test
+    fun incrementalAggregationPreservesPausedPredecessorStopAcrossRebuildStart() =
+        runBlocking {
+            assertIncrementalAmbiguousSessionMatchesFullRebuild(
+                seedActivityEvents = { start ->
+                    listOf(
+                        event(
+                            key = "app-a-resumed-1",
+                            timestampMillis = start + 1_000L,
+                            sequence = 0,
+                            rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                            packageName = "app.a",
+                        ),
+                        event(
+                            key = "app-a-paused",
+                            timestampMillis = start + 2_000L,
+                            sequence = 0,
+                            rawEventType = UsageEvents.Event.ACTIVITY_PAUSED,
+                            packageName = "app.a",
+                        ),
+                        event(
+                            key = "app-a-resumed-2",
+                            timestampMillis = start + 3_000L,
+                            sequence = 0,
+                            rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                            packageName = "app.a",
+                        ),
+                    )
+                },
+                terminalEvent = { rebuildStart ->
+                    event(
+                        key = "app-a-stopped",
+                        timestampMillis = rebuildStart + 1_000L,
+                        sequence = 0,
+                        rawEventType = UsageEvents.Event.ACTIVITY_STOPPED,
+                        packageName = "app.a",
+                    )
+                },
+            )
+        }
+
+    @Test
     fun deviceStateBaselineStartsAtObservationAndCarriesAcrossAggregationChunks() = runBlocking {
         val start = LocalDate.of(2024, 1, 1)
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
-        val observation = LocalDate.of(2024, 1, 31)
+        val observation = LocalDate.of(2024, 4, 2)
             .atTime(12, 0)
             .atZone(zoneId)
             .toInstant()
             .toEpochMilli()
-        val end = LocalDate.of(2024, 2, 2)
+        val end = LocalDate.of(2024, 4, 4)
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
@@ -574,19 +1100,23 @@ class LongTermDatabaseTest {
             ),
         )
 
-        val summaries = repository().ensureUpToDate(
+        val repository = repository()
+        val aggregation = repository.withUpToDateSnapshot(
             calibration = Calibration(cover = configuration),
             syncedThroughMillis = end,
             syncQueryBeginMillis = start,
             checkpointRevision = 0L,
             zoneId = zoneId,
             collectionGapStarts = emptyList(),
-        )
-        val appUsage = repository().loadAggregatedAppUsage(start, end).single()
+        ) {
+            dailySummaries to loadAggregatedAppUsage(start, end).single()
+        }
+        val summaries = aggregation.first
+        val appUsage = aggregation.second
 
         assertEquals(2, summaries.size)
         assertEquals(
-            LocalDate.of(2024, 1, 31).atStartOfDay(zoneId).toInstant().toEpochMilli(),
+            LocalDate.of(2024, 4, 2).atStartOfDay(zoneId).toInstant().toEpochMilli(),
             summaries[0].dayStartMillis,
         )
         assertEquals(TimeUnit.HOURS.toMillis(12), summaries[0].coverMillis)
@@ -603,15 +1133,16 @@ class LongTermDatabaseTest {
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
-        val startup = LocalDate.of(2024, 1, 15)
+        val startup = LocalDate.of(2024, 4, 2)
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
-        val laterConfiguration = LocalDate.of(2024, 1, 20)
-            .atStartOfDay(zoneId)
+        val laterConfiguration = LocalDate.of(2024, 4, 2)
+            .atTime(12, 0)
+            .atZone(zoneId)
             .toInstant()
             .toEpochMilli()
-        val end = LocalDate.of(2024, 2, 2)
+        val end = LocalDate.of(2024, 4, 4)
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
@@ -668,18 +1199,18 @@ class LongTermDatabaseTest {
             collectionGapStarts = emptyList(),
         )
 
-        assertEquals(TimeUnit.DAYS.toMillis(14), summaries.sumOf { it.coverMillis })
+        assertEquals(TimeUnit.DAYS.toMillis(92), summaries.sumOf { it.coverMillis })
         assertEquals(0L, summaries.sumOf { it.innerMillis })
         assertEquals(0L, summaries.filter { it.dayStartMillis >= startup }.sumOf { it.coverMillis })
     }
 
     @Test
-    fun carriesInnerSessionAndDeviceStateAcrossThirtyOneDayAggregationChunk() = runBlocking {
+    fun carriesInnerSessionAndDeviceStateAcrossNinetyThreeDayAggregationChunk() = runBlocking {
         val start = LocalDate.of(2024, 1, 1)
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
-        val chunkBoundary = LocalDate.of(2024, 2, 1)
+        val chunkBoundary = LocalDate.of(2024, 4, 3)
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
@@ -731,16 +1262,16 @@ class LongTermDatabaseTest {
         )
         val repository = repository()
 
-        repository.ensureUpToDate(
+        val session = repository.withUpToDateSnapshot(
             calibration = Calibration(cover = configuration, inner = innerConfiguration),
             syncedThroughMillis = end,
             syncQueryBeginMillis = start,
             checkpointRevision = 0L,
             zoneId = zoneId,
             collectionGapStarts = emptyList(),
-        )
-
-        val session = repository.loadCompleteInnerSessions(start, end).single()
+        ) {
+            loadCompleteInnerSessions(start, end).single()
+        }
         assertEquals(chunkBoundary - 1_000L, session.openedAtMillis)
         assertEquals(chunkBoundary + 1_000L, session.closedAtMillis)
         assertEquals(2_000L, session.innerActiveMillis)
@@ -753,7 +1284,7 @@ class LongTermDatabaseTest {
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
-        val initialEnd = LocalDate.of(2024, 2, 1)
+        val initialEnd = LocalDate.of(2024, 4, 3)
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
@@ -807,15 +1338,17 @@ class LongTermDatabaseTest {
         val repository = repository()
         val calibration = Calibration(cover = configuration, inner = innerConfiguration)
 
-        repository.ensureUpToDate(
+        val initialSessions = repository.withUpToDateSnapshot(
             calibration = calibration,
             syncedThroughMillis = initialEnd,
             syncQueryBeginMillis = start,
             checkpointRevision = 0L,
             zoneId = zoneId,
             collectionGapStarts = emptyList(),
-        )
-        assertEquals(emptyList<Any>(), repository.loadCompleteInnerSessions(start, initialEnd))
+        ) {
+            loadCompleteInnerSessions(start, initialEnd)
+        }
+        assertEquals(emptyList<Any>(), initialSessions)
         database.openHelper.readableDatabase.query(
             "SELECT package_name, inner_active_millis FROM inner_display_session_app_usage",
         ).use { cursor ->
@@ -825,16 +1358,16 @@ class LongTermDatabaseTest {
             assertFalse(cursor.moveToNext())
         }
 
-        repository.ensureUpToDate(
+        val session = repository.withUpToDateSnapshot(
             calibration = calibration,
             syncedThroughMillis = extendedEnd,
             syncQueryBeginMillis = initialEnd - TimeUnit.HOURS.toMillis(1L),
             checkpointRevision = 0L,
             zoneId = zoneId,
             collectionGapStarts = emptyList(),
-        )
-
-        val session = repository.loadCompleteInnerSessions(start, extendedEnd).single()
+        ) {
+            loadCompleteInnerSessions(start, extendedEnd).single()
+        }
         assertEquals(openedAt, session.openedAtMillis)
         assertEquals(closedAt, session.closedAtMillis)
         assertEquals(closedAt - openedAt, session.innerActiveMillis)
@@ -925,25 +1458,127 @@ class LongTermDatabaseTest {
                     "cover=443,994,443,1,420|inner=852,883,852,1,420",
                 zoneId = zoneId.id,
                 checkpointRevision = 0L,
-                // Version 5 is the previous cache format; version 6 must rebuild it.
-                aggregationVersion = 5,
+                // Version 6 is the previous cache format; version 7 must rebuild it.
+                aggregationVersion = 6,
             ),
         )
 
-        repository().ensureUpToDate(
+        val repository = repository()
+        val sessions = repository.withUpToDateSnapshot(
             calibration = calibration,
             syncedThroughMillis = end,
             syncQueryBeginMillis = start,
             checkpointRevision = 0L,
             zoneId = zoneId,
             collectionGapStarts = emptyList(),
-        )
-
-        val sessions = repository().loadCompleteInnerSessions(start, end)
+        ) {
+            loadCompleteInnerSessions(start, end)
+        }
         assertEquals(listOf(openedAt), sessions.map { it.openedAtMillis })
         assertEquals(1_000L, sessions.single().innerActiveMillis)
-        assertEquals(6, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
+        assertEquals(7, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
         assertEquals(1, database.dailyPostureSummaryDao().loadAll().single().openedCount)
+    }
+
+    private suspend fun assertIncrementalAmbiguousSessionMatchesFullRebuild(
+        seedActivityEvents: (Long) -> List<UsageEventEntity>,
+        terminalEvent: (Long) -> UsageEventEntity,
+    ) {
+        val start = LocalDate.of(2024, 1, 1)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        val rebuildStart = LocalDate.of(2024, 4, 3)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        val end = rebuildStart + 6_000L
+        val calibration = Calibration(cover = configuration, inner = innerConfiguration)
+        database.usageEventDao().insertEvents(
+            listOf(
+                event(
+                    key = "cover",
+                    timestampMillis = start,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = configuration,
+                ),
+                event(
+                    key = "screen-on",
+                    timestampMillis = start,
+                    sequence = 1,
+                    rawEventType = UsageEvents.Event.SCREEN_INTERACTIVE,
+                ),
+                event(
+                    key = "unlocked",
+                    timestampMillis = start,
+                    sequence = 2,
+                    rawEventType = UsageEvents.Event.KEYGUARD_HIDDEN,
+                ),
+            ) + seedActivityEvents(start) + listOf(
+                terminalEvent(rebuildStart),
+                event(
+                    key = "app-b-resumed",
+                    timestampMillis = rebuildStart + 2_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                    packageName = "app.b",
+                ),
+                event(
+                    key = "opened",
+                    timestampMillis = rebuildStart + 3_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = innerConfiguration,
+                ),
+                event(
+                    key = "closed",
+                    timestampMillis = rebuildStart + 5_000L,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = configuration,
+                ),
+            ),
+        )
+        database.dailyPostureSummaryDao().upsertState(
+            DailySummaryStateEntity(
+                lastAggregatedThroughMillis = rebuildStart,
+                calibrationKey = calibration.dailySummaryCacheKey(),
+                zoneId = zoneId.id,
+                checkpointRevision = 0L,
+                aggregationVersion = 7,
+            ),
+        )
+
+        val incrementalSessions = repository().withUpToDateSnapshot(
+            calibration = calibration,
+            syncedThroughMillis = end,
+            syncQueryBeginMillis = rebuildStart,
+            checkpointRevision = 0L,
+            zoneId = zoneId,
+            collectionGapStarts = emptyList(),
+        ) {
+            loadCompleteInnerSessions(start, end)
+        }
+        database.dailyPostureSummaryDao().upsertState(
+            requireNotNull(database.dailyPostureSummaryDao().loadState())
+                .copy(aggregationVersion = 0),
+        )
+        val fullSessions = repository().withUpToDateSnapshot(
+            calibration = calibration,
+            syncedThroughMillis = end,
+            syncQueryBeginMillis = rebuildStart,
+            checkpointRevision = 0L,
+            zoneId = zoneId,
+            collectionGapStarts = emptyList(),
+        ) {
+            loadCompleteInnerSessions(start, end)
+        }
+
+        assertEquals(1, incrementalSessions.size)
+        assertEquals(2_000L, incrementalSessions.single().innerActiveMillis)
+        assertEquals(emptyMap<String, Long>(), incrementalSessions.single().appUsageMillis)
+        assertEquals(fullSessions, incrementalSessions)
     }
 
     private fun eventsForDay(dayStartMillis: Long): List<UsageEventEntity> = listOf(
@@ -1044,5 +1679,21 @@ class LongTermDatabaseTest {
         checkpointDao = database.postureCheckpointDao(),
         summaryDao = database.dailyPostureSummaryDao(),
     )
+
+    private suspend fun loadCompleteInnerSessions(
+        beginMillis: Long,
+        endMillis: Long,
+    ) = database.dailyPostureSummaryDao().let { summaryDao ->
+        val sessions = summaryDao.loadCompleteInnerSessions(beginMillis, endMillis)
+        val appUsages = summaryDao.loadCompleteInnerSessionAppUsages(beginMillis, endMillis)
+            .groupBy { it.openedAtMillis to it.openedSequenceAtTimestamp }
+        sessions.map { session ->
+            session.toModel(
+                appUsages = appUsages[
+                    session.openedAtMillis to session.openedSequenceAtTimestamp
+                ].orEmpty(),
+            )
+        }
+    }
 
 }

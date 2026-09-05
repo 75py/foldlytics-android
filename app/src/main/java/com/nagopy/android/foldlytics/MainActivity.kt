@@ -49,10 +49,9 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         if (uri == null) return@registerForActivityResult
         lifecycleScope.launch {
             val saved = try {
-                withContext(Dispatchers.IO) {
+                viewModel.exportLongTermCsv {
                     contentResolver.openOutputStream(uri, "wt")
                         ?.bufferedWriter(Charsets.UTF_8)
-                        ?.use(viewModel::writeLongTermCsv)
                         ?: error(getString(R.string.error_open_output))
                 }
                 true

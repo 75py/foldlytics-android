@@ -6,6 +6,10 @@ import java.time.temporal.ChronoUnit
 
 const val MAX_CUSTOM_RANGE_DAYS = 1_095L
 
+/** Periods that can be analyzed regardless of how much history has been recorded. */
+val DEFAULT_ANALYSIS_PERIODS: Set<AnalysisPeriod> =
+    AnalysisPeriod.entries.filterTo(mutableSetOf()) { it.hours != null }
+
 fun availableAnalysisPeriods(
     recordRangeStartMillis: Long?,
     recordRangeEndMillis: Long?,

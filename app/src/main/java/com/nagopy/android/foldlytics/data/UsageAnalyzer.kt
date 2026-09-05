@@ -60,7 +60,7 @@ class UsageAnalyzer(
         var keyguardHidden = false
         var posture = DisplayPosture.UNKNOWN
         var unknownReason = UnknownPostureReason.NO_BASELINE
-        val resumedActivities = linkedMapOf<String, String>()
+        val activityTracker = ActivityVisibilityTracker()
         val accumulators = linkedMapOf<String, MutableAppUsage>()
         val postureEvents = mutableListOf<PostureEvent>()
         val foldTransitions = mutableListOf<FoldTransition>()
@@ -134,7 +134,8 @@ class UsageAnalyzer(
                         excludedMillisByReason.getOrDefault(reason, 0L) + duration
                 }
             }
-            val activePackages = resumedActivities.values.toSet()
+            val activitySnapshot = activityTracker.snapshot
+            val activePackages = activitySnapshot.assignablePackages
             addDailyInterval(start, end, activePackages)
             if (activePackages.size > 1) multiResumeMillis += duration
 
@@ -219,7 +220,7 @@ class UsageAnalyzer(
                 keyguardHidden = false
                 posture = DisplayPosture.UNKNOWN
                 unknownReason = UnknownPostureReason.COLLECTION_INTERRUPTION
-                resumedActivities.clear()
+                activityTracker.reset()
                 if (entry.timestampMillis in rangeStartMillis until rangeEndMillis) {
                     evidenceGapCount += 1
                     dailyAccumulator(entry.timestampMillis).evidenceGapCount += 1
@@ -257,16 +258,11 @@ class UsageAnalyzer(
             val record = (entry as TimelineEntry.Usage).record
 
             when (record.kind) {
-                UsageEventKind.ACTIVITY_RESUMED -> {
-                    val packageName = record.packageName
-                    if (packageName != null) {
-                        resumedActivities[record.activityKey()] = packageName
-                    }
-                }
+                UsageEventKind.ACTIVITY_RESUMED -> activityTracker.apply(record)
 
                 UsageEventKind.ACTIVITY_PAUSED,
                 UsageEventKind.ACTIVITY_STOPPED
-                -> resumedActivities.remove(record.activityKey())
+                -> activityTracker.apply(record)
 
                 UsageEventKind.CONFIGURATION_CHANGED -> {
                     applyConfiguration(
@@ -289,7 +285,7 @@ class UsageAnalyzer(
                     keyguardHidden = false
                     posture = DisplayPosture.UNKNOWN
                     unknownReason = UnknownPostureReason.AFTER_DEVICE_RESTART
-                    resumedActivities.clear()
+                    activityTracker.reset()
                     if (record.timestampMillis in rangeStartMillis until rangeEndMillis) {
                         evidenceGapCount += 1
                         dailyAccumulator(record.timestampMillis).evidenceGapCount += 1
@@ -378,9 +374,6 @@ class UsageAnalyzer(
             multiResumeMillis = multiResumeMillis,
         )
     }
-
-    private fun UsageRecord.activityKey(): String =
-        "${packageName.orEmpty()}|${className.orEmpty()}"
 
     private data class MutableAppUsage(
         var coverMillis: Long = 0L,

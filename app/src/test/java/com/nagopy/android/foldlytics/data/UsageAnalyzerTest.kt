@@ -447,6 +447,234 @@ class UsageAnalyzerTest {
     }
 
     @Test
+    fun sameClassDuplicateResumeKeepsPackageTimeUntilTerminalEvent() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(1_000, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(3_000, UsageEventKind.ACTIVITY_PAUSED, "app.a", "A"),
+        )
+
+        val result = analyzer.analyze(records, 0, 6_000, calibration)
+
+        assertEquals(6_000L, result.coverMillis)
+        assertEquals(0L, result.excludedPostureMillis)
+        assertEquals(3_000L, result.apps.single().coverMillis)
+        assertEquals(0L, result.multiResumeMillis)
+    }
+
+    @Test
+    fun pauseFollowedByStopAfterDuplicateResumeKeepsLaterSameClassTimeUnassigned() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(1_000, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(3_000, UsageEventKind.ACTIVITY_PAUSED, "app.a", "A"),
+            record(4_000, UsageEventKind.ACTIVITY_STOPPED, "app.a", "A"),
+        )
+
+        val result = analyzer.analyze(records, 0, 6_000, calibration)
+
+        assertEquals(6_000L, result.coverMillis)
+        assertEquals(3_000L, result.apps.single().coverMillis)
+    }
+
+    @Test
+    fun uncertainPackageDoesNotPreventKnownUnrelatedPackageFromReceivingRankingTime() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(1_000, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(2_000, UsageEventKind.ACTIVITY_PAUSED, "app.a", "A"),
+            record(3_000, UsageEventKind.ACTIVITY_RESUMED, "app.b", "B"),
+        )
+
+        val result = analyzer.analyze(records, 0, 6_000, calibration)
+
+        assertEquals(6_000L, result.coverMillis)
+        assertEquals(2_000L, result.apps.first { it.packageName == "app.a" }.coverMillis)
+        assertEquals(3_000L, result.apps.first { it.packageName == "app.b" }.coverMillis)
+        assertEquals(0L, result.multiResumeMillis)
+    }
+
+    @Test
+    fun resumedEventRecoversSameClassAttributionAfterAmbiguity() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(1_000, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(2_000, UsageEventKind.ACTIVITY_PAUSED, "app.a", "A"),
+            record(4_000, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+        )
+
+        val result = analyzer.analyze(records, 0, 6_000, calibration)
+
+        assertEquals(6_000L, result.coverMillis)
+        assertEquals(4_000L, result.apps.single().coverMillis)
+    }
+
+    @Test
+    fun terminalAfterRecoveredDuplicateResumeLeavesLaterOtherPackageOnlyRankingTime() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(1_000, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(2_000, UsageEventKind.ACTIVITY_PAUSED, "app.a", "A"),
+            record(3_000, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(4_000, UsageEventKind.ACTIVITY_PAUSED, "app.a", "A"),
+            record(5_000, UsageEventKind.ACTIVITY_RESUMED, "app.b", "B"),
+        )
+
+        val result = analyzer.analyze(records, 0, 7_000, calibration)
+
+        assertEquals(7_000L, result.coverMillis)
+        assertEquals(3_000L, result.apps.first { it.packageName == "app.a" }.coverMillis)
+        assertEquals(2_000L, result.apps.first { it.packageName == "app.b" }.coverMillis)
+        assertEquals(0L, result.multiResumeMillis)
+    }
+
+    @Test
+    fun stopAfterPausedPredecessorLeavesLaterOtherPackageOnlyRankingTime() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(1_000, UsageEventKind.ACTIVITY_PAUSED, "app.a", "A"),
+            record(2_000, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(3_000, UsageEventKind.ACTIVITY_STOPPED, "app.a", "A"),
+            record(4_000, UsageEventKind.ACTIVITY_RESUMED, "app.b", "B"),
+        )
+
+        val result = analyzer.analyze(records, 0, 6_000, calibration)
+
+        assertEquals(6_000L, result.coverMillis)
+        assertEquals(2_000L, result.apps.first { it.packageName == "app.a" }.coverMillis)
+        assertEquals(2_000L, result.apps.first { it.packageName == "app.b" }.coverMillis)
+        assertEquals(0L, result.multiResumeMillis)
+    }
+
+    @Test
+    fun repeatedTimestampResumePauseResumeLeavesPackageAssignable() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(
+                1_000,
+                UsageEventKind.ACTIVITY_RESUMED,
+                "app.a",
+                "A",
+                sequenceAtTimestamp = 0,
+            ),
+            record(
+                1_000,
+                UsageEventKind.ACTIVITY_PAUSED,
+                "app.a",
+                "A",
+                sequenceAtTimestamp = 1,
+            ),
+            record(
+                1_000,
+                UsageEventKind.ACTIVITY_RESUMED,
+                "app.a",
+                "A",
+                sequenceAtTimestamp = 2,
+            ),
+        )
+
+        val result = analyzer.analyze(records, 0, 3_000, calibration)
+
+        assertEquals(3_000L, result.coverMillis)
+        assertEquals(2_000L, result.apps.single().coverMillis)
+    }
+
+    @Test
+    fun appAttributionAmbiguityDoesNotReducePostureCoverageAcrossScreenOff() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(1_000, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(2_000, UsageEventKind.ACTIVITY_PAUSED, "app.a", "A"),
+            record(4_000, UsageEventKind.SCREEN_NON_INTERACTIVE),
+            record(5_000, UsageEventKind.SCREEN_INTERACTIVE),
+        )
+
+        val result = analyzer.analyze(records, 0, 7_000, calibration)
+
+        assertEquals(6_000L, result.coverMillis)
+        assertEquals(0L, result.excludedPostureMillis)
+        assertEquals(1f, result.dataCoverageRatio, 0f)
+        assertEquals(2_000L, result.apps.single().coverMillis)
+    }
+
+    @Test
+    fun restartResetsUncertainActivityBeforeNewAttributionEvidence() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(1_000, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(2_000, UsageEventKind.ACTIVITY_PAUSED, "app.a", "A"),
+            record(3_000, UsageEventKind.DEVICE_STARTUP),
+            record(4_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(4_000, UsageEventKind.SCREEN_INTERACTIVE),
+            record(4_000, UsageEventKind.KEYGUARD_HIDDEN),
+            record(5_000, UsageEventKind.ACTIVITY_RESUMED, "app.b", "B"),
+        )
+
+        val result = analyzer.analyze(records, 0, 7_000, calibration)
+
+        assertEquals(6_000L, result.coverMillis)
+        assertEquals(2_000L, result.apps.first { it.packageName == "app.a" }.coverMillis)
+        assertEquals(2_000L, result.apps.first { it.packageName == "app.b" }.coverMillis)
+        assertEquals(0L, result.multiResumeMillis)
+    }
+
+    @Test
+    fun collectionGapResetsUncertainActivityBeforeNewAttributionEvidence() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(1_000, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(2_000, UsageEventKind.ACTIVITY_PAUSED, "app.a", "A"),
+            record(4_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(4_000, UsageEventKind.SCREEN_INTERACTIVE),
+            record(4_000, UsageEventKind.KEYGUARD_HIDDEN),
+            record(5_000, UsageEventKind.ACTIVITY_RESUMED, "app.b", "B"),
+        )
+
+        val result = analyzer.analyze(
+            records = records,
+            rangeStartMillis = 0,
+            rangeEndMillis = 7_000,
+            calibration = calibration,
+            collectionGapStarts = listOf(3_000),
+        )
+
+        assertEquals(6_000L, result.coverMillis)
+        assertEquals(2_000L, result.apps.first { it.packageName == "app.a" }.coverMillis)
+        assertEquals(2_000L, result.apps.first { it.packageName == "app.b" }.coverMillis)
+        assertEquals(1, result.evidenceGapCount)
+        assertEquals(0L, result.multiResumeMillis)
+    }
+
+    @Test
     fun calibrationChoosesNearestKnownConfiguration() {
         assertEquals(DisplayPosture.COVER, calibration.classify(configuration(430, 900, 430)))
         assertEquals(DisplayPosture.INNER, calibration.classify(configuration(720, 830, 720)))
@@ -857,6 +1085,7 @@ class UsageAnalyzerTest {
         packageName: String? = null,
         className: String? = null,
         configuration: DisplayConfiguration? = null,
+        sequenceAtTimestamp: Int = 0,
     ) = UsageRecord(
         timestampMillis = time,
         kind = kind,
@@ -864,5 +1093,6 @@ class UsageAnalyzerTest {
         className = className,
         configuration = configuration,
         rawEventType = 0,
+        sequenceAtTimestamp = sequenceAtTimestamp,
     )
 }
