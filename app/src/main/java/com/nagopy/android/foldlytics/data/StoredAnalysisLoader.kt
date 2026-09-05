@@ -14,6 +14,7 @@ import com.nagopy.android.foldlytics.model.UsageAnalysis
 import com.nagopy.android.foldlytics.model.availableAnalysisPeriods
 import com.nagopy.android.foldlytics.model.isValidCustomAnalysisRange
 import java.time.ZoneId
+import kotlinx.coroutines.flow.first
 
 /** Inputs that identify one stored-analysis result. */
 data class StoredAnalysisRequest(
@@ -36,7 +37,6 @@ data class StoredAnalysisSnapshot(
     val innerSessionSummary: InnerSessionSummary?,
     val longTermInsights: LongTermInsights?,
     val collectionHealth: CollectionHealth?,
-    val dailySummaries: List<DailyPostureSummary>,
 )
 
 /**
@@ -61,6 +61,32 @@ class StoredAnalysisLoader(
         isLauncherApp = isLauncherApp,
     )
 
+    /**
+     * Loads the saved daily history, rebuilding stale aggregates first. Unlike [load] this reads
+     * the current sync state itself, so it does not depend on an analysis pass having already run
+     * in this process.
+     */
+    suspend fun loadSavedDailyHistory(
+        calibration: Calibration,
+        zoneId: ZoneId,
+    ): List<DailyPostureSummary> {
+        val syncState = syncRepository.observeSyncState().first() ?: return emptyList()
+        val checkpointRevision = checkpointRepository.observeRevision().first()
+        val syncAttempts = syncRepository.loadSyncAttempts(
+            beginMillis = 0L,
+            endMillis = currentTimeMillis().endExclusive(),
+        )
+        return dailySummaryRepository.ensureUpToDate(
+            calibration = calibration,
+            syncedThroughMillis = syncState.lastSuccessfulEndMillis,
+            syncQueryBeginMillis = syncState.lastQueryBeginMillis,
+            checkpointRevision = checkpointRevision,
+            zoneId = zoneId,
+            collectionGapStarts = detectCollectionGaps(syncAttempts)
+                .map(CollectionGap::startMillis),
+        )
+    }
+
     suspend fun load(
         request: StoredAnalysisRequest,
         zoneId: ZoneId,
@@ -84,7 +110,6 @@ class StoredAnalysisLoader(
                 innerSessionSummary = null,
                 longTermInsights = null,
                 collectionHealth = longTermAnalyzer.collectionHealth(allSyncAttempts),
-                dailySummaries = emptyList(),
             )
         }
         val window = createUsageAnalysisWindow(
@@ -216,7 +241,6 @@ class StoredAnalysisLoader(
             innerSessionSummary = innerSessionSummary,
             longTermInsights = longTermInsights,
             collectionHealth = longTermAnalyzer.collectionHealth(periodSyncAttempts),
-            dailySummaries = dailySummaries,
         )
     }
 

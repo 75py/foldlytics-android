@@ -4,7 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nagopy.android.foldlytics.data.CalibrationStore
-import com.nagopy.android.foldlytics.data.LongTermCsvWriter
+import com.nagopy.android.foldlytics.data.CsvExportOutput
+import com.nagopy.android.foldlytics.data.LongTermCsvExporter
 import com.nagopy.android.foldlytics.data.StoredAnalysisLoader
 import com.nagopy.android.foldlytics.data.StoredAnalysisRequest
 import com.nagopy.android.foldlytics.data.UsageReadUnavailableReason
@@ -15,7 +16,6 @@ import com.nagopy.android.foldlytics.model.CalibrationAnchor
 import com.nagopy.android.foldlytics.model.CalibrationUpdateResult
 import com.nagopy.android.foldlytics.model.CalibrationValidationFailure
 import com.nagopy.android.foldlytics.model.CustomAnalysisRange
-import com.nagopy.android.foldlytics.model.DailyPostureSummary
 import com.nagopy.android.foldlytics.model.DisplayConfiguration
 import com.nagopy.android.foldlytics.model.PostureCheckpoint
 import com.nagopy.android.foldlytics.model.PostureCheckpointSource
@@ -50,9 +50,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val customRange = MutableStateFlow<CustomAnalysisRange?>(null)
     private val activeCalibration = MutableStateFlow(initialCalibration)
     private val analysisRevision = MutableStateFlow(0L)
+    private val csvExporter = LongTermCsvExporter {
+        storedAnalysisLoader.loadSavedDailyHistory(
+            calibration = activeCalibration.value,
+            zoneId = ZoneId.systemDefault(),
+        )
+    }
     private var refreshJob: Job? = null
-    @Volatile
-    private var latestDailySummaries: List<DailyPostureSummary> = emptyList()
 
     private val _uiState = MutableStateFlow(
         MainUiState(
@@ -241,8 +245,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         resources = getApplication<Application>().resources,
     )
 
-    fun writeLongTermCsv(output: Appendable) {
-        LongTermCsvWriter.write(latestDailySummaries, output)
+    /**
+     * Writes every saved daily summary to [output]. The history is loaded first, so an export
+     * started right after the process was recreated exports the saved history instead of an empty
+     * file, and a failed or cancelled load leaves the destination untouched.
+     */
+    suspend fun exportLongTermCsv(output: CsvExportOutput) {
+        withContext(Dispatchers.IO) {
+            csvExporter.export(output)
+        }
     }
 
     private fun saveCurrentCheckpoint(source: PostureCheckpointSource) {
@@ -357,7 +368,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         val snapshot = withContext(Dispatchers.IO) {
                             storedAnalysisLoader.load(request, ZoneId.systemDefault())
                         }
-                        latestDailySummaries = snapshot.dailySummaries
                         _uiState.update {
                             it.copy(
                                 selectedPeriod = snapshot.selectedPeriod,
