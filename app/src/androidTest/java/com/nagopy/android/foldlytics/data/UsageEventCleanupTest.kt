@@ -33,10 +33,12 @@ class UsageEventCleanupTest {
         require(LEGACY_CLEANUP_DATABASE_NAME != "foldlytics.db")
         require(DEVICE_STATE_MIGRATION_DATABASE_NAME != "foldlytics.db")
         require(SESSION_MIGRATION_DATABASE_NAME != "foldlytics.db")
+        require(CACHE_CURSOR_MIGRATION_DATABASE_NAME != "foldlytics.db")
         require(FRESH_DATABASE_NAME != "foldlytics.db")
         context.deleteDatabase(LEGACY_CLEANUP_DATABASE_NAME)
         context.deleteDatabase(DEVICE_STATE_MIGRATION_DATABASE_NAME)
         context.deleteDatabase(SESSION_MIGRATION_DATABASE_NAME)
+        context.deleteDatabase(CACHE_CURSOR_MIGRATION_DATABASE_NAME)
         context.deleteDatabase(FRESH_DATABASE_NAME)
     }
 
@@ -45,6 +47,7 @@ class UsageEventCleanupTest {
         context.deleteDatabase(LEGACY_CLEANUP_DATABASE_NAME)
         context.deleteDatabase(DEVICE_STATE_MIGRATION_DATABASE_NAME)
         context.deleteDatabase(SESSION_MIGRATION_DATABASE_NAME)
+        context.deleteDatabase(CACHE_CURSOR_MIGRATION_DATABASE_NAME)
         context.deleteDatabase(FRESH_DATABASE_NAME)
     }
 
@@ -258,10 +261,107 @@ class UsageEventCleanupTest {
     }
 
     @Test
-    fun reopeningFreshVersionFourDatabaseDoesNotRunLegacyCleanup() = runBlocking {
+    fun migrationFromFourToFivePreservesEventsAndInvalidatesSyncHistoryCursor() {
+        val versionFour = migrationHelper.createDatabase(CACHE_CURSOR_MIGRATION_DATABASE_NAME, 4)
+        try {
+            versionFour.execSQL(
+                """
+                INSERT INTO usage_events (
+                    event_key,
+                    timestamp_millis,
+                    sequence_at_timestamp,
+                    raw_event_type,
+                    package_name,
+                    class_name,
+                    has_configuration,
+                    screen_width_dp,
+                    screen_height_dp,
+                    smallest_screen_width_dp,
+                    orientation,
+                    density_dpi
+                ) VALUES (
+                    '460e7d8ab98d298e5152883fcd089c271426a3bb5e8a13417b9ed7fe3a036738',
+                    1000,
+                    0,
+                    1,
+                    'example.app',
+                    'ExampleActivity',
+                    0,
+                    NULL,
+                    NULL,
+                    NULL,
+                    NULL,
+                    NULL
+                )
+                """.trimIndent(),
+            )
+            versionFour.execSQL(
+                """
+                INSERT INTO sync_history (
+                    id,
+                    attempted_at_millis,
+                    query_begin_millis,
+                    query_end_millis,
+                    status,
+                    read_event_count,
+                    inserted_event_count
+                ) VALUES (7, 2000, 0, 2000, 'SUCCESS', 1, 1)
+                """.trimIndent(),
+            )
+            versionFour.execSQL(
+                """
+                INSERT INTO daily_summary_state (
+                    singleton_id,
+                    last_aggregated_through_millis,
+                    calibration_key,
+                    zone_id,
+                    checkpoint_revision,
+                    aggregation_version
+                ) VALUES (1, 2000, 'calibration', 'UTC', 0, 5)
+                """.trimIndent(),
+            )
+        } finally {
+            versionFour.close()
+        }
+
+        val migrated = migrationHelper.runMigrationsAndValidate(
+            CACHE_CURSOR_MIGRATION_DATABASE_NAME,
+            5,
+            true,
+            MIGRATION_4_5,
+        )
+        try {
+            assertEquals(5, migrated.version)
+            migrated.query(
+                """
+                SELECT aggregation_version, last_aggregated_sync_history_id
+                FROM daily_summary_state
+                WHERE singleton_id = 1
+                """.trimIndent(),
+            ).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(5, cursor.getInt(0))
+                assertEquals(0L, cursor.getLong(1))
+                assertFalse(cursor.moveToNext())
+            }
+            migrated.query("SELECT event_key FROM usage_events").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(
+                    "460e7d8ab98d298e5152883fcd089c271426a3bb5e8a13417b9ed7fe3a036738",
+                    cursor.getString(0),
+                )
+                assertFalse(cursor.moveToNext())
+            }
+        } finally {
+            migrated.close()
+        }
+    }
+
+    @Test
+    fun reopeningFreshVersionFiveDatabaseDoesNotRunLegacyCleanup() = runBlocking {
         var database = openLatestDatabase(FRESH_DATABASE_NAME)
         try {
-            assertEquals(4, database.openHelper.writableDatabase.version)
+            assertEquals(5, database.openHelper.writableDatabase.version)
             database.usageEventDao().insertEvents(
                 listOf(
                     event(
@@ -396,7 +496,7 @@ class UsageEventCleanupTest {
 
     private fun openLatestDatabase(name: String): FoldlyticsDatabase =
         Room.databaseBuilder(context, FoldlyticsDatabase::class.java, name)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .build()
 
     private fun event(eventKey: String, rawEventType: Int): UsageEventEntity = UsageEventEntity(
@@ -419,6 +519,8 @@ class UsageEventCleanupTest {
         const val DEVICE_STATE_MIGRATION_DATABASE_NAME =
             "foldlytics-device-state-migration-test.db"
         const val SESSION_MIGRATION_DATABASE_NAME = "foldlytics-session-migration-test.db"
-        const val FRESH_DATABASE_NAME = "foldlytics-usage-event-fresh-v4-test.db"
+        const val CACHE_CURSOR_MIGRATION_DATABASE_NAME =
+            "foldlytics-cache-cursor-migration-test.db"
+        const val FRESH_DATABASE_NAME = "foldlytics-usage-event-fresh-v5-test.db"
     }
 }

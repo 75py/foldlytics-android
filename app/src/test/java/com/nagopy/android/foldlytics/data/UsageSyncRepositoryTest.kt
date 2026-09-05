@@ -1,5 +1,8 @@
 package com.nagopy.android.foldlytics.data
 
+import android.app.usage.UsageEvents
+import com.nagopy.android.foldlytics.model.Calibration
+import com.nagopy.android.foldlytics.model.DisplayConfiguration
 import com.nagopy.android.foldlytics.model.UsageEventKind
 import com.nagopy.android.foldlytics.model.UsageRecord
 import java.io.IOException
@@ -219,6 +222,110 @@ class UsageSyncRepositoryTest {
         assertNotEquals(first.toEntity().eventKey, differentEvent.toEntity().eventKey)
     }
 
+    @Test
+    fun repeatedPayloadOccurrencesHaveDistinctStableKeysAndKeepLegacyFirstKey() {
+        val firstResume = record(timestampMillis = 1_000L, sequenceAtTimestamp = 0)
+        val pause = record(
+            timestampMillis = 1_000L,
+            sequenceAtTimestamp = 1,
+            kind = UsageEventKind.ACTIVITY_PAUSED,
+            rawEventType = UsageEvents.Event.ACTIVITY_PAUSED,
+        )
+        val secondResume = firstResume.copy(sequenceAtTimestamp = 2)
+        val firstQuery = listOf(firstResume, pause, secondResume)
+        val reorderedQuery = firstQuery.map {
+            it.copy(sequenceAtTimestamp = it.sequenceAtTimestamp + 4)
+        }
+
+        val firstKeys = firstQuery.toEntities().map(UsageEventEntity::eventKey)
+        val reorderedKeys = reorderedQuery.toEntities().map(UsageEventEntity::eventKey)
+
+        assertEquals(firstKeys, reorderedKeys)
+        assertEquals(3, firstKeys.distinct().size)
+        assertEquals(
+            "460e7d8ab98d298e5152883fcd089c271426a3bb5e8a13417b9ed7fe3a036738",
+            firstKeys.first(),
+        )
+    }
+
+    @Test
+    fun overlappingSyncPreservesSameMillisecondResumePauseResumeForAnalysis() = runBlocking {
+        val cover = DisplayConfiguration(
+            screenWidthDp = 443,
+            screenHeightDp = 994,
+            smallestScreenWidthDp = 443,
+            orientation = 1,
+            densityDpi = 420,
+        )
+        val records = listOf(
+            record(
+                timestampMillis = 0L,
+                sequenceAtTimestamp = 0,
+                kind = UsageEventKind.CONFIGURATION_CHANGED,
+                rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                packageName = null,
+                className = null,
+                configuration = cover,
+            ),
+            record(
+                timestampMillis = 0L,
+                sequenceAtTimestamp = 1,
+                kind = UsageEventKind.SCREEN_INTERACTIVE,
+                rawEventType = UsageEvents.Event.SCREEN_INTERACTIVE,
+                packageName = null,
+                className = null,
+            ),
+            record(
+                timestampMillis = 0L,
+                sequenceAtTimestamp = 2,
+                kind = UsageEventKind.KEYGUARD_HIDDEN,
+                rawEventType = UsageEvents.Event.KEYGUARD_HIDDEN,
+                packageName = null,
+                className = null,
+            ),
+            record(timestampMillis = 1_000L, sequenceAtTimestamp = 0),
+            record(
+                timestampMillis = 1_000L,
+                sequenceAtTimestamp = 1,
+                kind = UsageEventKind.ACTIVITY_PAUSED,
+                rawEventType = UsageEvents.Event.ACTIVITY_PAUSED,
+            ),
+            record(timestampMillis = 1_000L, sequenceAtTimestamp = 2),
+        )
+        val source = FakeUsageEventSource(UsageReadResult.Success(records))
+        val store = FakeUsageEventStore()
+        var nowMillis = 2_000L
+        val repository = UsageSyncRepository(
+            eventSource = source,
+            eventStore = store,
+            currentTimeMillis = { nowMillis },
+            ioDispatcher = Dispatchers.Unconfined,
+        )
+
+        val first = repository.sync() as UsageSyncResult.Success
+        source.result = UsageReadResult.Success(
+            records.map { it.copy(sequenceAtTimestamp = it.sequenceAtTimestamp + 4) },
+        )
+        nowMillis = 3_000L
+        val second = repository.sync() as UsageSyncResult.Success
+        val analysis = UsageAnalyzer(packageLabel = { it }).analyze(
+            records = store.records,
+            rangeStartMillis = 0L,
+            rangeEndMillis = 2_000L,
+            calibration = Calibration(cover = cover),
+        )
+
+        assertEquals(6, first.insertedEventCount)
+        assertEquals(0, second.insertedEventCount)
+        assertEquals(6, store.records.size)
+        assertEquals(
+            listOf(0, 1, 2),
+            store.records.filter { it.timestampMillis == 1_000L }
+                .map(UsageRecord::sequenceAtTimestamp),
+        )
+        assertEquals(1_000L, analysis.apps.single().coverMillis)
+    }
+
     private fun repository(
         source: FakeUsageEventSource,
         store: FakeUsageEventStore,
@@ -233,12 +340,18 @@ class UsageSyncRepositoryTest {
     private fun record(
         timestampMillis: Long,
         sequenceAtTimestamp: Int = 0,
+        kind: UsageEventKind = UsageEventKind.ACTIVITY_RESUMED,
+        rawEventType: Int = UsageEvents.Event.ACTIVITY_RESUMED,
+        packageName: String? = "example.app",
+        className: String? = "ExampleActivity",
+        configuration: DisplayConfiguration? = null,
     ) = UsageRecord(
         timestampMillis = timestampMillis,
-        kind = UsageEventKind.ACTIVITY_RESUMED,
-        packageName = "example.app",
-        className = "ExampleActivity",
-        rawEventType = 1,
+        kind = kind,
+        packageName = packageName,
+        className = className,
+        configuration = configuration,
+        rawEventType = rawEventType,
         sequenceAtTimestamp = sequenceAtTimestamp,
     )
 
@@ -279,8 +392,8 @@ class UsageSyncRepositoryTest {
         ): Int {
             persistCallCount += 1
             if (failPersistence) throw IOException("database unavailable")
-            val newRecords = records.filter { eventKeys.add(it.toEntity().eventKey) }
-            this.records += newRecords
+            val newRecords = records.toEntities().filter { eventKeys.add(it.eventKey) }
+            this.records += newRecords.map(UsageEventEntity::toModel)
             this.state = state.copy(lastInsertedEventCount = newRecords.size)
             attempts += attempt.copy(insertedEventCount = newRecords.size)
             stateFlow.value = this.state

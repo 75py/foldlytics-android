@@ -234,6 +234,8 @@ data class DailySummaryStateEntity(
     val checkpointRevision: Long,
     @ColumnInfo(name = "aggregation_version")
     val aggregationVersion: Int,
+    @ColumnInfo(name = "last_aggregated_sync_history_id", defaultValue = "0")
+    val lastAggregatedSyncHistoryId: Long = 0L,
 ) {
     companion object {
         const val SINGLETON_ID = 1
@@ -442,6 +444,30 @@ interface UsageEventDao {
         """,
     )
     suspend fun earliestDeviceStateCheckpointTimestamp(): Long?
+
+    @Query(
+        """
+        SELECT MAX(id) FROM sync_history
+        WHERE status = 'SUCCESS' AND query_end_millis <= :syncedThroughMillis
+        """,
+    )
+    suspend fun latestSuccessfulSyncHistoryIdThrough(syncedThroughMillis: Long): Long?
+
+    @Query(
+        """
+        SELECT MIN(query_begin_millis) FROM sync_history
+        WHERE status = 'SUCCESS'
+            AND id > :afterHistoryId
+            AND id <= :throughHistoryId
+            AND query_end_millis <= :syncedThroughMillis
+            AND query_begin_millis < :syncedThroughMillis
+        """,
+    )
+    suspend fun earliestSuccessfulSyncQueryBeginAfter(
+        afterHistoryId: Long,
+        throughHistoryId: Long,
+        syncedThroughMillis: Long,
+    ): Long?
 
     @Transaction
     suspend fun persistSuccessfulSync(
@@ -719,7 +745,7 @@ interface DailyPostureSummaryDao {
         DailySummaryStateEntity::class,
         SyncHistoryEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class FoldlyticsDatabase : RoomDatabase() {
@@ -740,7 +766,12 @@ abstract class FoldlyticsDatabase : RoomDatabase() {
                     FoldlyticsDatabase::class.java,
                     "foldlytics.db",
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(
+                        MIGRATION_1_2,
+                        MIGRATION_2_3,
+                        MIGRATION_3_4,
+                        MIGRATION_4_5,
+                    )
                     .build()
                     .also { instance = it }
             }
@@ -819,6 +850,15 @@ internal val MIGRATION_3_4 = object : Migration(3, 4) {
     }
 }
 
+internal val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE daily_summary_state " +
+                "ADD COLUMN last_aggregated_sync_history_id INTEGER NOT NULL DEFAULT 0",
+        )
+    }
+}
+
 class RoomUsageEventStore(
     private val dao: UsageEventDao,
 ) : UsageEventStore {
@@ -832,7 +872,7 @@ class RoomUsageEventStore(
         state: UsageSyncState,
         attempt: SyncAttempt,
     ): Int = dao.persistSuccessfulSync(
-        events = records.map(UsageRecord::toEntity),
+        events = records.toEntities(),
         state = state.toEntity(),
         attempt = attempt.toEntity(),
     )
@@ -860,20 +900,30 @@ class RoomUsageEventStore(
             .mapNotNull(SyncHistoryEntity::toDeviceStateCheckpoint)
 }
 
-internal fun UsageRecord.toEntity(): UsageEventEntity {
+internal fun List<UsageRecord>.toEntities(): List<UsageEventEntity> {
+    val occurrenceCounts = mutableMapOf<String, Int>()
+    return map { record ->
+        val legacyEventKey = record.legacyEventKey()
+        val occurrence = occurrenceCounts.getOrDefault(legacyEventKey, 0)
+        occurrenceCounts[legacyEventKey] = occurrence + 1
+        record.toEntity(
+            eventKey = if (occurrence == 0) {
+                // Preserve the pre-v5 key for existing rows. Later keys count only identical
+                // payloads, so unrelated events filtered from another query cannot shift them.
+                legacyEventKey
+            } else {
+                stableKey(legacyEventKey, occurrence.toString())
+            },
+        )
+    }
+}
+
+internal fun UsageRecord.toEntity(): UsageEventEntity = toEntity(eventKey = legacyEventKey())
+
+private fun UsageRecord.toEntity(eventKey: String): UsageEventEntity {
     val config = configuration
     return UsageEventEntity(
-        eventKey = stableKey(
-            timestampMillis.toString(),
-            rawEventType.toString(),
-            packageName,
-            className,
-            config?.screenWidthDp?.toString(),
-            config?.screenHeightDp?.toString(),
-            config?.smallestScreenWidthDp?.toString(),
-            config?.orientation?.toString(),
-            config?.densityDpi?.toString(),
-        ),
+        eventKey = eventKey,
         timestampMillis = timestampMillis,
         sequenceAtTimestamp = sequenceAtTimestamp,
         rawEventType = rawEventType,
@@ -885,6 +935,21 @@ internal fun UsageRecord.toEntity(): UsageEventEntity {
         smallestScreenWidthDp = config?.smallestScreenWidthDp,
         orientation = config?.orientation,
         densityDpi = config?.densityDpi,
+    )
+}
+
+private fun UsageRecord.legacyEventKey(): String {
+    val config = configuration
+    return stableKey(
+        timestampMillis.toString(),
+        rawEventType.toString(),
+        packageName,
+        className,
+        config?.screenWidthDp?.toString(),
+        config?.screenHeightDp?.toString(),
+        config?.smallestScreenWidthDp?.toString(),
+        config?.orientation?.toString(),
+        config?.densityDpi?.toString(),
     )
 }
 
