@@ -27,6 +27,8 @@ Download: [https://play.google.com/store/apps/details?id=com.nagopy.android.fold
   history is available.
 - App rankings by total display time, cover display, or inner display, limited
   to launchable apps and shown with their icons.
+- Per-app cover/inner shares, grouped by the display with the higher share and
+  ordered by measured time on that display.
 - Data coverage and collection status.
 - Daily CSV export for all saved history, to a destination you choose.
 
@@ -41,6 +43,13 @@ fourth and later apps, and intervals that cannot be assigned to one app are
 shown as Other. The same usage events already stored on the device are used,
 with no new permission or automatic data transfer; the derived cache can be
 regenerated from the saved source events.
+
+App usage starts with apps sorted by total usage time. You can also sort by time
+on the outer or inner display. In the By display view, each app appears under the
+display where it was used longer. Each list is sorted by time on that display,
+longest first. Apps with equal time on both displays appear in neither list.
+Time when the display is unknown is shown separately and excluded from totals
+and percentages.
 
 ## Build and test
 

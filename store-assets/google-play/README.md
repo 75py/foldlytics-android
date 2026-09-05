@@ -108,8 +108,9 @@ trend buckets, open counts, and rankings agree with one another.
    `generate-phone-screenshots.sh` for the upload-ready images and contact sheets. The helper
    removes only its fixture directories from the test emulator when it exits.
 
-   Use this Gradle connected-test helper because direct `am instrument` does not initialize the
-   Compose UI test v2 host used by this fixture.
+   Use this Gradle connected-test helper to automate building and installing the test APKs.
+   Keep the emulator screen awake and unlocked during capture. Direct `am instrument` can also
+   run the installed fixture; captures were verified after waking and unlocking the emulator.
 
 3. Set `FOLDLYTICS_STORE_FONT` when the default macOS Hiragino font is unavailable.
 
@@ -127,6 +128,52 @@ localized app labels and the same calculated values. The capture flow navigates 
 test tags and semantics: home summary, session details, the two trend modes, total app usage
 details, and the drawer. The app theme also passes the active locale to Compose typography so
 `ja-JP` captures use Japanese CJK glyph forms.
+
+## Display-share review screenshots
+
+`StoreScreenshotCaptureTest` also has two independent review scenarios:
+`captureJapaneseDisplayShareScreenshots` and `captureEnglishDisplayShareScreenshots`.
+The store capture helper selects only the original phone screenshot methods, so these extra
+captures do not change the six-image listing workflow.
+
+On the coordinator's API 36 emulator, configured with the same opened 1080 x 1920 display as
+above, run the following from the repository root with JDK 17 and SDK 36 configured:
+
+```shell
+capture_class=com.nagopy.android.foldlytics.ui.StoreScreenshotCaptureTest
+./gradlew :app:connectedDebugAndroidTest \
+  "-Pandroid.testInstrumentationRunnerArguments.class=$capture_class#captureJapaneseDisplayShareScreenshots,$capture_class#captureEnglishDisplayShareScreenshots"
+adb pull /sdcard/Download/Foldlytics/display-share-ja /private/tmp/pr16-display-share-ja
+adb pull /sdcard/Download/Foldlytics/display-share-en /private/tmp/pr16-display-share-en
+```
+
+Use `ANDROID_SERIAL` to select the intended emulator if needed. Gradle automates building and
+installing the test APKs; direct `am instrument` also works with the fixture installed. Keep the
+emulator screen awake and unlocked during capture. Each locale produces
+`inner-overview.png`, `inner-apps.png`, `outer-overview.png`, and `outer-apps.png`: the overview
+starts at the period and selectors; the app capture scrolls the leading card into view. Each run
+replaces only its own `display-share-ja` or `display-share-en` MediaStore directory.
+
+Prefer a fresh disposable AVD for review captures. Reinstalling the app can leave MediaStore
+files from the previous installation, and new captures may receive a suffix such as `(1)`.
+Check the actual output filenames and image dimensions before pulling files, particularly when
+switching between closed and opened displays; an unsuffixed file may be an older capture.
+
+These scenarios reuse the store fixture's fixed 90-day period and generic localized labels,
+with a separate synthetic app dataset:
+
+| App | Outer | Inner | Display undetermined | Expected group/rank |
+| --- | --- | --- | --- | --- |
+| Reading | 40 min | 60 min | 10 min | Inner, #1 (60% inner) |
+| Photos | 0 min | 5 min | 0 min | Inner, #2 (100% inner) |
+| Messages | 60 min | 40 min | 10 min | Outer, #1 (60% outer) |
+| Maps | 5 min | 0 min | 0 min | Outer, #2 (100% outer) |
+| Browser | 10 min | 10 min | 0 min | Neither (even split) |
+
+Review both locales for selector and card clipping, complementary orange/blue bars, separate
+undetermined time, and longer measured use ranking ahead of brief 100% use. The fixture uses
+only in-memory data and does not read or modify usage history. These review PNGs are not
+automatically copied into the upload-ready store assets.
 
 ## Feature graphic source and prompt
 

@@ -1,5 +1,6 @@
 package com.nagopy.android.foldlytics.ui
 
+import android.content.res.Resources
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -26,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -36,50 +38,81 @@ import com.nagopy.android.foldlytics.R
 import com.nagopy.android.foldlytics.model.AppUsage
 import com.nagopy.android.foldlytics.toDurationText
 
-internal enum class AppRankingBasis(
-    val labelRes: Int,
-    val selectorDescriptionRes: Int,
-) {
-    TOTAL(
-        labelRes = R.string.app_ranking_total,
-        selectorDescriptionRes = R.string.content_desc_total_app_ranking,
-    ),
-    COVER(
-        labelRes = R.string.posture_cover,
-        selectorDescriptionRes = R.string.content_desc_cover_app_ranking,
-    ),
-    INNER(
-        labelRes = R.string.posture_inner,
-        selectorDescriptionRes = R.string.content_desc_inner_app_ranking,
-    ),
-    ;
-
-    fun selectedMillis(app: AppUsage): Long = when (this) {
-        TOTAL -> app.classifiedMillis
-        COVER -> app.coverMillis
-        INNER -> app.innerMillis
+private val AppRankingBasis.labelRes: Int
+    get() = when (this) {
+        AppRankingBasis.TOTAL -> R.string.app_ranking_total
+        AppRankingBasis.COVER -> R.string.posture_cover
+        AppRankingBasis.INNER -> R.string.posture_inner
     }
 
-    fun counterpartMillis(app: AppUsage): Long = when (this) {
-        TOTAL -> 0L
-        COVER -> app.innerMillis
-        INNER -> app.coverMillis
+private val AppRankingBasis.selectorDescriptionRes: Int
+    get() = when (this) {
+        AppRankingBasis.TOTAL -> R.string.content_desc_total_app_ranking
+        AppRankingBasis.COVER -> R.string.content_desc_cover_app_ranking
+        AppRankingBasis.INNER -> R.string.content_desc_inner_app_ranking
     }
-}
 
-internal fun rankAppsForDisplay(
-    apps: List<AppUsage>,
-    basis: AppRankingBasis,
-): List<AppUsage> = apps
-    .asSequence()
-    .filter { it.isLauncherApp && basis.selectedMillis(it) > 0L }
-    .sortedWith(
-        compareByDescending<AppUsage> { basis.selectedMillis(it) }
-            .thenByDescending { basis.counterpartMillis(it) }
-            .thenBy { it.label }
-            .thenBy { it.packageName },
+private val AppRankingBasis.displayNameRes: Int
+    get() = when (this) {
+        AppRankingBasis.COVER -> R.string.app_usage_outer_display
+        AppRankingBasis.INNER -> R.string.app_usage_inner_display
+        AppRankingBasis.TOTAL -> error("A total has no single display")
+    }
+
+private val AppRankingView.labelRes: Int
+    get() = when (this) {
+        AppRankingView.USAGE_TIME -> R.string.app_ranking_view_usage_time
+        AppRankingView.DISPLAY_SHARE -> R.string.app_ranking_view_display_share
+    }
+
+private val AppRankingView.selectorDescriptionRes: Int
+    get() = when (this) {
+        AppRankingView.USAGE_TIME -> R.string.content_desc_usage_time_app_ranking
+        AppRankingView.DISPLAY_SHARE -> R.string.content_desc_display_share_app_ranking
+    }
+
+private val AppDisplayMajority.basis: AppRankingBasis
+    get() = when (this) {
+        AppDisplayMajority.COVER -> AppRankingBasis.COVER
+        AppDisplayMajority.INNER -> AppRankingBasis.INNER
+        AppDisplayMajority.EVEN -> error("An even split has no ranking basis")
+    }
+
+private val AppDisplayMajority.labelRes: Int
+    get() = when (this) {
+        AppDisplayMajority.COVER -> R.string.app_ranking_cover_majority
+        AppDisplayMajority.INNER -> R.string.app_ranking_inner_majority
+        AppDisplayMajority.EVEN -> error("An even split is not selectable")
+    }
+
+private val AppDisplayMajority.otherBasis: AppRankingBasis
+    get() = when (this) {
+        AppDisplayMajority.COVER -> AppRankingBasis.INNER
+        AppDisplayMajority.INNER -> AppRankingBasis.COVER
+        AppDisplayMajority.EVEN -> error("An even split is not selectable")
+    }
+
+private val AppDisplayMajority.selectorDescriptionRes: Int
+    get() = when (this) {
+        AppDisplayMajority.COVER -> R.string.content_desc_cover_majority_app_ranking
+        AppDisplayMajority.INNER -> R.string.content_desc_inner_majority_app_ranking
+        AppDisplayMajority.EVEN -> error("An even split is not selectable")
+    }
+
+private fun Resources.formatDisplayShareValue(value: DisplayShareValue): String = when (value) {
+    is DisplayShareValue.RoundedPercent -> getString(
+        R.string.value_percent_1,
+        value.tenthsOfPercent / 10.0,
     )
-    .toList()
+    DisplayShareValue.LessThanHalf -> getString(R.string.value_share_less_than_half)
+    DisplayShareValue.MoreThanHalf -> getString(R.string.value_share_more_than_half)
+    DisplayShareValue.LessThanPointOnePercent -> getString(
+        R.string.value_share_less_than_point_one_percent,
+    )
+    DisplayShareValue.MoreThanNinetyNinePointNinePercent -> getString(
+        R.string.value_share_more_than_ninety_nine_point_nine_percent,
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,7 +121,9 @@ internal fun AppUsageScreen(
     scaffoldPadding: PaddingValues,
     listState: LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
 ) {
+    var selectedView by rememberSaveable { mutableStateOf(AppRankingView.USAGE_TIME) }
     var selectedBasis by rememberSaveable { mutableStateOf(AppRankingBasis.TOTAL) }
+    var selectedMajority by rememberSaveable { mutableStateOf(AppDisplayMajority.INNER) }
     val summary = state.periodSummary
     FoldlyticsLazyColumn(
         scaffoldPadding = scaffoldPadding,
@@ -115,35 +150,60 @@ internal fun AppUsageScreen(
         }
         item {
             AppRankingSelector(
+                selectedView = selectedView,
+                onViewSelected = { selectedView = it },
                 selectedBasis = selectedBasis,
                 onBasisSelected = { selectedBasis = it },
+                selectedMajority = selectedMajority,
+                onMajoritySelected = { selectedMajority = it },
             )
         }
         if (summary == null) {
             item { HintCard(stringResource(R.string.app_usage_detail_empty)) }
         } else {
-            val rankedApps = rankAppsForDisplay(summary.apps, selectedBasis)
-            val maximumMillis = rankedApps.firstOrNull()?.let(selectedBasis::selectedMillis) ?: 0L
+            val effectiveBasis = if (selectedView == AppRankingView.USAGE_TIME) {
+                selectedBasis
+            } else {
+                selectedMajority.basis
+            }
+            val rankedApps = if (selectedView == AppRankingView.USAGE_TIME) {
+                rankAppsForDisplay(summary.apps, selectedBasis)
+            } else {
+                rankAppsForDisplayMajority(summary.apps, selectedMajority)
+            }
+            val hasMeasurableLauncherApp = summary.apps.any { app ->
+                app.isLauncherApp && app.classifiedMillis > 0L
+            }
+            val maximumMillis = rankedApps.firstOrNull()?.rankingMillis ?: 0L
             if (rankedApps.isNotEmpty()) {
                 itemsIndexed(
                     items = rankedApps,
-                    key = { _, app -> app.packageName },
+                    key = { _, rankedApp -> rankedApp.app.packageName },
                     contentType = { _, _ -> "app-usage" },
-                ) { index, app ->
+                ) { _, rankedApp ->
                     AppUsageCard(
-                        app = app,
-                        rank = index + 1,
-                        basis = selectedBasis,
+                        app = rankedApp.app,
+                        rank = rankedApp.rank,
+                        basis = effectiveBasis,
                         maximumMillis = maximumMillis,
+                        showDisplayShareBar = selectedView == AppRankingView.DISPLAY_SHARE,
                     )
                 }
             } else {
                 item {
                     HintCard(
-                        if (selectedBasis == AppRankingBasis.TOTAL) {
-                            stringResource(R.string.no_ranked_apps_total)
-                        } else {
-                            stringResource(
+                        when {
+                            selectedView == AppRankingView.DISPLAY_SHARE &&
+                                hasMeasurableLauncherApp -> stringResource(
+                                    R.string.no_display_majority_apps,
+                                    stringResource(selectedMajority.basis.displayNameRes),
+                                    stringResource(selectedMajority.otherBasis.displayNameRes),
+                                )
+                            selectedView == AppRankingView.DISPLAY_SHARE ||
+                                selectedBasis == AppRankingBasis.TOTAL -> stringResource(
+                                    R.string.no_ranked_apps_total,
+                                )
+                            else -> stringResource(
                                 R.string.no_ranked_apps,
                                 stringResource(selectedBasis.labelRes),
                             )
@@ -157,15 +217,25 @@ internal fun AppUsageScreen(
 
 internal const val APP_USAGE_PERIOD_TAG = "app_usage_period"
 internal const val APP_USAGE_RANKING_SELECTOR_TAG = "app_usage_ranking_selector"
+internal const val APP_USAGE_VIEW_SELECTOR_TAG = "app_usage_view_selector"
+internal const val APP_USAGE_TIME_VIEW_TAG = "app_usage_time_view"
+internal const val APP_USAGE_DISPLAY_SHARE_VIEW_TAG = "app_usage_display_share_view"
 internal const val APP_USAGE_TOTAL_SEGMENT_TAG = "app_usage_total_segment"
 internal const val APP_USAGE_COVER_SEGMENT_TAG = "app_usage_cover_segment"
 internal const val APP_USAGE_INNER_SEGMENT_TAG = "app_usage_inner_segment"
+internal const val APP_USAGE_MAJORITY_SELECTOR_TAG = "app_usage_majority_selector"
+internal const val APP_USAGE_COVER_MAJORITY_TAG = "app_usage_cover_majority"
+internal const val APP_USAGE_INNER_MAJORITY_TAG = "app_usage_inner_majority"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AppRankingSelector(
+    selectedView: AppRankingView,
+    onViewSelected: (AppRankingView) -> Unit,
     selectedBasis: AppRankingBasis,
     onBasisSelected: (AppRankingBasis) -> Unit,
+    selectedMajority: AppDisplayMajority,
+    onMajoritySelected: (AppDisplayMajority) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
@@ -174,28 +244,27 @@ private fun AppRankingSelector(
             fontWeight = FontWeight.Bold,
         )
         Text(
-            stringResource(R.string.app_ranking_basis),
+            stringResource(R.string.app_ranking_view),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         SingleChoiceSegmentedButtonRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .testTag(APP_USAGE_RANKING_SELECTOR_TAG),
+                .testTag(APP_USAGE_VIEW_SELECTOR_TAG),
         ) {
-            AppRankingBasis.entries.forEachIndexed { index, basis ->
-                val selectorDescription = stringResource(basis.selectorDescriptionRes)
+            AppRankingView.entries.forEachIndexed { index, view ->
+                val selectorDescription = stringResource(view.selectorDescriptionRes)
                 SegmentedButton(
-                    selected = selectedBasis == basis,
-                    onClick = { onBasisSelected(basis) },
-                    shape = SegmentedButtonDefaults.itemShape(index, AppRankingBasis.entries.size),
-                    label = { Text(stringResource(basis.labelRes)) },
+                    selected = selectedView == view,
+                    onClick = { onViewSelected(view) },
+                    shape = SegmentedButtonDefaults.itemShape(index, AppRankingView.entries.size),
+                    label = { Text(stringResource(view.labelRes)) },
                     modifier = Modifier
                         .testTag(
-                            when (basis) {
-                                AppRankingBasis.TOTAL -> APP_USAGE_TOTAL_SEGMENT_TAG
-                                AppRankingBasis.COVER -> APP_USAGE_COVER_SEGMENT_TAG
-                                AppRankingBasis.INNER -> APP_USAGE_INNER_SEGMENT_TAG
+                            when (view) {
+                                AppRankingView.USAGE_TIME -> APP_USAGE_TIME_VIEW_TAG
+                                AppRankingView.DISPLAY_SHARE -> APP_USAGE_DISPLAY_SHARE_VIEW_TAG
                             },
                         )
                         .semantics { contentDescription = selectorDescription },
@@ -203,17 +272,125 @@ private fun AppRankingSelector(
             }
         }
         Text(
-            if (selectedBasis == AppRankingBasis.TOTAL) {
-                stringResource(R.string.app_ranking_total_order)
-            } else {
+            stringResource(
+                if (selectedView == AppRankingView.USAGE_TIME) {
+                    R.string.app_ranking_basis
+                } else {
+                    R.string.app_ranking_higher_share
+                },
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (selectedView == AppRankingView.USAGE_TIME) {
+            UsageTimeBasisSelector(
+                selectedBasis = selectedBasis,
+                onBasisSelected = onBasisSelected,
+            )
+        } else {
+            DisplayMajoritySelector(
+                selectedMajority = selectedMajority,
+                onMajoritySelected = onMajoritySelected,
+            )
+        }
+        Text(
+            if (selectedView == AppRankingView.DISPLAY_SHARE) {
                 stringResource(
-                    R.string.app_ranking_order,
-                    stringResource(selectedBasis.labelRes),
+                    R.string.app_ranking_majority_order,
+                    stringResource(selectedMajority.basis.displayNameRes),
+                    stringResource(selectedMajority.otherBasis.displayNameRes),
                 )
+            } else {
+                when (selectedBasis) {
+                    AppRankingBasis.TOTAL -> stringResource(R.string.app_ranking_total_order)
+                    AppRankingBasis.COVER,
+                    AppRankingBasis.INNER,
+                    -> stringResource(
+                        R.string.app_ranking_order,
+                        stringResource(selectedBasis.displayNameRes),
+                    )
+                }
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Text(
+            stringResource(R.string.app_ranking_measurement_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (selectedView == AppRankingView.DISPLAY_SHARE) {
+            Text(
+                stringResource(R.string.app_ranking_even_split_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun UsageTimeBasisSelector(
+    selectedBasis: AppRankingBasis,
+    onBasisSelected: (AppRankingBasis) -> Unit,
+) {
+    SingleChoiceSegmentedButtonRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(APP_USAGE_RANKING_SELECTOR_TAG),
+    ) {
+        AppRankingBasis.entries.forEachIndexed { index, basis ->
+            val selectorDescription = stringResource(basis.selectorDescriptionRes)
+            SegmentedButton(
+                selected = selectedBasis == basis,
+                onClick = { onBasisSelected(basis) },
+                shape = SegmentedButtonDefaults.itemShape(index, AppRankingBasis.entries.size),
+                label = { Text(stringResource(basis.labelRes)) },
+                modifier = Modifier
+                    .testTag(
+                        when (basis) {
+                            AppRankingBasis.TOTAL -> APP_USAGE_TOTAL_SEGMENT_TAG
+                            AppRankingBasis.COVER -> APP_USAGE_COVER_SEGMENT_TAG
+                            AppRankingBasis.INNER -> APP_USAGE_INNER_SEGMENT_TAG
+                        },
+                    )
+                    .semantics { contentDescription = selectorDescription },
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DisplayMajoritySelector(
+    selectedMajority: AppDisplayMajority,
+    onMajoritySelected: (AppDisplayMajority) -> Unit,
+) {
+    val options = listOf(AppDisplayMajority.COVER, AppDisplayMajority.INNER)
+    SingleChoiceSegmentedButtonRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(APP_USAGE_MAJORITY_SELECTOR_TAG),
+    ) {
+        options.forEachIndexed { index, majority ->
+            val selectorDescription = stringResource(majority.selectorDescriptionRes)
+            SegmentedButton(
+                selected = selectedMajority == majority,
+                onClick = { onMajoritySelected(majority) },
+                shape = SegmentedButtonDefaults.itemShape(index, options.size),
+                label = { Text(stringResource(majority.labelRes)) },
+                modifier = Modifier
+                    .testTag(
+                        if (majority == AppDisplayMajority.COVER) {
+                            APP_USAGE_COVER_MAJORITY_TAG
+                        } else {
+                            APP_USAGE_INNER_MAJORITY_TAG
+                        },
+                    )
+                    .semantics { contentDescription = selectorDescription },
+            )
+        }
     }
 }
 
@@ -223,18 +400,69 @@ internal fun AppUsageCard(
     rank: Int,
     basis: AppRankingBasis,
     maximumMillis: Long,
+    showDisplayShareBar: Boolean = false,
 ) {
     val resources = LocalResources.current
     val colors = postureColors()
     val selectedMillis = basis.selectedMillis(app)
-    val counterpartMillis = basis.counterpartMillis(app)
+    val sharePresentation = requireNotNull(app.displaySharePresentation()) {
+        "A ranked app must have classified display time"
+    }
+    val coverShareText = resources.formatDisplayShareValue(sharePresentation.cover)
+    val innerShareText = resources.formatDisplayShareValue(sharePresentation.inner)
+    val primaryText = if (basis == AppRankingBasis.TOTAL) {
+        resources.getString(
+            R.string.app_usage_total,
+            selectedMillis.toDurationText(resources),
+        )
+    } else {
+        resources.getString(
+            R.string.app_usage_selected,
+            resources.getString(basis.labelRes),
+            selectedMillis.toDurationText(resources),
+        )
+    }
+    val contextText = resources.getString(
+        R.string.app_usage_display_split,
+        app.coverMillis.toDurationText(resources),
+        coverShareText,
+        app.innerMillis.toDurationText(resources),
+        innerShareText,
+    )
+    val undeterminedText = app.excludedMillis.takeIf { it > 0L }?.let { excludedMillis ->
+        resources.getString(
+            R.string.app_usage_undetermined,
+            excludedMillis.toDurationText(resources),
+        )
+    }
+    val rankText = resources.getString(R.string.value_rank, rank)
+    val cardDescription = if (undeterminedText == null) {
+        resources.getString(
+            R.string.content_desc_app_usage_card,
+            rankText,
+            app.label,
+            primaryText,
+            contextText,
+        )
+    } else {
+        resources.getString(
+            R.string.content_desc_app_usage_card_with_undetermined,
+            rankText,
+            app.label,
+            primaryText,
+            contextText,
+            undeterminedText,
+        )
+    }
     val selectedColor = when (basis) {
         AppRankingBasis.TOTAL -> MaterialTheme.colorScheme.primary
         AppRankingBasis.COVER -> colors.cover
         AppRankingBasis.INNER -> colors.inner
     }
     Card(
-        modifier = Modifier.testTag("$APP_USAGE_CARD_TAG_PREFIX${app.packageName}"),
+        modifier = Modifier
+            .testTag("$APP_USAGE_CARD_TAG_PREFIX${app.packageName}")
+            .clearAndSetSemantics { contentDescription = cardDescription },
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
@@ -248,7 +476,7 @@ internal fun AppUsageCard(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
-                    resources.getString(R.string.value_rank, rank),
+                    rankText,
                     modifier = Modifier.width(32.dp),
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
@@ -263,51 +491,37 @@ internal fun AppUsageCard(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        if (basis == AppRankingBasis.TOTAL) {
-                            stringResource(
-                                R.string.app_usage_total,
-                                selectedMillis.toDurationText(resources),
-                            )
-                        } else {
-                            stringResource(
-                                R.string.app_usage_selected,
-                                stringResource(basis.labelRes),
-                                selectedMillis.toDurationText(resources),
-                            )
-                        },
+                        primaryText,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = selectedColor,
                     )
                 }
             }
-            AppRankingBar(
-                value = selectedMillis,
-                maximum = maximumMillis,
-                color = selectedColor,
-            )
+            if (showDisplayShareBar) {
+                AppDisplayShareBar(
+                    coverFraction = sharePresentation.shares.cover.toFloat(),
+                    colors = colors,
+                )
+            } else {
+                AppRankingBar(
+                    value = selectedMillis,
+                    maximum = maximumMillis,
+                    color = selectedColor,
+                )
+            }
             Text(
-                if (basis == AppRankingBasis.TOTAL) {
-                    stringResource(
-                        R.string.app_usage_display_breakdown,
-                        app.coverMillis.toDurationText(resources),
-                        app.innerMillis.toDurationText(resources),
-                    )
-                } else {
-                    val counterpartLabelRes = if (basis == AppRankingBasis.COVER) {
-                        R.string.posture_inner
-                    } else {
-                        R.string.posture_cover
-                    }
-                    stringResource(
-                        R.string.app_usage_counterpart,
-                        stringResource(counterpartLabelRes),
-                        counterpartMillis.toDurationText(resources),
-                    )
-                },
+                contextText,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            undeterminedText?.let { text ->
+                Text(
+                    text,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

@@ -463,6 +463,7 @@ internal fun rankAppsForHomePreview(apps: List<AppUsage>): List<AppUsage> = apps
     .let { rankAppsForDisplay(it, AppRankingBasis.TOTAL) }
     .asSequence()
     .take(3)
+    .map(RankedAppUsage::app)
     .toList()
 
 @Composable

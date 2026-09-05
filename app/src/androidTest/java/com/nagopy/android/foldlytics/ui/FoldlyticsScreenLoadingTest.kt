@@ -427,7 +427,7 @@ class FoldlyticsScreenLoadingTest {
         composeRule.onNodeWithTag(APP_USAGE_TOTAL_SEGMENT_TAG).assertIsSelected()
         composeRule.onNode(
             hasTestTag("${APP_USAGE_CARD_TAG_PREFIX}total-leader") and
-                hasAnyDescendant(hasText("#1", substring = false)),
+                hasContentDescription("#1,", substring = true),
         ).assertExists()
     }
 
