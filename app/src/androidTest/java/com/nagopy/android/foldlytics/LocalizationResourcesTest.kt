@@ -22,7 +22,7 @@ class LocalizationResourcesTest {
         assertEquals("App usage", context.getString(R.string.app_usage_screen_title))
         assertEquals("Total", context.getString(R.string.app_ranking_total))
         assertEquals(
-            "Most-used display",
+            "By display",
             context.getString(R.string.app_ranking_view_display_share),
         )
         assertEquals("Mostly inner", context.getString(R.string.app_ranking_inner_majority))

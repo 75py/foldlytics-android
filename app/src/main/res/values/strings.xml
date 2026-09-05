@@ -250,7 +250,7 @@
     <string name="selected_period">Period: %1$s</string>
     <string name="app_ranking_view">View</string>
     <string name="app_ranking_view_usage_time">Usage time</string>
-    <string name="app_ranking_view_display_share">Most-used display</string>
+    <string name="app_ranking_view_display_share">By display</string>
     <string name="app_ranking_basis">Sort by</string>
     <string name="app_ranking_higher_share">Show apps</string>
     <string name="app_ranking_cover_majority">Mostly outer</string>

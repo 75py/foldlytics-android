@@ -45,7 +45,7 @@ with no new permission or automatic data transfer; the derived cache can be
 regenerated from the saved source events.
 
 App usage starts with apps sorted by total usage time. You can also sort by time
-on the outer or inner display. In Most-used display, each app appears under the
+on the outer or inner display. In the By display view, each app appears under the
 display where it was used longer. Each list is sorted by time on that display,
 longest first. Apps with equal time on both displays appear in neither list.
 Time when the display is unknown is shown separately and excluded from totals
