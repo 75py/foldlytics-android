@@ -252,6 +252,11 @@ private fun CollectionDiagnosticsCard(state: MainUiState) {
                     gap.toDurationText(resources),
                 )
             }
+            Text(
+                stringResource(R.string.collection_health_scope_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         Text(
             stringResource(R.string.backup_note),

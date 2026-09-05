@@ -380,6 +380,9 @@ interface UsageEventDao {
     )
     fun observeSyncState(): Flow<UsageSyncStateEntity?>
 
+    @Query("SELECT COUNT(*) FROM sync_history")
+    fun observeSyncHistoryRevision(): Flow<Long>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertEvents(events: List<UsageEventEntity>): List<Long>
 
@@ -909,6 +912,8 @@ class RoomUsageEventStore(
 
     override fun observeSyncState(): Flow<UsageSyncState?> =
         dao.observeSyncState().map { it?.toModel() }
+
+    override fun observeSyncHistoryRevision(): Flow<Long> = dao.observeSyncHistoryRevision()
 
     override suspend fun persistSuccessfulSync(
         records: List<UsageRecord>,

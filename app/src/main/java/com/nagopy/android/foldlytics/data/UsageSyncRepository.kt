@@ -45,6 +45,12 @@ interface UsageEventStore {
 
     fun observeSyncState(): Flow<UsageSyncState?>
 
+    /**
+     * Emits when a sync attempt is recorded, including unsuccessful attempts that do not update
+     * the successful-sync cursor.
+     */
+    fun observeSyncHistoryRevision(): Flow<Long>
+
     suspend fun persistSuccessfulSync(
         records: List<UsageRecord>,
         state: UsageSyncState,
@@ -165,6 +171,8 @@ class UsageSyncRepository(
     fun hasUsageAccess(): Boolean = eventSource.hasUsageAccess()
 
     fun observeSyncState(): Flow<UsageSyncState?> = eventStore.observeSyncState()
+
+    fun observeSyncHistoryRevision(): Flow<Long> = eventStore.observeSyncHistoryRevision()
 
     suspend fun loadRecordsForAnalysis(beginMillis: Long, endMillis: Long): List<UsageRecord> =
         eventStore.loadRecordsForAnalysis(beginMillis, endMillis)

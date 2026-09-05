@@ -266,6 +266,7 @@
     <string name="label_recent_sync_saved">直近同期の新規保存</string>
     <string name="label_evidence_gap_days">姿勢根拠が途切れた日</string>
     <string name="sync_history_note">同期履歴は、この機能に対応したバージョンへの更新後から蓄積します。</string>
+    <string name="collection_health_scope_note">現在のプリセット期間では、利用時間の集計が最後に成功した同期で終わる場合も、同期試行は現在まで表示します。カスタム期間には選択した日付だけを含めます。</string>
     <string name="label_recorded_sync_attempts">記録済み同期試行</string>
     <string name="label_unsuccessful_sync_attempts">要確認の同期試行</string>
     <string name="label_collection_interruptions">24時間超の収集中断</string>

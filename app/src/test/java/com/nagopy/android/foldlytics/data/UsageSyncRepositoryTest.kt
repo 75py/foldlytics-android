@@ -7,9 +7,13 @@ import com.nagopy.android.foldlytics.model.UsageEventKind
 import com.nagopy.android.foldlytics.model.UsageRecord
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
@@ -167,6 +171,24 @@ class UsageSyncRepositoryTest {
         assertNull(store.state)
         assertEquals(SyncAttemptStatus.FAILED, store.attempts.single().status)
         assertNull(store.attempts.single().deviceStateCheckpoint)
+    }
+
+    @Test
+    fun failedReadUpdatesSyncHistoryObservationWithoutAdvancingCursor() = runBlocking {
+        val source = FakeUsageEventSource(UsageReadResult.Failure(IOException("reader failed")))
+        val store = FakeUsageEventStore()
+        val repository = repository(source, store, nowMillis = 10_000_000L)
+        val revisions = mutableListOf<Long>()
+        val observation = launch {
+            repository.observeSyncHistoryRevision().take(2).toList(revisions)
+        }
+
+        yield()
+        repository.sync()
+        observation.join()
+
+        assertEquals(listOf(0L, 1L), revisions)
+        assertNull(store.state)
     }
 
     @Test
@@ -516,11 +538,14 @@ class UsageSyncRepositoryTest {
         val records = mutableListOf<UsageRecord>()
         var persistCallCount = 0
         private val stateFlow = MutableStateFlow(initialState)
+        private val syncHistoryRevision = MutableStateFlow(0L)
         private val eventKeys = mutableSetOf<String>()
 
         override suspend fun loadSyncState(): UsageSyncState? = state
 
         override fun observeSyncState(): Flow<UsageSyncState?> = stateFlow
+
+        override fun observeSyncHistoryRevision(): Flow<Long> = syncHistoryRevision
 
         override suspend fun persistSuccessfulSync(
             records: List<UsageRecord>,
@@ -534,6 +559,7 @@ class UsageSyncRepositoryTest {
             this.state = state.copy(lastInsertedEventCount = newRecords.size)
             attempts += attempt.copy(insertedEventCount = newRecords.size)
             stateFlow.value = this.state
+            syncHistoryRevision.value += 1L
             return newRecords.size
         }
 
@@ -541,6 +567,7 @@ class UsageSyncRepositoryTest {
 
         override suspend fun recordSyncAttempt(attempt: SyncAttempt) {
             attempts += attempt
+            syncHistoryRevision.value += 1L
         }
 
         override suspend fun loadRecordsForAnalysis(
