@@ -127,6 +127,16 @@ private fun CurrentConfigurationCard(state: MainUiState) {
             state.calibration.inner?.toDisplayText(resources)
                 ?: stringResource(R.string.status_not_registered),
         )
+        InfoLine(
+            stringResource(R.string.label_classification_method),
+            stringResource(
+                if (state.calibration.isComplete) {
+                    R.string.classification_saved_values
+                } else {
+                    R.string.classification_automatic
+                },
+            ),
+        )
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
         InfoLine(
             stringResource(R.string.label_folding_feature),
@@ -242,6 +252,11 @@ private fun CollectionDiagnosticsCard(state: MainUiState) {
                     gap.toDurationText(resources),
                 )
             }
+            Text(
+                stringResource(R.string.collection_health_scope_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         Text(
             stringResource(R.string.backup_note),

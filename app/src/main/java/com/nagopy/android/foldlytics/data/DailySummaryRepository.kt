@@ -1,12 +1,15 @@
 package com.nagopy.android.foldlytics.data
 
 import com.nagopy.android.foldlytics.model.Calibration
+import com.nagopy.android.foldlytics.model.CalibrationValidationFailure
 import com.nagopy.android.foldlytics.model.DailyAppUsageSummary
 import com.nagopy.android.foldlytics.model.DailyPostureSummary
 import com.nagopy.android.foldlytics.model.DisplayConfiguration
 import com.nagopy.android.foldlytics.model.InnerDisplaySession
 import java.time.Instant
 import java.time.ZoneId
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class DailySummaryRepository(
     private val usageEventDao: UsageEventDao,
@@ -14,6 +17,7 @@ class DailySummaryRepository(
     private val summaryDao: DailyPostureSummaryDao,
 ) {
     private val analyzer = UsageAnalyzer { packageName -> packageName }
+    private val aggregationMutex = Mutex()
 
     suspend fun loadAggregatedAppUsage(
         beginMillis: Long,
@@ -45,10 +49,13 @@ class DailySummaryRepository(
         checkpointRevision: Long,
         zoneId: ZoneId,
         collectionGapStarts: List<Long>,
-    ): List<DailyPostureSummary> {
+    ): List<DailyPostureSummary> = aggregationMutex.withLock {
         val rangeEnd = syncedThroughMillis.coerceAtLeast(0L)
-        val calibrationKey = calibration.cacheKey()
+        val calibrationKey = calibration.dailySummaryCacheKey()
         val existingState = summaryDao.loadState()
+        val latestSyncHistoryId = usageEventDao
+            .latestSuccessfulSyncHistoryIdThrough(rangeEnd)
+            ?: 0L
         val cacheIdentityMatches = existingState != null &&
             existingState.calibrationKey == calibrationKey &&
             existingState.zoneId == zoneId.id &&
@@ -56,9 +63,10 @@ class DailySummaryRepository(
         if (
             cacheIdentityMatches &&
             existingState.lastAggregatedThroughMillis == rangeEnd &&
-            existingState.checkpointRevision == checkpointRevision
+            existingState.checkpointRevision == checkpointRevision &&
+            existingState.lastAggregatedSyncHistoryId == latestSyncHistoryId
         ) {
-            return summaryDao.loadAll().map(DailyPostureSummaryEntity::toModel)
+            return@withLock summaryDao.loadAll().map(DailyPostureSummaryEntity::toModel)
         }
 
         val fullRebuild = existingState == null ||
@@ -81,12 +89,23 @@ class DailySummaryRepository(
         ).minOrNull()
         val checkpointChanged = existingState?.checkpointRevision != checkpointRevision
         val latestCheckpoint = if (checkpointChanged) checkpointDao.latestTimestamp() else null
+        val earliestInterveningSyncQueryBegin = existingState?.let { state ->
+            usageEventDao.earliestSuccessfulSyncQueryBeginAfter(
+                afterHistoryId = state.lastAggregatedSyncHistoryId,
+                throughHistoryId = latestSyncHistoryId,
+                syncedThroughMillis = rangeEnd,
+            )
+        }
+        val earliestDirtySourceMillis = listOfNotNull(
+            syncQueryBeginMillis.takeIf { it < rangeEnd },
+            earliestInterveningSyncQueryBegin,
+        ).minOrNull() ?: syncQueryBeginMillis
         val plannedRebuildStart = chooseDailySummaryRebuildStart(
             fullRebuild = fullRebuild,
             earliestEvidenceMillis = earliestEvidence,
             previousAggregatedThroughMillis = existingState?.lastAggregatedThroughMillis,
             syncedThroughMillis = rangeEnd,
-            syncQueryBeginMillis = syncQueryBeginMillis,
+            earliestDirtySourceMillis = earliestDirtySourceMillis,
             checkpointChanged = checkpointChanged,
             latestCheckpointMillis = latestCheckpoint,
             zoneId = zoneId,
@@ -112,6 +131,7 @@ class DailySummaryRepository(
             zoneId = zoneId.id,
             checkpointRevision = checkpointRevision,
             aggregationVersion = AGGREGATION_VERSION,
+            lastAggregatedSyncHistoryId = latestSyncHistoryId,
         )
 
         if (rebuildStart == null) {
@@ -120,7 +140,7 @@ class DailySummaryRepository(
             } else {
                 summaryDao.upsertState(state)
             }
-            return summaryDao.loadAll().map(DailyPostureSummaryEntity::toModel)
+            return@withLock summaryDao.loadAll().map(DailyPostureSummaryEntity::toModel)
         }
 
         val rebuilt = analyzeInChunks(
@@ -148,7 +168,7 @@ class DailySummaryRepository(
                 state = state,
             )
         }
-        return summaryDao.loadAll().map(DailyPostureSummaryEntity::toModel)
+        summaryDao.loadAll().map(DailyPostureSummaryEntity::toModel)
     }
 
     private suspend fun analyzeInChunks(
@@ -242,21 +262,8 @@ class DailySummaryRepository(
         )
     }
 
-    private fun Calibration.cacheKey(): String =
-        "cover=${cover.cacheKeyPart()}|inner=${inner.cacheKeyPart()}"
-
-    private fun DisplayConfiguration?.cacheKeyPart(): String = this?.let {
-        listOf(
-            it.screenWidthDp,
-            it.screenHeightDp,
-            it.smallestScreenWidthDp,
-            it.orientation,
-            it.densityDpi,
-        ).joinToString(separator = ",")
-    } ?: "none"
-
     private companion object {
-        const val AGGREGATION_VERSION = 5
+        const val AGGREGATION_VERSION = 6
         const val AGGREGATION_CHUNK_DAYS = 31L
     }
 
@@ -268,12 +275,29 @@ class DailySummaryRepository(
     )
 }
 
+internal fun Calibration.dailySummaryCacheKey(): String =
+    if (validationFailure == CalibrationValidationFailure.ANCHORS_TOO_CLOSE) {
+        "cover=none|inner=none"
+    } else {
+        "cover=${cover.cacheKeyPart()}|inner=${inner.cacheKeyPart()}"
+    }
+
+private fun DisplayConfiguration?.cacheKeyPart(): String = this?.let {
+    listOf(
+        it.screenWidthDp,
+        it.screenHeightDp,
+        it.smallestScreenWidthDp,
+        it.orientation,
+        it.densityDpi,
+    ).joinToString(separator = ",")
+} ?: "none"
+
 internal fun chooseDailySummaryRebuildStart(
     fullRebuild: Boolean,
     earliestEvidenceMillis: Long?,
     previousAggregatedThroughMillis: Long?,
     syncedThroughMillis: Long,
-    syncQueryBeginMillis: Long,
+    earliestDirtySourceMillis: Long,
     checkpointChanged: Boolean,
     latestCheckpointMillis: Long?,
     zoneId: ZoneId,
@@ -285,7 +309,7 @@ internal fun chooseDailySummaryRebuildStart(
     } else {
         listOfNotNull(
             previousAggregatedThroughMillis,
-            syncQueryBeginMillis.takeIf { it < syncedThroughMillis },
+            earliestDirtySourceMillis.takeIf { it < syncedThroughMillis },
             latestCheckpointMillis?.takeIf {
                 checkpointChanged && it < syncedThroughMillis
             },

@@ -59,6 +59,7 @@ import com.nagopy.android.foldlytics.MainUiState
 import com.nagopy.android.foldlytics.R
 import com.nagopy.android.foldlytics.labelRes
 import com.nagopy.android.foldlytics.model.AnalysisPeriod
+import com.nagopy.android.foldlytics.model.CalibrationValidationFailure
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -518,6 +519,23 @@ private fun CalibrationCard(
             stringResource(R.string.calibration_instructions),
             style = MaterialTheme.typography.bodyMedium,
         )
+        state.calibrationValidationFailure?.let { failure ->
+            Text(
+                text = stringResource(
+                    when (failure) {
+                        CalibrationValidationFailure.CONFIGURATION_UNAVAILABLE ->
+                            R.string.calibration_configuration_unavailable
+
+                        CalibrationValidationFailure.ANCHORS_TOO_CLOSE ->
+                            R.string.calibration_anchors_too_close
+                    },
+                ),
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
         Spacer(Modifier.height(8.dp))
         Row(Modifier.fillMaxWidth()) {
             CalibrationStatus(

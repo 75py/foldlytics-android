@@ -1,12 +1,19 @@
 package com.nagopy.android.foldlytics.data
 
+import android.app.usage.UsageEvents
+import com.nagopy.android.foldlytics.model.Calibration
+import com.nagopy.android.foldlytics.model.DisplayConfiguration
 import com.nagopy.android.foldlytics.model.UsageEventKind
 import com.nagopy.android.foldlytics.model.UsageRecord
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
@@ -167,6 +174,24 @@ class UsageSyncRepositoryTest {
     }
 
     @Test
+    fun failedReadUpdatesSyncHistoryObservationWithoutAdvancingCursor() = runBlocking {
+        val source = FakeUsageEventSource(UsageReadResult.Failure(IOException("reader failed")))
+        val store = FakeUsageEventStore()
+        val repository = repository(source, store, nowMillis = 10_000_000L)
+        val revisions = mutableListOf<Long>()
+        val observation = launch {
+            repository.observeSyncHistoryRevision().take(2).toList(revisions)
+        }
+
+        yield()
+        repository.sync()
+        observation.join()
+
+        assertEquals(listOf(0L, 1L), revisions)
+        assertNull(store.state)
+    }
+
+    @Test
     fun successfulSyncPersistsObservedDeviceStateWithEventsAndCursor() = runBlocking {
         val checkpoint = DeviceStateCheckpoint(
             observedAtMillis = 9_999_000L,
@@ -219,6 +244,247 @@ class UsageSyncRepositoryTest {
         assertNotEquals(first.toEntity().eventKey, differentEvent.toEntity().eventKey)
     }
 
+    @Test
+    fun repeatedPayloadOccurrencesHaveDistinctStableKeysAndKeepLegacyFirstKey() {
+        val firstResume = record(timestampMillis = 1_000L, sequenceAtTimestamp = 0)
+        val pause = record(
+            timestampMillis = 1_000L,
+            sequenceAtTimestamp = 1,
+            kind = UsageEventKind.ACTIVITY_PAUSED,
+            rawEventType = UsageEvents.Event.ACTIVITY_PAUSED,
+        )
+        val secondResume = firstResume.copy(sequenceAtTimestamp = 2)
+        val firstQuery = listOf(firstResume, pause, secondResume)
+        val reorderedQuery = firstQuery.map {
+            it.copy(sequenceAtTimestamp = it.sequenceAtTimestamp + 4)
+        }
+
+        val firstKeys = firstQuery.toEntities().map(UsageEventEntity::eventKey)
+        val reorderedKeys = reorderedQuery.toEntities().map(UsageEventEntity::eventKey)
+
+        assertEquals(firstKeys, reorderedKeys)
+        assertEquals(3, firstKeys.distinct().size)
+        assertEquals(
+            "460e7d8ab98d298e5152883fcd089c271426a3bb5e8a13417b9ed7fe3a036738",
+            firstKeys.first(),
+        )
+    }
+
+    @Test
+    fun legacyCollapsedDuplicateRecoveryReconcilesSequenceShiftsInEitherDirection() {
+        val cover = DisplayConfiguration(
+            screenWidthDp = 443,
+            screenHeightDp = 994,
+            smallestScreenWidthDp = 443,
+            orientation = 1,
+            densityDpi = 420,
+        )
+        val baseline = listOf(
+            record(
+                timestampMillis = 0L,
+                sequenceAtTimestamp = 0,
+                kind = UsageEventKind.CONFIGURATION_CHANGED,
+                rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                packageName = null,
+                className = null,
+                configuration = cover,
+            ),
+            record(
+                timestampMillis = 0L,
+                sequenceAtTimestamp = 1,
+                kind = UsageEventKind.SCREEN_INTERACTIVE,
+                rawEventType = UsageEvents.Event.SCREEN_INTERACTIVE,
+                packageName = null,
+                className = null,
+            ),
+            record(
+                timestampMillis = 0L,
+                sequenceAtTimestamp = 2,
+                kind = UsageEventKind.KEYGUARD_HIDDEN,
+                rawEventType = UsageEvents.Event.KEYGUARD_HIDDEN,
+                packageName = null,
+                className = null,
+            ),
+        )
+
+        listOf(100 to 0, 0 to 100).forEach { (legacyStart, rereadStart) ->
+            val legacyResume = record(
+                timestampMillis = 1_000L,
+                sequenceAtTimestamp = legacyStart,
+            )
+            val legacyPause = record(
+                timestampMillis = 1_000L,
+                sequenceAtTimestamp = legacyStart + 1,
+                kind = UsageEventKind.ACTIVITY_PAUSED,
+                rawEventType = UsageEvents.Event.ACTIVITY_PAUSED,
+            )
+            val reread = listOf(
+                legacyResume.copy(sequenceAtTimestamp = rereadStart),
+                legacyPause.copy(sequenceAtTimestamp = rereadStart + 1),
+                legacyResume.copy(sequenceAtTimestamp = rereadStart + 2),
+            )
+
+            val recovered = reconcileUsageEventOrder(
+                retained = listOf(legacyResume.toEntity(), legacyPause.toEntity()),
+                incoming = reread.toEntities(),
+            ).map(UsageEventEntity::toModel)
+            val analysis = UsageAnalyzer(packageLabel = { it }).analyze(
+                records = baseline + recovered,
+                rangeStartMillis = 0L,
+                rangeEndMillis = 2_000L,
+                calibration = Calibration(cover = cover),
+            )
+
+            assertEquals(
+                listOf(
+                    UsageEventKind.ACTIVITY_RESUMED,
+                    UsageEventKind.ACTIVITY_PAUSED,
+                    UsageEventKind.ACTIVITY_RESUMED,
+                ),
+                recovered.map(UsageRecord::kind),
+            )
+            assertEquals(listOf(0, 1, 2), recovered.map(UsageRecord::sequenceAtTimestamp))
+            assertEquals(1_000L, analysis.apps.single().coverMillis)
+        }
+    }
+
+    @Test
+    fun recoveryPreservesRowsMissingFromPartialRereadAroundSharedAnchors() {
+        val retainedBefore = record(
+            timestampMillis = 1_000L,
+            sequenceAtTimestamp = 98,
+            kind = UsageEventKind.SCREEN_INTERACTIVE,
+            rawEventType = UsageEvents.Event.SCREEN_INTERACTIVE,
+            packageName = null,
+            className = null,
+        )
+        val legacyResume = record(timestampMillis = 1_000L, sequenceAtTimestamp = 100)
+        val legacyPause = record(
+            timestampMillis = 1_000L,
+            sequenceAtTimestamp = 101,
+            kind = UsageEventKind.ACTIVITY_PAUSED,
+            rawEventType = UsageEvents.Event.ACTIVITY_PAUSED,
+        )
+        val retainedAfter = record(
+            timestampMillis = 1_000L,
+            sequenceAtTimestamp = 102,
+            kind = UsageEventKind.SCREEN_NON_INTERACTIVE,
+            rawEventType = UsageEvents.Event.SCREEN_NON_INTERACTIVE,
+            packageName = null,
+            className = null,
+        )
+        val incoming = listOf(
+            legacyResume.copy(sequenceAtTimestamp = 0),
+            legacyPause.copy(sequenceAtTimestamp = 1),
+            legacyResume.copy(sequenceAtTimestamp = 2),
+        ).toEntities()
+
+        val reconciled = reconcileUsageEventOrder(
+            retained = listOf(
+                retainedBefore.toEntity(),
+                legacyResume.toEntity(),
+                legacyPause.toEntity(),
+                retainedAfter.toEntity(),
+            ),
+            incoming = incoming,
+        )
+
+        assertEquals(
+            listOf(
+                UsageEventKind.SCREEN_INTERACTIVE,
+                UsageEventKind.ACTIVITY_RESUMED,
+                UsageEventKind.ACTIVITY_PAUSED,
+                UsageEventKind.SCREEN_NON_INTERACTIVE,
+                UsageEventKind.ACTIVITY_RESUMED,
+            ),
+            reconciled.map(UsageEventEntity::toModel).map(UsageRecord::kind),
+        )
+        assertEquals((0..4).toList(), reconciled.map(UsageEventEntity::sequenceAtTimestamp))
+        assertTrue(
+            reconciled.map(UsageEventEntity::eventKey).containsAll(
+                listOf(retainedBefore.toEntity().eventKey, retainedAfter.toEntity().eventKey),
+            ),
+        )
+    }
+
+    @Test
+    fun overlappingSyncPreservesSameMillisecondResumePauseResumeForAnalysis() = runBlocking {
+        val cover = DisplayConfiguration(
+            screenWidthDp = 443,
+            screenHeightDp = 994,
+            smallestScreenWidthDp = 443,
+            orientation = 1,
+            densityDpi = 420,
+        )
+        val records = listOf(
+            record(
+                timestampMillis = 0L,
+                sequenceAtTimestamp = 0,
+                kind = UsageEventKind.CONFIGURATION_CHANGED,
+                rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                packageName = null,
+                className = null,
+                configuration = cover,
+            ),
+            record(
+                timestampMillis = 0L,
+                sequenceAtTimestamp = 1,
+                kind = UsageEventKind.SCREEN_INTERACTIVE,
+                rawEventType = UsageEvents.Event.SCREEN_INTERACTIVE,
+                packageName = null,
+                className = null,
+            ),
+            record(
+                timestampMillis = 0L,
+                sequenceAtTimestamp = 2,
+                kind = UsageEventKind.KEYGUARD_HIDDEN,
+                rawEventType = UsageEvents.Event.KEYGUARD_HIDDEN,
+                packageName = null,
+                className = null,
+            ),
+            record(timestampMillis = 1_000L, sequenceAtTimestamp = 0),
+            record(
+                timestampMillis = 1_000L,
+                sequenceAtTimestamp = 1,
+                kind = UsageEventKind.ACTIVITY_PAUSED,
+                rawEventType = UsageEvents.Event.ACTIVITY_PAUSED,
+            ),
+            record(timestampMillis = 1_000L, sequenceAtTimestamp = 2),
+        )
+        val source = FakeUsageEventSource(UsageReadResult.Success(records))
+        val store = FakeUsageEventStore()
+        var nowMillis = 2_000L
+        val repository = UsageSyncRepository(
+            eventSource = source,
+            eventStore = store,
+            currentTimeMillis = { nowMillis },
+            ioDispatcher = Dispatchers.Unconfined,
+        )
+
+        val first = repository.sync() as UsageSyncResult.Success
+        source.result = UsageReadResult.Success(
+            records.map { it.copy(sequenceAtTimestamp = it.sequenceAtTimestamp + 4) },
+        )
+        nowMillis = 3_000L
+        val second = repository.sync() as UsageSyncResult.Success
+        val analysis = UsageAnalyzer(packageLabel = { it }).analyze(
+            records = store.records,
+            rangeStartMillis = 0L,
+            rangeEndMillis = 2_000L,
+            calibration = Calibration(cover = cover),
+        )
+
+        assertEquals(6, first.insertedEventCount)
+        assertEquals(0, second.insertedEventCount)
+        assertEquals(6, store.records.size)
+        assertEquals(
+            listOf(0, 1, 2),
+            store.records.filter { it.timestampMillis == 1_000L }
+                .map(UsageRecord::sequenceAtTimestamp),
+        )
+        assertEquals(1_000L, analysis.apps.single().coverMillis)
+    }
+
     private fun repository(
         source: FakeUsageEventSource,
         store: FakeUsageEventStore,
@@ -233,12 +499,18 @@ class UsageSyncRepositoryTest {
     private fun record(
         timestampMillis: Long,
         sequenceAtTimestamp: Int = 0,
+        kind: UsageEventKind = UsageEventKind.ACTIVITY_RESUMED,
+        rawEventType: Int = UsageEvents.Event.ACTIVITY_RESUMED,
+        packageName: String? = "example.app",
+        className: String? = "ExampleActivity",
+        configuration: DisplayConfiguration? = null,
     ) = UsageRecord(
         timestampMillis = timestampMillis,
-        kind = UsageEventKind.ACTIVITY_RESUMED,
-        packageName = "example.app",
-        className = "ExampleActivity",
-        rawEventType = 1,
+        kind = kind,
+        packageName = packageName,
+        className = className,
+        configuration = configuration,
+        rawEventType = rawEventType,
         sequenceAtTimestamp = sequenceAtTimestamp,
     )
 
@@ -266,11 +538,14 @@ class UsageSyncRepositoryTest {
         val records = mutableListOf<UsageRecord>()
         var persistCallCount = 0
         private val stateFlow = MutableStateFlow(initialState)
+        private val syncHistoryRevision = MutableStateFlow(0L)
         private val eventKeys = mutableSetOf<String>()
 
         override suspend fun loadSyncState(): UsageSyncState? = state
 
         override fun observeSyncState(): Flow<UsageSyncState?> = stateFlow
+
+        override fun observeSyncHistoryRevision(): Flow<Long> = syncHistoryRevision
 
         override suspend fun persistSuccessfulSync(
             records: List<UsageRecord>,
@@ -279,11 +554,12 @@ class UsageSyncRepositoryTest {
         ): Int {
             persistCallCount += 1
             if (failPersistence) throw IOException("database unavailable")
-            val newRecords = records.filter { eventKeys.add(it.toEntity().eventKey) }
-            this.records += newRecords
+            val newRecords = records.toEntities().filter { eventKeys.add(it.eventKey) }
+            this.records += newRecords.map(UsageEventEntity::toModel)
             this.state = state.copy(lastInsertedEventCount = newRecords.size)
             attempts += attempt.copy(insertedEventCount = newRecords.size)
             stateFlow.value = this.state
+            syncHistoryRevision.value += 1L
             return newRecords.size
         }
 
@@ -291,6 +567,7 @@ class UsageSyncRepositoryTest {
 
         override suspend fun recordSyncAttempt(attempt: SyncAttempt) {
             attempts += attempt
+            syncHistoryRevision.value += 1L
         }
 
         override suspend fun loadRecordsForAnalysis(

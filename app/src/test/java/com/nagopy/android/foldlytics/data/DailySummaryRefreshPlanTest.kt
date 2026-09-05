@@ -20,7 +20,7 @@ class DailySummaryRefreshPlanTest {
             earliestEvidenceMillis = earliest,
             previousAggregatedThroughMillis = previousEnd,
             syncedThroughMillis = newEnd,
-            syncQueryBeginMillis = queryBegin,
+            earliestDirtySourceMillis = queryBegin,
             checkpointChanged = false,
             latestCheckpointMillis = null,
             zoneId = zoneId,
@@ -36,7 +36,7 @@ class DailySummaryRefreshPlanTest {
             earliestEvidenceMillis = Instant.parse("2023-01-01T00:00:00Z").toEpochMilli(),
             previousAggregatedThroughMillis = Instant.parse("2026-01-03T00:00:00Z").toEpochMilli(),
             syncedThroughMillis = Instant.parse("2026-01-03T06:00:00Z").toEpochMilli(),
-            syncQueryBeginMillis = Instant.parse("2026-01-02T23:00:00Z").toEpochMilli(),
+            earliestDirtySourceMillis = Instant.parse("2026-01-02T23:00:00Z").toEpochMilli(),
             checkpointChanged = true,
             latestCheckpointMillis = Instant.parse("2025-12-15T12:00:00Z").toEpochMilli(),
             zoneId = zoneId,
@@ -52,12 +52,30 @@ class DailySummaryRefreshPlanTest {
             earliestEvidenceMillis = Instant.parse("2023-01-01T12:00:00Z").toEpochMilli(),
             previousAggregatedThroughMillis = Instant.parse("2026-01-02T00:00:00Z").toEpochMilli(),
             syncedThroughMillis = Instant.parse("2026-01-02T06:00:00Z").toEpochMilli(),
-            syncQueryBeginMillis = Instant.parse("2026-01-01T23:00:00Z").toEpochMilli(),
+            earliestDirtySourceMillis = Instant.parse("2026-01-01T23:00:00Z").toEpochMilli(),
             checkpointChanged = false,
             latestCheckpointMillis = null,
             zoneId = zoneId,
         )
 
         assertEquals(Instant.parse("2023-01-01T00:00:00Z").toEpochMilli(), result)
+    }
+
+    @Test
+    fun multipleInterveningSyncsRebuildFromTheEarliestOverlap() {
+        val result = chooseDailySummaryRebuildStart(
+            fullRebuild = false,
+            earliestEvidenceMillis = Instant.parse("2023-01-01T00:00:00Z").toEpochMilli(),
+            previousAggregatedThroughMillis =
+                Instant.parse("2026-01-02T00:30:00Z").toEpochMilli(),
+            syncedThroughMillis = Instant.parse("2026-01-02T12:30:00Z").toEpochMilli(),
+            earliestDirtySourceMillis =
+                Instant.parse("2026-01-01T23:30:00Z").toEpochMilli(),
+            checkpointChanged = false,
+            latestCheckpointMillis = null,
+            zoneId = zoneId,
+        )
+
+        assertEquals(Instant.parse("2026-01-01T00:00:00Z").toEpochMilli(), result)
     }
 }

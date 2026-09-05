@@ -185,6 +185,8 @@
     <string name="usage_access_required_body">App display time and fold state are calculated only on this device.</string>
     <string name="calibration_values_title">Device-specific detection values</string>
     <string name="calibration_instructions">Close the device and record the outer display, then open it and record the inner display. Automatic detection remains active until both values are saved.</string>
+    <string name="calibration_configuration_unavailable">The current display size could not be read. Wait for the screen to settle, then record it again.</string>
+    <string name="calibration_anchors_too_close">The outer and inner measurements are too similar to tell apart. Fully close or open the device, then record the correct display again.</string>
 
     <!-- Period selection and summary -->
     <string name="section_analysis_period">Analysis period</string>
@@ -206,7 +208,7 @@
     <string name="label_opened_per_observed_day">Opened per observed day</string>
     <string name="label_observed_days">Days with data</string>
     <string name="label_inner_used_days">Days using inner display</string>
-    <string name="label_change_from_first_30_days">Change from first 30 days (latest 30)</string>
+    <string name="label_change_from_first_30_days">Full-history change (first 30 vs latest 30)</string>
     <string name="legend_inner_ratio">Inner share</string>
     <string name="legend_open_count">Open count</string>
     <string name="label_period_total">Period total</string>
@@ -289,6 +291,7 @@
     <string name="label_recent_sync_saved">New records in latest sync</string>
     <string name="label_evidence_gap_days">Days with posture-evidence gaps</string>
     <string name="sync_history_note">Sync history accumulates after updating to a version that supports this feature.</string>
+    <string name="collection_health_scope_note">For current preset periods, sync attempts are shown through now even when usage data ends at the last successful sync. Custom ranges include only their selected dates.</string>
     <string name="label_recorded_sync_attempts">Recorded sync attempts</string>
     <string name="label_unsuccessful_sync_attempts">Sync attempts needing review</string>
     <string name="label_collection_interruptions">Collection interruptions over 24 hours</string>
@@ -346,6 +349,6 @@
     <string name="report_usage_trends_heading">Usage trends (%1$s)</string>
     <string name="label_inner_ratio">Inner share</string>
     <string name="report_observed_days">Days with data: %1$d/%2$d / days using inner display: %3$d</string>
-    <string name="label_inner_ratio_change">Change from first 30 days (latest 30-day inner share)</string>
+    <string name="label_inner_ratio_change">Full-history inner-share change (first 30 vs latest 30)</string>
     <string name="report_collection_heading">Collection status</string>
 </resources>

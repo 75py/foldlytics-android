@@ -8,7 +8,7 @@ Foldlytics calculates its statistics from usage events available through Android
 
 Foldlytics requires Android Usage Access. It reads events for app display state, whether the screen is interactive, lock state, display configuration, and device startup or shutdown.
 
-Display configuration events and checkpoints provide evidence for the cover and inner states. When a usable display configuration is available, Foldlytics saves a checkpoint when the app starts, enters or leaves the foreground, is refreshed manually, or is calibrated. It stores the events and checkpoints in a local Room database. Daily summaries and inner-display sessions are derived caches that can be regenerated from this source data when calibration, the time zone, or aggregation logic changes.
+Display configuration events and checkpoints provide evidence for the cover and inner states. When a usable full-screen display configuration is available, Foldlytics saves a checkpoint when the app starts, enters or leaves the foreground, is refreshed manually, or is calibrated. Android reports `screenWidthDp` and `screenHeightDp` for the app window in multi-window mode, so Foldlytics does not save those values as checkpoints or calibration anchors while split screen, picture-in-picture, or another multi-window layout is active. It continues to show the current configuration for live diagnostics. It stores the events and checkpoints in a local Room database. Daily summaries and inner-display sessions are derived caches that can be regenerated from this source data when calibration, the time zone, or aggregation logic changes.
 
 ## Device use time
 
@@ -18,7 +18,9 @@ Classified time is the part of device use that Foldlytics can assign to the cove
 
 ## Cover and inner display classification
 
-Foldlytics compares the display dimensions in Android configuration events with the saved cover and inner calibration values. When both calibration values are available, the app assigns the current configuration to the closer one. Before calibration is complete, an effective smallest screen width of at least 600dp counts as the inner display; a smaller value counts as the cover display.
+Foldlytics compares the display dimensions in Android configuration events with the saved cover and inner calibration values. When both calibration values are available, the app assigns the current configuration to the closer one. These dimensions are integer dp values, so opposite calibration anchors are accepted only when their effective smallest width, normalized short side, or normalized long side differs by at least 2dp. Closer anchors are not saved or applied. Before calibration is complete, or when previously saved anchors fail this validation, an effective smallest screen width of at least 600dp counts as the inner display; a smaller value counts as the cover display.
+
+Calibration is available only while Foldlytics occupies the full display. A split-screen, picture-in-picture, or otherwise multi-window app size is not a physical-display measurement and cannot replace either anchor.
 
 If Android does not provide usable display dimensions, the posture is unknown. After a device restart or collection interruption, Foldlytics also leaves the posture unknown until it receives new evidence instead of carrying the previous state forward.
 
@@ -76,7 +78,7 @@ Daily summaries use the device time zone at the time of aggregation. If the time
 
 An observed day is a day with classified or excluded time, a detected transition, or a recorded evidence gap. Average detected opens per observed day is the total detected open count divided by the number of observed days. A day counts as an inner-use day when it has at least one millisecond of inner display time.
 
-The comparison between the first 30 days and the latest 30 days appears only after at least 60 calendar days have passed since the first day with observed device use, and only when both 30-day periods contain classified time.
+Regardless of the analysis period selected on screen, the comparison between the first 30 days and the latest 30 days uses the full recorded history. The first window starts on the first day with recorded device-use time, and the latest window ends at the latest successful synchronization. It appears only after at least 60 calendar days have passed from the start day, and only when both 30-day periods contain classified time. A day containing only a detected transition or evidence gap, with no classified or excluded time, still counts as an observed day but does not set the comparison start.
 
 ## Synchronization and collection interruptions
 
@@ -84,7 +86,7 @@ Foldlytics synchronizes usage events when the app starts, returns to the foregro
 
 Android retains usage events for a limited time. Events from before the first synchronization, or from a long interval without successful synchronization, may no longer be available. If more than 24 hours pass between successful synchronizations, Foldlytics marks a collection interruption and does not carry the cover or inner state across it.
 
-If Usage Access is unavailable, the user is locked, Android cannot provide events, or reading or saving fails, Foldlytics does not advance the successful synchronization endpoint. The displayed analysis ends at the latest successful synchronization time.
+If Usage Access is unavailable, Android cannot provide events, or reading or saving fails, Foldlytics does not advance the successful synchronization endpoint. Before the first user unlock after a reboot (Android Direct Boot), the user data needed for synchronization is unavailable and the attempt waits for that first unlock; this is different from the ordinary screen/keyguard lock after the device has already been unlocked. Foldlytics can continue background synchronization after that first unlock even while the screen is locked. The displayed usage analysis ends at the latest successful synchronization time, while collection diagnostics also show recent attempts that have not yet succeeded. See [Android Direct Boot](https://developer.android.com/privacy-and-security/direct-boot).
 
 ## Device support and other limitations
 

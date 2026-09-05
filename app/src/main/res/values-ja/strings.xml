@@ -181,6 +181,8 @@
     <string name="usage_access_required_body">アプリの表示時間と開閉状態を、端末内だけで集計します。</string>
     <string name="calibration_values_title">端末ごとの判定値</string>
     <string name="calibration_instructions">端末を閉じて外側を記録し、次に端末を開いて内側を記録してください。両方の登録が完了するまでは自動判定を使います。</string>
+    <string name="calibration_configuration_unavailable">現在の画面サイズを取得できませんでした。画面が安定してから、もう一度記録してください。</string>
+    <string name="calibration_anchors_too_close">外側と内側の測定値が近すぎるため区別できません。端末を完全に閉じるか開いてから、正しい画面をもう一度記録してください。</string>
 
     <!-- Period selection and summary -->
     <string name="section_analysis_period">対象期間</string>
@@ -202,7 +204,7 @@
     <string name="label_opened_per_observed_day">観測日あたり開いた回数</string>
     <string name="label_observed_days">記録のある日</string>
     <string name="label_inner_used_days">内側を使った日</string>
-    <string name="label_change_from_first_30_days">開始30日比（直近30日）</string>
+    <string name="label_change_from_first_30_days">全記録の比較（開始30日と直近30日）</string>
     <string name="legend_inner_ratio">内側の割合</string>
     <string name="legend_open_count">開いた回数</string>
     <string name="label_period_total">期間合計</string>
@@ -283,6 +285,7 @@
     <string name="label_recent_sync_saved">直近同期の新規保存</string>
     <string name="label_evidence_gap_days">姿勢根拠が途切れた日</string>
     <string name="sync_history_note">同期履歴は、この機能に対応したバージョンへの更新後から蓄積します。</string>
+    <string name="collection_health_scope_note">現在のプリセット期間では、利用時間の集計が最後に成功した同期で終わる場合も、同期試行は現在まで表示します。カスタム期間には選択した日付だけを含めます。</string>
     <string name="label_recorded_sync_attempts">記録済み同期試行</string>
     <string name="label_unsuccessful_sync_attempts">要確認の同期試行</string>
     <string name="label_collection_interruptions">24時間超の収集中断</string>
@@ -338,6 +341,6 @@
     <string name="report_usage_trends_heading">利用傾向（%1$s）</string>
     <string name="label_inner_ratio">内側割合</string>
     <string name="report_observed_days">記録のある日: %1$d/%2$d日 / 内側利用日: %3$d日</string>
-    <string name="label_inner_ratio_change">開始30日比（直近30日の内側割合）</string>
+    <string name="label_inner_ratio_change">全記録の内側割合変化（開始30日と直近30日）</string>
     <string name="report_collection_heading">収集状態</string>
 </resources>

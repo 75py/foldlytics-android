@@ -28,6 +28,7 @@ class LongTermAnalyzer {
             summaries = summaries,
             startDate = startDate,
             endDate = endDate,
+            comparisonEndDate = endDate,
             rangeEndMillis = safeRangeEnd,
             zoneId = zoneId,
         )
@@ -37,21 +38,29 @@ class LongTermAnalyzer {
         summaries: List<DailyPostureSummary>,
         rangeStartMillis: Long,
         rangeEndMillis: Long,
+        recordingEndMillis: Long,
         zoneId: ZoneId,
     ): LongTermInsights {
         require(rangeStartMillis < rangeEndMillis) { "Analysis range must not be empty" }
+        require(rangeEndMillis <= recordingEndMillis) {
+            "Analysis range must end within the recorded history"
+        }
         val startDate = Instant.ofEpochMilli(rangeStartMillis.coerceAtLeast(0L))
             .atZone(zoneId)
             .toLocalDate()
         val endDate = Instant.ofEpochMilli((rangeEndMillis - 1L).coerceAtLeast(0L))
             .atZone(zoneId)
             .toLocalDate()
+        val comparisonEndDate = Instant.ofEpochMilli(
+            (recordingEndMillis - 1L).coerceAtLeast(0L),
+        ).atZone(zoneId).toLocalDate()
         require(!startDate.isAfter(endDate)) { "Analysis range dates are reversed" }
 
         return analyzeDates(
             summaries = summaries,
             startDate = startDate,
             endDate = endDate,
+            comparisonEndDate = comparisonEndDate,
             rangeEndMillis = rangeEndMillis,
             zoneId = zoneId,
         )
@@ -61,6 +70,7 @@ class LongTermAnalyzer {
         summaries: List<DailyPostureSummary>,
         startDate: LocalDate,
         endDate: LocalDate,
+        comparisonEndDate: LocalDate,
         rangeEndMillis: Long,
         zoneId: ZoneId,
     ): LongTermInsights {
@@ -98,7 +108,7 @@ class LongTermAnalyzer {
             )
         }
         val values = periodSummaries.map(DatedSummary::summary)
-        val comparison = thirtyDayComparison(periodSummaries, endDate)
+        val comparison = thirtyDayComparison(datedSummaries, comparisonEndDate)
 
         return LongTermInsights(
             rangeStartMillis = startDate.atStartOfDay(zoneId).toInstant().toEpochMilli(),
@@ -176,20 +186,20 @@ class LongTermAnalyzer {
     }
 
     private fun thirtyDayComparison(
-        summaries: List<DatedSummary>,
-        endDate: LocalDate,
+        historySummaries: List<DatedSummary>,
+        historyEndDate: LocalDate,
     ): ThirtyDayComparison? {
-        val observed = summaries.filter { it.summary.observedMillis > 0L }
+        val observed = historySummaries.filter { it.summary.observedMillis > 0L }
         val firstDate = observed.minOfOrNull { it.date } ?: return null
-        if (ChronoUnit.DAYS.between(firstDate, endDate) < 59L) return null
+        if (ChronoUnit.DAYS.between(firstDate, historyEndDate) < 59L) return null
 
         val firstEnd = firstDate.plusDays(29)
-        val recentStart = endDate.minusDays(29)
-        val firstValues = summaries
+        val recentStart = historyEndDate.minusDays(29)
+        val firstValues = historySummaries
             .filter { it.date in firstDate..firstEnd }
             .map(DatedSummary::summary)
-        val recentValues = summaries
-            .filter { it.date in recentStart..endDate }
+        val recentValues = historySummaries
+            .filter { it.date in recentStart..historyEndDate }
             .map(DatedSummary::summary)
         val firstRatio = firstValues.innerRatioOrNull() ?: return null
         val recentRatio = recentValues.innerRatioOrNull() ?: return null
