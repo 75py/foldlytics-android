@@ -13,6 +13,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasTestTag
@@ -21,6 +23,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
@@ -63,20 +66,26 @@ class StoreScreenshotCaptureTest {
         localizedContext(Locale.US)
     }
     private var screenshotHomeItemIndex: Int? by mutableStateOf(null)
+    private val japaneseLabels = AppLabels(
+        browser = "ブラウザ",
+        messages = "メッセージ",
+        maps = "地図",
+        photos = "写真",
+        reading = "読書",
+    )
+    private val englishLabels = AppLabels(
+        browser = "Browser",
+        messages = "Messages",
+        maps = "Maps",
+        photos = "Photos",
+        reading = "Reading",
+    )
 
     @Test
     fun captureJapanesePhoneScreenshots() {
         capturePhoneScreenshots(
             context = japaneseContext,
-            state = representativeState(
-                AppLabels(
-                    browser = "ブラウザ",
-                    messages = "メッセージ",
-                    maps = "地図",
-                    photos = "写真",
-                    reading = "読書",
-                ),
-            ),
+            state = representativeState(japaneseLabels),
             outputDirectory = JAPANESE_OUTPUT_DIRECTORY,
         )
     }
@@ -85,17 +94,67 @@ class StoreScreenshotCaptureTest {
     fun captureEnglishPhoneScreenshots() {
         capturePhoneScreenshots(
             context = englishContext,
-            state = representativeState(
-                AppLabels(
-                    browser = "Browser",
-                    messages = "Messages",
-                    maps = "Maps",
-                    photos = "Photos",
-                    reading = "Reading",
-                ),
-            ),
+            state = representativeState(englishLabels),
             outputDirectory = ENGLISH_OUTPUT_DIRECTORY,
         )
+    }
+
+    @Test
+    fun captureJapaneseDisplayShareScreenshots() {
+        captureDisplayShareScreenshots(japaneseContext, japaneseLabels, "display-share-ja")
+    }
+
+    @Test
+    fun captureEnglishDisplayShareScreenshots() {
+        captureDisplayShareScreenshots(englishContext, englishLabels, "display-share-en")
+    }
+
+    private fun captureDisplayShareScreenshots(
+        context: Context,
+        labels: AppLabels,
+        outputDirectory: String,
+    ) {
+        clearOutputDirectory(outputDirectory)
+        val apps = listOf(
+            AppUsage("demo.reader", labels.reading, minutes(40), minutes(60), minutes(10)),
+            AppUsage("demo.photos", labels.photos, 0L, minutes(5), 0L),
+            AppUsage("demo.messages", labels.messages, minutes(60), minutes(40), minutes(10)),
+            AppUsage("demo.maps", labels.maps, minutes(5), 0L, 0L),
+            AppUsage("demo.browser", labels.browser, minutes(10), minutes(10), 0L),
+        )
+        val baseState = representativeState(labels)
+        val state = baseState.copy(
+            periodSummary = requireNotNull(baseState.periodSummary).copy(
+                coverMillis = apps.sumOf(AppUsage::coverMillis),
+                innerMillis = apps.sumOf(AppUsage::innerMillis),
+                excludedMillis = apps.sumOf(AppUsage::excludedMillis),
+                apps = apps,
+            ),
+        )
+        setScreenshotContent(context, state)
+        scrollTo(HOME_APP_USAGE_LINK_TAG)
+        composeRule.onNodeWithTag(HOME_APP_USAGE_LINK_TAG).performClick()
+        composeRule.onNodeWithTag(APP_USAGE_DISPLAY_SHARE_VIEW_TAG).performClick()
+        composeRule.onNodeWithTag(APP_USAGE_DISPLAY_SHARE_VIEW_TAG).assertIsSelected()
+        composeRule.onNodeWithTag(APP_USAGE_INNER_MAJORITY_TAG).assertIsSelected()
+        captureDisplayShareGroup("inner", "demo.reader", outputDirectory)
+
+        scrollTo(APP_USAGE_MAJORITY_SELECTOR_TAG)
+        composeRule.onNodeWithTag(APP_USAGE_COVER_MAJORITY_TAG).performClick()
+        composeRule.onNodeWithTag(APP_USAGE_COVER_MAJORITY_TAG).assertIsSelected()
+        captureDisplayShareGroup("outer", "demo.messages", outputDirectory)
+    }
+
+    private fun captureDisplayShareGroup(
+        name: String,
+        leadingPackage: String,
+        outputDirectory: String,
+    ) {
+        composeRule.onNode(hasScrollAction()).performScrollToIndex(0)
+        capture("$name-overview", outputDirectory)
+        scrollTo("$APP_USAGE_CARD_TAG_PREFIX$leadingPackage")
+        composeRule.onNodeWithTag("$APP_USAGE_CARD_TAG_PREFIX$leadingPackage").assertIsDisplayed()
+        capture("$name-apps", outputDirectory)
     }
 
     private fun localizedContext(locale: Locale): Context {
@@ -113,33 +172,7 @@ class StoreScreenshotCaptureTest {
         outputDirectory: String,
     ) {
         clearOutputDirectory(outputDirectory)
-        screenshotHomeItemIndex = null
-        composeRule.setContent {
-            CompositionLocalProvider(
-                LocalContext provides context,
-                LocalConfiguration provides context.resources.configuration,
-            ) {
-                FoldlyticsTheme {
-                    FoldlyticsScreen(
-                        state = state,
-                        onOpenUsageAccess = {},
-                        onSaveCover = {},
-                        onSaveInner = {},
-                        onClearCalibration = {},
-                        onPeriodChanged = {},
-                        onCustomPeriodChanged = { _, _ -> },
-                        onRefresh = {},
-                        onShare = {},
-                        onExportCsv = {},
-                        onOpenPrivacyPolicy = {},
-                        onOpenOssLicenses = {},
-                        appName = "Foldlytics",
-                        screenshotSectionEndSpacing = SCREENSHOT_SECTION_END_SPACING,
-                        screenshotHomeItemIndex = screenshotHomeItemIndex,
-                    )
-                }
-            }
-        }
+        setScreenshotContent(context, state)
 
         scrollHomeToItem(HOME_RESULT_HEADER_ITEM_INDEX)
         capture("01-home-summary", outputDirectory)
@@ -170,6 +203,36 @@ class StoreScreenshotCaptureTest {
             context.getString(R.string.content_desc_open_menu),
         ).performClick()
         capture("06-drawer", outputDirectory)
+    }
+
+    private fun setScreenshotContent(context: Context, state: MainUiState) {
+        screenshotHomeItemIndex = null
+        composeRule.setContent {
+            CompositionLocalProvider(
+                LocalContext provides context,
+                LocalConfiguration provides context.resources.configuration,
+            ) {
+                FoldlyticsTheme {
+                    FoldlyticsScreen(
+                        state = state,
+                        onOpenUsageAccess = {},
+                        onSaveCover = {},
+                        onSaveInner = {},
+                        onClearCalibration = {},
+                        onPeriodChanged = {},
+                        onCustomPeriodChanged = { _, _ -> },
+                        onRefresh = {},
+                        onShare = {},
+                        onExportCsv = {},
+                        onOpenPrivacyPolicy = {},
+                        onOpenOssLicenses = {},
+                        appName = "Foldlytics",
+                        screenshotSectionEndSpacing = SCREENSHOT_SECTION_END_SPACING,
+                        screenshotHomeItemIndex = screenshotHomeItemIndex,
+                    )
+                }
+            }
+        }
     }
 
     private fun scrollTo(tag: String) {

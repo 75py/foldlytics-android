@@ -111,10 +111,12 @@ raw_names=(
 mkdir -p "$work_dir/raw-ja" "$work_dir/raw-en"
 
 echo "Running StoreScreenshotCaptureTest on $expected_avd ($validated_device_serial), OPENED, 1080x1920"
+capture_class="com.nagopy.android.foldlytics.ui.StoreScreenshotCaptureTest"
+capture_methods="$capture_class#captureJapanesePhoneScreenshots,$capture_class#captureEnglishPhoneScreenshots"
 (
     cd "$repo_dir"
     ANDROID_SERIAL="$validated_device_serial" ./gradlew --no-daemon :app:connectedDebugAndroidTest \
-        -Pandroid.testInstrumentationRunnerArguments.class=com.nagopy.android.foldlytics.ui.StoreScreenshotCaptureTest
+        "-Pandroid.testInstrumentationRunnerArguments.class=$capture_methods"
 )
 
 pull_and_validate() {
