@@ -27,6 +27,8 @@ object DiagnosticReportFormatter {
         fun formatInstant(timestampMillis: Long): String =
             formatter.format(Instant.ofEpochMilli(timestampMillis))
         return buildString {
+            val displayedPeriod = state.displayedAnalysisPeriod
+
             fun appendField(labelRes: Int, value: String) {
                 appendLine(
                     resources.getString(
@@ -79,17 +81,17 @@ object DiagnosticReportFormatter {
                 resources.getString(R.string.data_source_on_device_database),
             )
             val selectedPeriodText = if (
-                state.selectedPeriod == AnalysisPeriod.CUSTOM && state.periodSummary != null
+                displayedPeriod == AnalysisPeriod.CUSTOM && state.periodSummary != null
             ) {
                 val summary = state.periodSummary
                 resources.getString(
                     R.string.custom_period_with_range,
-                    resources.getString(state.selectedPeriod.labelRes),
+                    resources.getString(displayedPeriod.labelRes),
                     formatInstant(summary.rangeStartMillis),
                     formatInstant(summary.rangeEndMillis),
                 )
             } else {
-                resources.getString(state.selectedPeriod.labelRes)
+                resources.getString(displayedPeriod.labelRes)
             }
             appendField(R.string.label_screen_period, selectedPeriodText)
             appendField(
@@ -128,7 +130,7 @@ object DiagnosticReportFormatter {
                     R.string.label_diagnostic_period,
                     resources.getString(
                         R.string.duration_hours_only,
-                        state.selectedPeriod.diagnosticHours,
+                        displayedPeriod.diagnosticHours,
                     ),
                 )
                 appendField(
@@ -278,7 +280,7 @@ object DiagnosticReportFormatter {
                 appendLine(
                     resources.getString(
                         R.string.report_usage_trends_heading,
-                        resources.getString(state.selectedPeriod.labelRes),
+                        resources.getString(displayedPeriod.labelRes),
                     ),
                 )
                 appendField(

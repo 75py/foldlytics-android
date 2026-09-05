@@ -1,9 +1,14 @@
 package com.nagopy.android.foldlytics.ui
 
+import android.content.res.Configuration
+import android.content.res.Resources
 import android.graphics.Bitmap
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasScrollAction
@@ -12,9 +17,11 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.test.platform.app.InstrumentationRegistry
 import com.nagopy.android.foldlytics.MainUiState
 import com.nagopy.android.foldlytics.model.AnalysisPeriod
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
@@ -62,9 +69,10 @@ class SummaryShareDialogTest {
             ),
         )
         val generatedSummaries = mutableListOf<PeriodUsageSummary>()
-        val generator = SummaryShareImageGenerator { _, value ->
+        val generatedContents = mutableListOf<SummaryShareContent>()
+        val generator = SummaryShareImageGenerator { resources, value ->
             generatedSummaries += value
-            testBitmap()
+            testImage(resources, value).also { generatedContents += it.content }
         }
         setScreen(state, generator)
         composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag(SUMMARY_CARD_TAG))
@@ -75,7 +83,8 @@ class SummaryShareDialogTest {
         composeRule.waitForIdle()
 
         assertEquals(listOf(original), generatedSummaries)
-        composeRule.onNodeWithTag(SUMMARY_SHARE_PREVIEW_IMAGE_TAG).assertExists()
+        composeRule.onNodeWithTag(SUMMARY_SHARE_PREVIEW_IMAGE_TAG)
+            .assertContentDescriptionEquals(generatedContents.single().accessibilityDescription)
     }
 
     @Test
@@ -84,8 +93,8 @@ class SummaryShareDialogTest {
         val shareCalls = AtomicInteger(0)
         composeRule.setContent {
             CompositionLocalProvider(
-                LocalSummaryShareImageGenerator provides SummaryShareImageGenerator { _, _ ->
-                    testBitmap()
+                LocalSummaryShareImageGenerator provides SummaryShareImageGenerator { resources, summary ->
+                    testImage(resources, summary)
                 },
             ) {
                 FoldlyticsTheme {
@@ -150,10 +159,53 @@ class SummaryShareDialogTest {
         assertFalse(shared)
     }
 
+    @Test
+    fun previewReadsTheRenderedEnglishPeriodDeviceAndMetrics() {
+        assertLocalizedPreview(Locale.US)
+    }
+
+    @Test
+    fun previewReadsTheRenderedJapanesePeriodDeviceAndMetrics() {
+        assertLocalizedPreview(Locale.JAPANESE)
+    }
+
+    private fun assertLocalizedPreview(locale: Locale) {
+        val targetContext = InstrumentationRegistry.getInstrumentation().targetContext
+        val configuration = Configuration(targetContext.resources.configuration).apply {
+            setLocale(locale)
+        }
+        val context = targetContext.createConfigurationContext(configuration)
+        val summary = summary()
+        val content = SummaryShareImageRenderer.createContent(context.resources, summary)
+        composeRule.setContent {
+            CompositionLocalProvider(
+                LocalContext provides context,
+                LocalConfiguration provides configuration,
+            ) {
+                FoldlyticsTheme {
+                    SummarySharePreviewDialog(
+                        summary = summary,
+                        canShare = true,
+                        onDismiss = {},
+                        onShare = { true },
+                    )
+                }
+            }
+        }
+        waitForPreviewImage()
+
+        composeRule.onNodeWithTag(SUMMARY_SHARE_PREVIEW_IMAGE_TAG)
+            .assertContentDescriptionEquals(content.accessibilityDescription)
+        assertTrue(content.accessibilityDescription.contains(content.period))
+        assertTrue(content.accessibilityDescription.contains(content.deviceName))
+        assertTrue(content.accessibilityDescription.contains("40%"))
+        assertTrue(content.accessibilityDescription.contains("84"))
+    }
+
     private fun setScreen(
         state: MutableState<MainUiState>,
-        generator: SummaryShareImageGenerator = SummaryShareImageGenerator { _, _ ->
-            testBitmap()
+        generator: SummaryShareImageGenerator = SummaryShareImageGenerator { resources, summary ->
+            testImage(resources, summary)
         },
     ) {
         composeRule.setContent {
@@ -199,6 +251,13 @@ class SummaryShareDialogTest {
         closedCount = 80,
         apps = emptyList(),
     )
+
+    private fun testImage(resources: Resources, summary: PeriodUsageSummary) =
+        SummaryShareRenderResult(
+            bitmap = testBitmap(),
+            content = SummaryShareImageRenderer.createContent(resources, summary),
+            textMeasurements = emptyList(),
+        )
 
     private fun testBitmap(): Bitmap = Bitmap.createBitmap(
         SUMMARY_SHARE_IMAGE_WIDTH,

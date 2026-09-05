@@ -62,11 +62,12 @@ internal data class SummaryShareTextMeasurement(
 
 internal data class SummaryShareRenderResult(
     val bitmap: Bitmap,
+    val content: SummaryShareContent,
     val textMeasurements: List<SummaryShareTextMeasurement>,
 )
 
 internal fun interface SummaryShareImageGenerator {
-    suspend fun generate(resources: Resources, summary: PeriodUsageSummary): Bitmap
+    suspend fun generate(resources: Resources, summary: PeriodUsageSummary): SummaryShareRenderResult
 }
 
 internal object SummaryShareImageRenderer {
@@ -229,6 +230,7 @@ internal object SummaryShareImageRenderer {
 
         return SummaryShareRenderResult(
             bitmap = bitmap,
+            content = content,
             textMeasurements = measurements,
         )
     }

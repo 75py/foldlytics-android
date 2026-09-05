@@ -30,7 +30,6 @@
     <string name="content_desc_open_menu">メニューを開く</string>
     <string name="content_desc_go_back">戻る</string>
     <string name="content_desc_share_summary">利用サマリーを画像で共有</string>
-    <string name="content_desc_summary_share_preview">Foldlytics 利用サマリー共有画像</string>
     <string name="content_desc_cover_app_ranking">外側のアプリランキング</string>
     <string name="content_desc_inner_app_ranking">内側のアプリランキング</string>
     <string name="content_desc_total_app_ranking">利用時間の合計でアプリを並べる</string>
@@ -82,7 +81,7 @@
     <string name="recording_status_available">記録可能</string>
     <string name="recording_status_access_required">利用状況アクセスが必要</string>
     <string name="status_range_in">期間内</string>
-    <string name="status_range_seed">先読み</string>
+    <string name="status_range_seed">期間開始前</string>
     <string name="value_item_count">%1$d件</string>
     <string name="value_day_count">%1$d日</string>
     <string name="value_open_count">%1$d回</string>
@@ -181,7 +180,7 @@
     <string name="usage_access_required_body">アプリの表示時間と開閉状態を、端末内だけで集計します。</string>
     <string name="calibration_values_title">端末ごとの判定値</string>
     <string name="calibration_instructions">端末を閉じて外側を記録し、次に端末を開いて内側を記録してください。両方の登録が完了するまでは自動判定を使います。</string>
-    <string name="calibration_configuration_unavailable">現在の画面サイズを取得できませんでした。画面が安定してから、もう一度記録してください。</string>
+    <string name="calibration_configuration_unavailable">Foldlyticsを全画面で表示し、画面が安定してから、もう一度記録してください。</string>
     <string name="calibration_anchors_too_close">外側と内側の測定値が近すぎるため区別できません。端末を完全に閉じるか開いてから、正しい画面をもう一度記録してください。</string>
 
     <!-- Period selection and summary -->
@@ -198,7 +197,8 @@
     <string name="summary_title">利用サマリー</string>
     <string name="label_analysis_range">集計範囲</string>
     <string name="label_classified_time">判定できた時間</string>
-    <string name="label_data_coverage">データ充足率</string>
+    <string name="label_data_coverage">画面を判定できた割合</string>
+    <string name="display_classification_rate_note">記録した利用時間のうち、外側・内側を判定できた割合です。利用履歴がすべて記録されていることを示すものではありません。</string>
     <string name="label_opened">開いた</string>
     <string name="label_closed">閉じた</string>
     <string name="label_opened_per_observed_day">観測日あたり開いた回数</string>
@@ -216,7 +216,7 @@
     <string name="label_average_inner_session_time">内側利用時間の平均値</string>
     <string name="label_longest_inner_session_time">最長の内側利用時間</string>
     <string name="long_inner_sessions_title">長く使った回（最大3件）</string>
-    <string name="long_inner_sessions_empty">この期間は、長く使った内側画面の利用はありません。</string>
+    <string name="long_inner_sessions_empty">この期間に、内側画面の利用時間がある完了記録はありません。</string>
     <string name="inner_session_duration">内側利用 %1$s</string>
     <string name="inner_session_other">その他</string>
     <string name="inner_session_other_description">「その他」には、表示した上位3件以外、ランチャーから起動できないアプリ、アプリを特定できない時間が含まれます。</string>
@@ -266,7 +266,7 @@
     <string name="diagnostics_overview_title">判定データの概要</string>
     <string name="diagnostics_overview_body">直近%1$d時間の、開閉状態の根拠を確認できます。</string>
     <string name="label_in_range_posture_events">期間内の姿勢イベント</string>
-    <string name="label_lookback_events">集計開始前の先読み</string>
+    <string name="label_lookback_events">期間開始前の参照イベント</string>
     <string name="label_processed_usage_events">処理した利用イベント</string>
     <string name="label_multi_app_display">複数アプリ同時表示</string>
     <string name="posture_events_title">姿勢イベント</string>
@@ -335,7 +335,7 @@
     <plurals name="report_apps_omitted">
         <item quantity="other">ほか%1$d件は省略</item>
     </plurals>
-    <string name="report_posture_log_heading">姿勢判定ログ（期間内%1$d件 / 先読み%2$d件、新しい順・最大%3$d件）</string>
+    <string name="report_posture_log_heading">姿勢判定ログ（期間内%1$d件 / 期間開始前%2$d件、新しい順・最大%3$d件）</string>
     <string name="report_reason_suffix"> / 集計対象外理由=%1$s</string>
     <string name="report_raw_type_suffix"> / raw=%1$d</string>
     <string name="report_event_line">%1$s [%2$s] %3$s / 判定=%4$s%5$s%6$s</string>

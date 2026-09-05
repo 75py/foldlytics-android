@@ -356,6 +356,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         _uiState.update {
                             it.copy(
                                 selectedPeriod = snapshot.selectedPeriod,
+                                analyzedPeriod = snapshot.selectedPeriod,
                                 availablePeriods = snapshot.availablePeriods,
                                 recordRangeStartMillis = snapshot.recordRangeStartMillis,
                                 recordRangeEndMillis = snapshot.recordRangeEndMillis,

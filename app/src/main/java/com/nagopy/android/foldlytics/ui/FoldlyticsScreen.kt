@@ -73,6 +73,7 @@ internal const val MAIN_ERROR_BANNER_TAG = "main_error_banner"
 internal const val MAIN_ERROR_RETRY_TAG = "main_error_retry"
 internal const val MAIN_ERROR_DISMISS_TAG = "main_error_dismiss"
 internal const val DRAWER_CONTENT_TAG = "drawer_content"
+internal const val USAGE_ACCESS_DISCLOSURE_BODY_TAG = "usage_access_disclosure_body"
 
 private enum class ScreenDestination(val titleRes: Int) {
     HOME(R.string.app_name),
@@ -505,15 +506,29 @@ private fun CalibrationContent(
 }
 
 @Composable
-private fun UsageAccessDisclosureDialog(
+internal fun UsageAccessDisclosureDialog(
     hasAccess: Boolean,
     onDismiss: () -> Unit,
     onContinue: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = modifier,
         title = { Text(stringResource(R.string.usage_access_disclosure_title)) },
-        text = { Text(stringResource(R.string.usage_access_disclosure_body)) },
+        text = {
+            val bodyParagraphs = stringResource(R.string.usage_access_disclosure_body)
+                .split("\n\n")
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .testTag(USAGE_ACCESS_DISCLOSURE_BODY_TAG),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                bodyParagraphs.forEach { paragraph -> Text(paragraph) }
+            }
+        },
         confirmButton = {
             TextButton(onClick = onContinue) {
                 Text(
