@@ -16,6 +16,7 @@ class InnerDisplaySessionAnalyzerTest {
     private val cover = configuration(width = 420, height = 890, smallest = 420)
     private val inner = configuration(width = 730, height = 820, smallest = 730)
     private val calibration = Calibration(cover = cover, inner = inner)
+    private val emptyDelta = DisplayConfiguration(0, 0, 0, 0, 0)
 
     @Test
     fun completesCoverInnerCoverSessionAndStoresInnerPackageTime() {
@@ -339,6 +340,7 @@ class InnerDisplaySessionAnalyzerTest {
                 record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
                 record(0, UsageEventKind.ACTIVITY_RESUMED, "app.b", "B"),
                 record(1_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+                record(1_500, UsageEventKind.CONFIGURATION_CHANGED, configuration = emptyDelta),
                 record(2_000, UsageEventKind.ACTIVITY_PAUSED, "app.b", "B"),
                 record(3_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
             ),
@@ -350,6 +352,7 @@ class InnerDisplaySessionAnalyzerTest {
         val session = analyzer.sessionsAtEnd().single()
         assertEquals(2_000L, session.innerActiveMillis)
         assertEquals(mapOf("app.a" to 1_000L), session.appUsageMillis)
+        assertEquals(1_000L, session.innerActiveMillis - session.appUsageMillis.values.sum())
     }
 
     @Test
@@ -609,7 +612,7 @@ class InnerDisplaySessionAnalyzerTest {
     }
 
     @Test
-    fun carriesPendingSessionAndActiveTimeAcrossChunks() {
+    fun carriesConfigurationBaselineAndSessionAcrossChunksWithEmptyDelta() {
         val analyzer = analyzer()
 
         analyzer.processChunk(
@@ -621,6 +624,12 @@ class InnerDisplaySessionAnalyzerTest {
         )
         analyzer.processChunk(
             records = listOf(
+                record(2_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = emptyDelta),
+                record(
+                    3_000,
+                    UsageEventKind.CONFIGURATION_CHANGED,
+                    configuration = emptyDelta.copy(orientation = 2),
+                ),
                 record(3_500, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
             ),
             checkpoints = emptyList(),
@@ -630,6 +639,52 @@ class InnerDisplaySessionAnalyzerTest {
 
         val session = analyzer.sessionsAtEnd().single()
         assertTrue(session.isComplete)
+        assertEquals(2_000L, session.innerActiveMillis)
+        assertEquals(mapOf("app.a" to 2_000L), session.appUsageMillis)
+    }
+
+    @Test
+    fun emptyDeltaAfterNullCannotRestoreDiscardedSession() {
+        val analyzer = analyzer()
+
+        analyzer.processChunk(
+            records = activeCoverRecords() + listOf(
+                record(1_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+                record(2_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = null),
+                record(3_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = emptyDelta),
+                record(4_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            ),
+            checkpoints = emptyList(),
+            collectionGapStarts = emptyList(),
+            chunkEndMillis = 5_000,
+        )
+
+        assertTrue(analyzer.sessionsAtEnd().isEmpty())
+    }
+
+    @Test
+    fun invalidCheckpointDiscardsSessionAndValidCheckpointSeedsNewDeltaSession() {
+        val analyzer = analyzer()
+
+        analyzer.processChunk(
+            records = activeCoverRecords() + listOf(
+                record(1_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+                record(3_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = emptyDelta),
+                record(5_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+                record(6_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = emptyDelta),
+                record(7_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            ),
+            checkpoints = listOf(
+                PostureCheckpoint(2_000, emptyDelta, PostureCheckpointSource.APP_FOREGROUND),
+                PostureCheckpoint(4_000, cover, PostureCheckpointSource.APP_FOREGROUND),
+            ),
+            collectionGapStarts = emptyList(),
+            chunkEndMillis = 8_000,
+        )
+
+        val session = analyzer.sessionsAtEnd().single()
+        assertEquals(5_000L, session.openedAtMillis)
+        assertEquals(7_000L, session.closedAtMillis)
         assertEquals(2_000L, session.innerActiveMillis)
         assertEquals(mapOf("app.a" to 2_000L), session.appUsageMillis)
     }
