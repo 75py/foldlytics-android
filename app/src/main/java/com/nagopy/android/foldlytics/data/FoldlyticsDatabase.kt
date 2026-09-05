@@ -299,6 +299,10 @@ interface UsageEventDao {
         rawEventTypes: List<Int>,
     ): List<UsageEventEntity>
 
+    /**
+     * Collection gaps are supplied outside Room, so the analyzer needs the pre-window activity
+     * evidence stream and cannot safely use one latest row per package/class.
+     */
     @Query(
         """
         SELECT * FROM usage_events
@@ -319,25 +323,14 @@ interface UsageEventDao {
 
     @Query(
         """
-        SELECT candidate.* FROM usage_events AS candidate
-        INNER JOIN (
-            SELECT package_name, class_name, MAX(timestamp_millis) AS latest_timestamp
-            FROM usage_events
-            WHERE timestamp_millis < :endMillis
-                AND raw_event_type IN (:rawEventTypes)
-                AND package_name IS NOT NULL
-            GROUP BY package_name, class_name
-        ) AS latest
-            ON candidate.package_name IS latest.package_name
-            AND candidate.class_name IS latest.class_name
-            AND candidate.timestamp_millis = latest.latest_timestamp
-        WHERE candidate.raw_event_type IN (:rawEventTypes)
-        ORDER BY candidate.timestamp_millis ASC,
-            candidate.sequence_at_timestamp ASC,
-            candidate.event_key ASC
+        SELECT * FROM usage_events
+        WHERE timestamp_millis < :endMillis
+            AND raw_event_type IN (:rawEventTypes)
+            AND package_name IS NOT NULL
+        ORDER BY timestamp_millis ASC, sequence_at_timestamp ASC, event_key ASC
         """,
     )
-    suspend fun loadLatestActivityEventsBefore(
+    suspend fun loadActivityEventsBefore(
         endMillis: Long,
         rawEventTypes: List<Int>,
     ): List<UsageEventEntity>
@@ -351,7 +344,7 @@ interface UsageEventDao {
             StoredUsageEventTypes.deviceStateGroups.forEach { eventTypes ->
                 addAll(loadLatestDeviceEventsBefore(beginMillis, eventTypes))
             }
-            addAll(loadLatestActivityEventsBefore(beginMillis, StoredUsageEventTypes.activity))
+            addAll(loadActivityEventsBefore(beginMillis, StoredUsageEventTypes.activity))
         }
         return seeds.distinctBy(UsageEventEntity::eventKey) +
             loadDeviceEvents(beginMillis, endMillis, StoredUsageEventTypes.all)

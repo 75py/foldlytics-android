@@ -22,7 +22,7 @@ class InnerDisplaySessionAnalyzer(
     private var screenInteractive = EvidenceState.UNKNOWN
     private var keyguardHidden = EvidenceState.UNKNOWN
     private var posture = DisplayPosture.UNKNOWN
-    private val resumedActivities = linkedMapOf<String, String>()
+    private val activityTracker = ActivityVisibilityTracker()
     private var pendingSession: PendingSession? = null
     private val completedSessions = mutableListOf<InnerDisplaySession>()
 
@@ -96,7 +96,7 @@ class InnerDisplaySessionAnalyzer(
             when (innerIntervalState()) {
                 InnerIntervalState.ACTIVE -> {
                     pending.innerActiveMillis += duration
-                    val packageName = resumedActivities.values.toSet().singleOrNull()
+                    val packageName = activityTracker.snapshot.exclusiveAssignablePackageOrNull()
                     if (packageName != null) {
                         pending.appUsageMillis[packageName] =
                             pending.appUsageMillis.getOrDefault(packageName, 0L) + duration
@@ -122,15 +122,11 @@ class InnerDisplaySessionAnalyzer(
 
     private fun applyUsageRecord(record: UsageRecord) {
         when (record.kind) {
-            UsageEventKind.ACTIVITY_RESUMED -> {
-                record.packageName?.let { packageName ->
-                    resumedActivities[record.activityKey()] = packageName
-                }
-            }
+            UsageEventKind.ACTIVITY_RESUMED -> activityTracker.apply(record)
 
             UsageEventKind.ACTIVITY_PAUSED,
             UsageEventKind.ACTIVITY_STOPPED,
-            -> resumedActivities.remove(record.activityKey())
+            -> activityTracker.apply(record)
 
             UsageEventKind.CONFIGURATION_CHANGED -> applyConfiguration(
                 timestampMillis = record.timestampMillis,
@@ -194,12 +190,9 @@ class InnerDisplaySessionAnalyzer(
         screenInteractive = EvidenceState.UNKNOWN
         keyguardHidden = EvidenceState.UNKNOWN
         posture = DisplayPosture.UNKNOWN
-        resumedActivities.clear()
+        activityTracker.reset()
         pendingSession = null
     }
-
-    private fun UsageRecord.activityKey(): String =
-        "${packageName.orEmpty()}|${className.orEmpty()}"
 
     private data class PendingSession(
         val openedAtMillis: Long,
