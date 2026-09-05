@@ -9,6 +9,8 @@ import com.nagopy.android.foldlytics.model.Calibration
 import com.nagopy.android.foldlytics.model.DisplayConfiguration
 import com.nagopy.android.foldlytics.model.PostureCheckpoint
 import com.nagopy.android.foldlytics.model.PostureCheckpointSource
+import com.nagopy.android.foldlytics.model.UsageEventKind
+import com.nagopy.android.foldlytics.model.UsageRecord
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
@@ -56,8 +58,8 @@ class LongTermDatabaseTest {
     }
 
     @Test
-    fun createsFreshVersionFourDatabase() {
-        assertEquals(4, database.openHelper.readableDatabase.version)
+    fun createsFreshVersionFiveDatabase() {
+        assertEquals(5, database.openHelper.readableDatabase.version)
     }
 
     @Test
@@ -173,7 +175,7 @@ class LongTermDatabaseTest {
             calibrationKey = "calibration",
             zoneId = zoneId.id,
             checkpointRevision = 0L,
-            aggregationVersion = 5,
+            aggregationVersion = 6,
         )
         val first = session(1_000L, 100L)
         val second = session(5_000L, 200L)
@@ -262,6 +264,206 @@ class LongTermDatabaseTest {
         assertEquals(1_096, extended.size)
         assertEquals(initial.first(), extended.first())
         assertEquals(TimeUnit.HOURS.toMillis(1), extended.last().coverMillis)
+    }
+
+    @Test
+    fun repeatedSameMillisecondEventsSurviveRoomRoundTripAndOverlap() = runBlocking {
+        val records = listOf(
+            usageRecord(
+                timestampMillis = 0L,
+                sequence = 0,
+                kind = UsageEventKind.CONFIGURATION_CHANGED,
+                rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                eventConfiguration = configuration,
+            ),
+            usageRecord(
+                timestampMillis = 0L,
+                sequence = 1,
+                kind = UsageEventKind.SCREEN_INTERACTIVE,
+                rawEventType = UsageEvents.Event.SCREEN_INTERACTIVE,
+            ),
+            usageRecord(
+                timestampMillis = 0L,
+                sequence = 2,
+                kind = UsageEventKind.KEYGUARD_HIDDEN,
+                rawEventType = UsageEvents.Event.KEYGUARD_HIDDEN,
+            ),
+            usageRecord(
+                timestampMillis = 1_000L,
+                sequence = 0,
+                kind = UsageEventKind.ACTIVITY_RESUMED,
+                rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                packageName = "app.example",
+            ),
+            usageRecord(
+                timestampMillis = 1_000L,
+                sequence = 1,
+                kind = UsageEventKind.ACTIVITY_PAUSED,
+                rawEventType = UsageEvents.Event.ACTIVITY_PAUSED,
+                packageName = "app.example",
+            ),
+            usageRecord(
+                timestampMillis = 1_000L,
+                sequence = 2,
+                kind = UsageEventKind.ACTIVITY_RESUMED,
+                rawEventType = UsageEvents.Event.ACTIVITY_RESUMED,
+                packageName = "app.example",
+            ),
+        )
+        val store = RoomUsageEventStore(database.usageEventDao())
+
+        val firstInserted = store.persistSuccessfulSync(
+            records = records,
+            state = UsageSyncState(2_000L, 2_000L, 0L, 0),
+            attempt = SyncAttempt(
+                attemptedAtMillis = 2_000L,
+                queryBeginMillis = 0L,
+                queryEndMillis = 2_000L,
+                status = SyncAttemptStatus.SUCCESS,
+                readEventCount = records.size,
+            ),
+        )
+        val secondInserted = store.persistSuccessfulSync(
+            records = records.map {
+                it.copy(sequenceAtTimestamp = it.sequenceAtTimestamp + 4)
+            },
+            state = UsageSyncState(3_000L, 3_000L, 0L, 0),
+            attempt = SyncAttempt(
+                attemptedAtMillis = 3_000L,
+                queryBeginMillis = 0L,
+                queryEndMillis = 3_000L,
+                status = SyncAttemptStatus.SUCCESS,
+                readEventCount = records.size,
+            ),
+        )
+        val roundTripped = store.loadRecordsForAnalysis(0L, 2_000L)
+        val analysis = UsageAnalyzer(packageLabel = { it }).analyze(
+            records = roundTripped,
+            rangeStartMillis = 0L,
+            rangeEndMillis = 2_000L,
+            calibration = Calibration(cover = configuration),
+            zoneId = zoneId,
+        )
+
+        assertEquals(6, firstInserted)
+        assertEquals(0, secondInserted)
+        assertEquals(6, roundTripped.size)
+        assertEquals(
+            listOf(0, 1, 2),
+            roundTripped.filter { it.timestampMillis == 1_000L }
+                .map(UsageRecord::sequenceAtTimestamp),
+        )
+        assertEquals(1_000L, analysis.apps.single().coverMillis)
+    }
+
+    @Test
+    fun multipleBackgroundSyncsRebuildEarliestOverlapAndMatchFullRebuild() = runBlocking {
+        val firstDayStart = LocalDate.of(2026, 1, 1)
+            .atStartOfDay(zoneId)
+            .toInstant()
+            .toEpochMilli()
+        val baseline = firstDayStart + TimeUnit.HOURS.toMillis(23L)
+        val initialEnd = firstDayStart + TimeUnit.DAYS.toMillis(1L) +
+            TimeUnit.MINUTES.toMillis(30L)
+        val firstBackgroundEnd = initialEnd + TimeUnit.HOURS.toMillis(6L)
+        val secondBackgroundEnd = firstBackgroundEnd + TimeUnit.HOURS.toMillis(6L)
+        val dao = database.usageEventDao()
+        dao.persistSuccessfulSync(
+            events = listOf(
+                event(
+                    key = "baseline-configuration",
+                    timestampMillis = baseline,
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                    withConfiguration = true,
+                ),
+                event(
+                    key = "baseline-screen-on",
+                    timestampMillis = baseline,
+                    sequence = 1,
+                    rawEventType = UsageEvents.Event.SCREEN_INTERACTIVE,
+                ),
+                event(
+                    key = "baseline-unlocked",
+                    timestampMillis = baseline,
+                    sequence = 2,
+                    rawEventType = UsageEvents.Event.KEYGUARD_HIDDEN,
+                ),
+            ),
+            state = syncState(initialEnd, baseline),
+            attempt = successfulAttempt(initialEnd, baseline, readEventCount = 3),
+        )
+        val repository = repository()
+        val initial = repository.ensureUpToDate(
+            calibration = Calibration(cover = configuration),
+            syncedThroughMillis = initialEnd,
+            syncQueryBeginMillis = baseline,
+            checkpointRevision = 0L,
+            zoneId = zoneId,
+            collectionGapStarts = emptyList(),
+        )
+        assertEquals(
+            listOf(TimeUnit.HOURS.toMillis(1L), TimeUnit.MINUTES.toMillis(30L)),
+            initial.map { it.coverMillis },
+        )
+
+        val firstQueryBegin = firstDayStart + TimeUnit.HOURS.toMillis(23L) +
+            TimeUnit.MINUTES.toMillis(30L)
+        dao.persistSuccessfulSync(
+            events = listOf(
+                event(
+                    key = "late-screen-off",
+                    timestampMillis = firstDayStart + TimeUnit.HOURS.toMillis(23L) +
+                        TimeUnit.MINUTES.toMillis(45L),
+                    sequence = 0,
+                    rawEventType = UsageEvents.Event.SCREEN_NON_INTERACTIVE,
+                ),
+            ),
+            state = syncState(firstBackgroundEnd, firstQueryBegin),
+            attempt = successfulAttempt(
+                firstBackgroundEnd,
+                firstQueryBegin,
+                readEventCount = 1,
+            ),
+        )
+        val lastQueryBegin = firstDayStart + TimeUnit.DAYS.toMillis(1L) +
+            TimeUnit.HOURS.toMillis(5L) + TimeUnit.MINUTES.toMillis(30L)
+        dao.persistSuccessfulSync(
+            events = emptyList(),
+            state = syncState(secondBackgroundEnd, lastQueryBegin),
+            attempt = successfulAttempt(
+                secondBackgroundEnd,
+                lastQueryBegin,
+                readEventCount = 0,
+            ),
+        )
+
+        val incremental = repository.ensureUpToDate(
+            calibration = Calibration(cover = configuration),
+            syncedThroughMillis = secondBackgroundEnd,
+            syncQueryBeginMillis = lastQueryBegin,
+            checkpointRevision = 0L,
+            zoneId = zoneId,
+            collectionGapStarts = emptyList(),
+        )
+        assertEquals(listOf(TimeUnit.MINUTES.toMillis(45L)), incremental.map { it.coverMillis })
+        val incrementalState = requireNotNull(database.dailyPostureSummaryDao().loadState())
+        assertEquals(3L, incrementalState.lastAggregatedSyncHistoryId)
+
+        database.dailyPostureSummaryDao().upsertState(
+            incrementalState.copy(aggregationVersion = 0),
+        )
+        val full = repository.ensureUpToDate(
+            calibration = Calibration(cover = configuration),
+            syncedThroughMillis = secondBackgroundEnd,
+            syncQueryBeginMillis = lastQueryBegin,
+            checkpointRevision = 0L,
+            zoneId = zoneId,
+            collectionGapStarts = emptyList(),
+        )
+
+        assertEquals(full, incremental)
+        assertEquals(6, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
     }
 
     @Test
@@ -723,8 +925,8 @@ class LongTermDatabaseTest {
                     "cover=443,994,443,1,420|inner=852,883,852,1,420",
                 zoneId = zoneId.id,
                 checkpointRevision = 0L,
-                // Version 4 is the previous cache format; version 5 must rebuild it.
-                aggregationVersion = 4,
+                // Version 5 is the previous cache format; version 6 must rebuild it.
+                aggregationVersion = 5,
             ),
         )
 
@@ -740,7 +942,7 @@ class LongTermDatabaseTest {
         val sessions = repository().loadCompleteInnerSessions(start, end)
         assertEquals(listOf(openedAt), sessions.map { it.openedAtMillis })
         assertEquals(1_000L, sessions.single().innerActiveMillis)
-        assertEquals(5, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
+        assertEquals(6, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
         assertEquals(1, database.dailyPostureSummaryDao().loadAll().single().openedCount)
     }
 
@@ -798,6 +1000,43 @@ class LongTermDatabaseTest {
             ?: configuration.orientation.takeIf { withConfiguration },
         densityDpi = eventConfiguration?.densityDpi
             ?: configuration.densityDpi.takeIf { withConfiguration },
+    )
+
+    private fun usageRecord(
+        timestampMillis: Long,
+        sequence: Int,
+        kind: UsageEventKind,
+        rawEventType: Int,
+        packageName: String? = null,
+        eventConfiguration: DisplayConfiguration? = null,
+    ) = UsageRecord(
+        timestampMillis = timestampMillis,
+        kind = kind,
+        packageName = packageName,
+        className = packageName?.let { "$it.MainActivity" },
+        configuration = eventConfiguration,
+        rawEventType = rawEventType,
+        sequenceAtTimestamp = sequence,
+    )
+
+    private fun syncState(endMillis: Long, queryBeginMillis: Long) = UsageSyncStateEntity(
+        lastSuccessfulEndMillis = endMillis,
+        lastSuccessfulAtMillis = endMillis,
+        lastQueryBeginMillis = queryBeginMillis,
+        lastInsertedEventCount = 0,
+    )
+
+    private fun successfulAttempt(
+        endMillis: Long,
+        queryBeginMillis: Long,
+        readEventCount: Int,
+    ) = SyncHistoryEntity(
+        attemptedAtMillis = endMillis,
+        queryBeginMillis = queryBeginMillis,
+        queryEndMillis = endMillis,
+        status = SyncAttemptStatus.SUCCESS.name,
+        readEventCount = readEventCount,
+        insertedEventCount = 0,
     )
 
     private fun repository() = DailySummaryRepository(
