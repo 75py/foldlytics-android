@@ -275,11 +275,9 @@ class StoredAnalysisRoomTest {
     }
 
     /**
-     * The screen holds its daily totals in memory but reads the app and session breakdown from
-     * tables a rebuild replaces wholesale. This parks the screen between the two - inside the read
-     * window, at the first package label the diagnostic analysis asks for - and lets a CSV export
-     * for the other calibration run there. Every value the screen returns has to come from its own
-     * calibration, and the export still has to write its own.
+     * Exercises the real Room data path while a screen load and CSV export overlap across
+     * calibrations. The JVM snapshot concurrency tests own the exact ordering proof; this keeps the
+     * persisted values covered under a realistic shared-repository overlap.
      */
     @Test(timeout = CONCURRENCY_TEST_TIMEOUT_MILLIS)
     fun screenSnapshotStaysConsistentWhileAnExportRebuildsForAnotherCalibration() = runBlocking {
@@ -353,8 +351,8 @@ class StoredAnalysisRoomTest {
     }
 
     /**
-     * The same split across two loaders sharing the application repository, which is what a second
-     * view model after an activity recreation looks like.
+     * Exercises the same real Room overlap across two loaders sharing the application repository,
+     * which is what a second view model after an activity recreation looks like.
      */
     @Test(timeout = CONCURRENCY_TEST_TIMEOUT_MILLIS)
     fun screenSnapshotStaysConsistentWhileASecondLoaderRebuildsForAnotherCalibration() =
