@@ -5,15 +5,19 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -68,6 +72,7 @@ internal const val ANALYSIS_PROGRESS_DELAY_MILLIS = 400L
 internal const val MAIN_ERROR_BANNER_TAG = "main_error_banner"
 internal const val MAIN_ERROR_RETRY_TAG = "main_error_retry"
 internal const val MAIN_ERROR_DISMISS_TAG = "main_error_dismiss"
+internal const val DRAWER_CONTENT_TAG = "drawer_content"
 
 private enum class ScreenDestination(val titleRes: Int) {
     HOME(R.string.app_name),
@@ -145,6 +150,8 @@ fun FoldlyticsScreen(
             FoldlyticsDrawer(
                 state = state,
                 destination = destination,
+                isDrawerVisible = drawerState.isOpen ||
+                    drawerState.targetValue == DrawerValue.Open,
                 appName = resolvedAppName,
                 onHome = { selectDestination(ScreenDestination.HOME) },
                 onDiagnostics = { selectDestination(ScreenDestination.DIAGNOSTICS) },
@@ -341,6 +348,7 @@ private fun MainErrorBanner(
 private fun FoldlyticsDrawer(
     state: MainUiState,
     destination: ScreenDestination,
+    isDrawerVisible: Boolean,
     appName: String,
     onHome: () -> Unit,
     onDiagnostics: () -> Unit,
@@ -353,80 +361,99 @@ private fun FoldlyticsDrawer(
 ) {
     val canExportCsv = state.periodSummary != null && !state.isAnalysisLoading
     ModalDrawerSheet {
-        Text(
-            appName,
-            modifier = Modifier.padding(start = 28.dp, top = 28.dp, end = 28.dp, bottom = 16.dp),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-        )
-        NavigationDrawerItem(
-            label = { Text(stringResource(R.string.nav_home)) },
-            selected = destination == ScreenDestination.HOME,
-            onClick = onHome,
-            modifier = Modifier.padding(horizontal = 12.dp),
-        )
-        NavigationDrawerItem(
-            label = { Text(stringResource(R.string.screen_diagnostics)) },
-            selected = destination == ScreenDestination.DIAGNOSTICS,
-            onClick = onDiagnostics,
-            modifier = Modifier.padding(horizontal = 12.dp),
-        )
-        NavigationDrawerItem(
-            label = { Text(stringResource(R.string.screen_calibration)) },
-            selected = destination == ScreenDestination.CALIBRATION,
-            onClick = onCalibration,
-            modifier = Modifier.padding(horizontal = 12.dp),
-        )
-        HorizontalDivider(Modifier.padding(horizontal = 28.dp, vertical = 12.dp))
-        Text(
-            stringResource(R.string.drawer_section_data),
-            modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        NavigationDrawerItem(
-            label = { Text(stringResource(R.string.action_save_all_csv)) },
-            selected = false,
-            onClick = { if (canExportCsv) onExportCsv() },
-            modifier = Modifier
-                .padding(horizontal = 12.dp)
-                .alpha(if (canExportCsv) 1f else 0.38f)
-                .semantics {
-                    if (!canExportCsv) disabled()
-                },
-        )
-        NavigationDrawerItem(
-            label = { Text(stringResource(R.string.action_share_diagnostic_report)) },
-            selected = false,
-            onClick = onShare,
-            modifier = Modifier.padding(horizontal = 12.dp),
-        )
-        HorizontalDivider(Modifier.padding(horizontal = 28.dp, vertical = 12.dp))
-        NavigationDrawerItem(
-            label = { Text(stringResource(R.string.action_usage_access_settings)) },
-            selected = false,
-            onClick = onUsageAccess,
-            modifier = Modifier.padding(horizontal = 12.dp),
-        )
-        NavigationDrawerItem(
-            label = { Text(stringResource(R.string.action_privacy_policy)) },
-            selected = false,
-            onClick = onPrivacyPolicy,
-            modifier = Modifier.padding(horizontal = 12.dp),
-        )
-        NavigationDrawerItem(
-            label = { Text(stringResource(R.string.action_open_source_licenses)) },
-            selected = false,
-            onClick = onOssLicenses,
-            modifier = Modifier.padding(horizontal = 12.dp),
-        )
-        Spacer(Modifier.weight(1f))
-        Text(
-            stringResource(R.string.drawer_privacy_note),
-            modifier = Modifier.padding(28.dp),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        // Short windows (landscape or split screen) and large font scales make the drawer taller
+        // than the sheet, so the items scroll while the privacy note keeps its bottom placement
+        // whenever the content fits. The closed sheet stays composed, so scrolling is enabled only
+        // while it is visible and never reaches accessibility services behind the current screen.
+        BoxWithConstraints {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState(), enabled = isDrawerVisible)
+                    .heightIn(min = maxHeight)
+                    .fillMaxWidth()
+                    .testTag(DRAWER_CONTENT_TAG),
+            ) {
+                Text(
+                    appName,
+                    modifier = Modifier.padding(
+                        start = 28.dp,
+                        top = 28.dp,
+                        end = 28.dp,
+                        bottom = 16.dp,
+                    ),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+                NavigationDrawerItem(
+                    label = { Text(stringResource(R.string.nav_home)) },
+                    selected = destination == ScreenDestination.HOME,
+                    onClick = onHome,
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    label = { Text(stringResource(R.string.screen_diagnostics)) },
+                    selected = destination == ScreenDestination.DIAGNOSTICS,
+                    onClick = onDiagnostics,
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    label = { Text(stringResource(R.string.screen_calibration)) },
+                    selected = destination == ScreenDestination.CALIBRATION,
+                    onClick = onCalibration,
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                HorizontalDivider(Modifier.padding(horizontal = 28.dp, vertical = 12.dp))
+                Text(
+                    stringResource(R.string.drawer_section_data),
+                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                NavigationDrawerItem(
+                    label = { Text(stringResource(R.string.action_save_all_csv)) },
+                    selected = false,
+                    onClick = { if (canExportCsv) onExportCsv() },
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .alpha(if (canExportCsv) 1f else 0.38f)
+                        .semantics {
+                            if (!canExportCsv) disabled()
+                        },
+                )
+                NavigationDrawerItem(
+                    label = { Text(stringResource(R.string.action_share_diagnostic_report)) },
+                    selected = false,
+                    onClick = onShare,
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                HorizontalDivider(Modifier.padding(horizontal = 28.dp, vertical = 12.dp))
+                NavigationDrawerItem(
+                    label = { Text(stringResource(R.string.action_usage_access_settings)) },
+                    selected = false,
+                    onClick = onUsageAccess,
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    label = { Text(stringResource(R.string.action_privacy_policy)) },
+                    selected = false,
+                    onClick = onPrivacyPolicy,
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                NavigationDrawerItem(
+                    label = { Text(stringResource(R.string.action_open_source_licenses)) },
+                    selected = false,
+                    onClick = onOssLicenses,
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    stringResource(R.string.drawer_privacy_note),
+                    modifier = Modifier.padding(28.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 
