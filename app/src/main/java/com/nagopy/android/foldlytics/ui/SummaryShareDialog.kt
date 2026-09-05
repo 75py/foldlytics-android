@@ -48,7 +48,7 @@ internal const val SUMMARY_SHARE_ERROR_TAG = "summary_share_error"
 internal val LocalSummaryShareImageGenerator = staticCompositionLocalOf {
     SummaryShareImageGenerator { resources: Resources, summary: PeriodUsageSummary ->
         withContext(Dispatchers.Default) {
-            SummaryShareImageRenderer.render(resources, summary)
+            SummaryShareImageRenderer.renderWithDiagnostics(resources, summary)
         }
     }
 }
@@ -56,7 +56,7 @@ internal val LocalSummaryShareImageGenerator = staticCompositionLocalOf {
 private sealed interface SummarySharePreviewState {
     data object Generating : SummarySharePreviewState
 
-    data class Ready(val bitmap: Bitmap) : SummarySharePreviewState
+    data class Ready(val image: SummaryShareRenderResult) : SummarySharePreviewState
 
     data object Failed : SummarySharePreviewState
 }
@@ -79,9 +79,9 @@ internal fun SummarySharePreviewDialog(
 
     LaunchedEffect(summary, generator) {
         previewState = runCatching {
-            generator.generate(resources, summary).also { bitmap ->
-                check(bitmap.width == SUMMARY_SHARE_IMAGE_WIDTH)
-                check(bitmap.height == SUMMARY_SHARE_IMAGE_HEIGHT)
+            generator.generate(resources, summary).also { image ->
+                check(image.bitmap.width == SUMMARY_SHARE_IMAGE_WIDTH)
+                check(image.bitmap.height == SUMMARY_SHARE_IMAGE_HEIGHT)
             }
         }.fold(
             onSuccess = SummarySharePreviewState::Ready,
@@ -112,12 +112,10 @@ internal fun SummarySharePreviewDialog(
                     }
 
                     is SummarySharePreviewState.Ready -> {
-                        val preview = remember(current.bitmap) {
-                            current.bitmap.asImageBitmap()
+                        val preview = remember(current.image.bitmap) {
+                            current.image.bitmap.asImageBitmap()
                         }
-                        val previewDescription = resources.getString(
-                            R.string.content_desc_summary_share_preview,
-                        )
+                        val previewDescription = current.image.content.accessibilityDescription
                         Image(
                             bitmap = preview,
                             contentDescription = null,
@@ -141,7 +139,7 @@ internal fun SummarySharePreviewDialog(
             }
         },
         confirmButton = {
-            val bitmap = (previewState as? SummarySharePreviewState.Ready)?.bitmap
+            val bitmap = (previewState as? SummarySharePreviewState.Ready)?.image?.bitmap
             TextButton(
                 modifier = Modifier.testTag(SUMMARY_SHARE_CONFIRM_TAG),
                 enabled = bitmap != null && canShare && !isSharing,

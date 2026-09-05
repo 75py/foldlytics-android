@@ -40,7 +40,6 @@ import androidx.compose.ui.unit.dp
 import com.nagopy.android.foldlytics.R
 import com.nagopy.android.foldlytics.model.LongTermBucket
 import com.nagopy.android.foldlytics.toShortDateText
-import kotlin.math.roundToInt
 
 internal data class PostureColors(
     val cover: Color,
@@ -53,6 +52,21 @@ internal data class DonutSegment(
     val value: Long,
     val color: Color,
 )
+
+internal data class OpenCountChartScale(
+    val maximum: Long,
+    val middle: Long,
+)
+
+internal fun openCountChartScale(observedMaximum: Int): OpenCountChartScale {
+    val nonNegativeMaximum = observedMaximum.coerceAtLeast(0).toLong()
+    val maximum = when {
+        nonNegativeMaximum < 2L -> 2L
+        nonNegativeMaximum % 2L == 0L -> nonNegativeMaximum
+        else -> nonNegativeMaximum + 1L
+    }
+    return OpenCountChartScale(maximum = maximum, middle = maximum / 2L)
+}
 
 @Composable
 internal fun postureColors(): PostureColors = if (isSystemInDarkTheme()) {
@@ -215,12 +229,11 @@ internal fun OpenCountTrendChart(
     modifier: Modifier = Modifier,
 ) {
     val resources = LocalResources.current
-    val maximum = buckets
+    val observedMaximum = buckets
         .filter { it.observedDayCount > 0 }
         .maxOfOrNull(LongTermBucket::openedCount)
-        ?.coerceAtLeast(1)
-        ?: 1
-    val middle = maximum / 2f
+        ?: 0
+    val scale = openCountChartScale(observedMaximum)
     val description = resources.formatChartAccessibilityList(buckets.map { bucket ->
         if (bucket.observedDayCount == 0) {
             resources.getString(
@@ -238,8 +251,8 @@ internal fun OpenCountTrendChart(
     })
     ChartWithYAxis(
         labels = listOf(
-            resources.getString(R.string.value_open_count, maximum),
-            resources.getString(R.string.value_open_count, middle.roundToInt()),
+            resources.getString(R.string.value_open_count, scale.maximum),
+            resources.getString(R.string.value_open_count, scale.middle),
             resources.getString(R.string.value_open_count, 0),
         ),
         buckets = buckets,
@@ -251,9 +264,13 @@ internal fun OpenCountTrendChart(
             drawLine(gridColor, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
         }
         val positions = buckets.mapIndexed { index, bucket ->
+            val openedCount = bucket.openedCount
+                .toLong()
+                .coerceIn(0L, scale.maximum)
             Offset(
                 x = chartX(index, buckets.size, size.width),
-                y = size.height * (1f - bucket.openedCount.toFloat() / maximum),
+                y = size.height *
+                    (1f - openedCount.toFloat() / scale.maximum.toFloat()),
             )
         }
         buckets.zipWithNext().forEachIndexed { index, (firstBucket, secondBucket) ->

@@ -42,6 +42,12 @@ data class MainUiState(
     val hingeSensorAvailable: Boolean = false,
     val hingeAngle: Float? = null,
     val selectedPeriod: AnalysisPeriod = AnalysisPeriod.HOURS_24,
+    /**
+     * The period represented by the currently displayed analysis snapshot. It deliberately stays
+     * unchanged while a newly selected period is loading or fails, so snapshot-derived labels do
+     * not describe the requested period instead of the retained results.
+     */
+    val analyzedPeriod: AnalysisPeriod? = null,
     val availablePeriods: Set<AnalysisPeriod> = DEFAULT_ANALYSIS_PERIODS,
     val recordRangeStartMillis: Long? = null,
     val recordRangeEndMillis: Long? = null,
@@ -58,7 +64,11 @@ data class MainUiState(
     val lastSyncQueryBeginMillis: Long? = null,
     val lastSyncInsertedEventCount: Int = 0,
     val error: MainUiError? = null,
-)
+) {
+    /** Uses the retained snapshot, including summary-only synthetic states, when describing data. */
+    val displayedAnalysisPeriod: AnalysisPeriod
+        get() = analyzedPeriod ?: periodSummary?.period ?: selectedPeriod
+}
 
 /**
  * Applies a live configuration update. [DisplayConfiguration] describes the app window, so in

@@ -581,6 +581,10 @@ private fun SummaryCard(
                 stringResource(R.string.label_data_coverage),
                 dataCoverageText,
             )
+            Text(
+                stringResource(R.string.display_classification_rate_note),
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 }

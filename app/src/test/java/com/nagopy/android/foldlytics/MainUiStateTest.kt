@@ -1,5 +1,6 @@
 package com.nagopy.android.foldlytics
 
+import com.nagopy.android.foldlytics.model.AnalysisPeriod
 import com.nagopy.android.foldlytics.model.Calibration
 import com.nagopy.android.foldlytics.model.DisplayConfiguration
 import com.nagopy.android.foldlytics.model.DisplayPosture
@@ -106,5 +107,16 @@ class MainUiStateTest {
             .withCalibration(calibration)
 
         assertEquals(DisplayPosture.INNER, state.currentPosture)
+    }
+
+    @Test
+    fun retainsTheSuccessfulSnapshotPeriodWhileAnotherPeriodIsRequested() {
+        val state = MainUiState(
+            selectedPeriod = AnalysisPeriod.HOURS_1,
+            analyzedPeriod = AnalysisPeriod.HOURS_24,
+            isAnalysisLoading = true,
+        )
+
+        assertEquals(AnalysisPeriod.HOURS_24, state.displayedAnalysisPeriod)
     }
 }

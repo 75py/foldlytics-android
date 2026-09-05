@@ -44,7 +44,7 @@ internal fun DiagnosticsContent(
                 Text(
                     stringResource(
                         R.string.diagnostics_overview_body,
-                        state.selectedPeriod.diagnosticHours,
+                        state.displayedAnalysisPeriod.diagnosticHours,
                     ),
                     style = MaterialTheme.typography.bodyMedium,
                 )

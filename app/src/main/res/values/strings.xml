@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name" translatable="false">Foldlytics</string>
 
     <!-- Navigation and actions -->
@@ -32,7 +32,6 @@
     <string name="content_desc_open_menu">Open menu</string>
     <string name="content_desc_go_back">Go back</string>
     <string name="content_desc_share_summary">Share usage summary as an image</string>
-    <string name="content_desc_summary_share_preview">Foldlytics usage summary share image</string>
     <string name="content_desc_cover_app_ranking">Outer-display app ranking</string>
     <string name="content_desc_inner_app_ranking">Inner-display app ranking</string>
     <string name="content_desc_total_app_ranking">Sort apps by total usage time</string>
@@ -112,7 +111,8 @@
     <string name="report_date_time_pattern">yyyy-MM-dd HH:mm:ss</string>
     <string name="duration_hours_minutes">%1$d hr %2$d min</string>
     <string name="duration_hours_only">%1$d hr</string>
-    <string name="duration_minutes_seconds">%1$dm %2$ds</string>
+    <!-- English unit abbreviations do not change with the quantity. -->
+    <string name="duration_minutes_seconds" tools:ignore="PluralsCandidate">%1$d min %2$d sec</string>
     <string name="duration_seconds">%1$ds</string>
 
     <!-- Domain labels -->
@@ -185,7 +185,7 @@
     <string name="usage_access_required_body">App display time and fold state are calculated only on this device.</string>
     <string name="calibration_values_title">Device-specific detection values</string>
     <string name="calibration_instructions">Close the device and record the outer display, then open it and record the inner display. Automatic detection remains active until both values are saved.</string>
-    <string name="calibration_configuration_unavailable">The current display size could not be read. Wait for the screen to settle, then record it again.</string>
+    <string name="calibration_configuration_unavailable">Open Foldlytics full screen, wait for the display to settle, then try recording again.</string>
     <string name="calibration_anchors_too_close">The outer and inner measurements are too similar to tell apart. Fully close or open the device, then record the correct display again.</string>
 
     <!-- Period selection and summary -->
@@ -202,7 +202,8 @@
     <string name="summary_title">Usage summary</string>
     <string name="label_analysis_range">Analyzed range</string>
     <string name="label_classified_time">Classified time</string>
-    <string name="label_data_coverage">Data coverage</string>
+    <string name="label_data_coverage">Display classification rate</string>
+    <string name="display_classification_rate_note">The share of recorded usage time identified as outer or inner display use. This does not mean the usage history is complete.</string>
     <string name="label_opened">Opened</string>
     <string name="label_closed">Closed</string>
     <string name="label_opened_per_observed_day">Opened per observed day</string>
@@ -220,7 +221,7 @@
     <string name="label_average_inner_session_time">Average inner-display time</string>
     <string name="label_longest_inner_session_time">Longest inner-display time</string>
     <string name="long_inner_sessions_title">Longest inner-display uses (up to 3)</string>
-    <string name="long_inner_sessions_empty">There are no longer inner-display uses to show in this period.</string>
+    <string name="long_inner_sessions_empty">No completed sessions with inner-display usage in this period.</string>
     <string name="inner_session_duration">Inner use %1$s</string>
     <string name="inner_session_other">Other</string>
     <string name="inner_session_other_description">Other includes time from apps beyond the three shown, apps that cannot be launched from the launcher, and time that could not be matched to an app.</string>
