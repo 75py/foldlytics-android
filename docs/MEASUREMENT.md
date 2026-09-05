@@ -80,7 +80,7 @@ Foldlytics synchronizes usage events when the app starts, returns to the foregro
 
 Android retains usage events for a limited time. Events from before the first synchronization, or from a long interval without successful synchronization, may no longer be available. If more than 24 hours pass between successful synchronizations, Foldlytics marks a collection interruption and does not carry the cover or inner state across it.
 
-If Usage Access is unavailable, the user is locked, Android cannot provide events, or reading or saving fails, Foldlytics does not advance the successful synchronization endpoint. The displayed analysis ends at the latest successful synchronization time.
+If Usage Access is unavailable, Android cannot provide events, or reading or saving fails, Foldlytics does not advance the successful synchronization endpoint. Before the first user unlock after a reboot (Android Direct Boot), the user data needed for synchronization is unavailable and the attempt waits for that first unlock; this is different from the ordinary screen/keyguard lock after the device has already been unlocked. Foldlytics can continue background synchronization after that first unlock even while the screen is locked. The displayed usage analysis ends at the latest successful synchronization time, while collection diagnostics also show recent attempts that have not yet succeeded. See [Android Direct Boot](https://developer.android.com/privacy-and-security/direct-boot).
 
 ## Device support and other limitations
 

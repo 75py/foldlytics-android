@@ -272,6 +272,7 @@
     <string name="label_recent_sync_saved">New records in latest sync</string>
     <string name="label_evidence_gap_days">Days with posture-evidence gaps</string>
     <string name="sync_history_note">Sync history accumulates after updating to a version that supports this feature.</string>
+    <string name="collection_health_scope_note">For current preset periods, sync attempts are shown through now even when usage data ends at the last successful sync. Custom ranges include only their selected dates.</string>
     <string name="label_recorded_sync_attempts">Recorded sync attempts</string>
     <string name="label_unsuccessful_sync_attempts">Sync attempts needing review</string>
     <string name="label_collection_interruptions">Collection interruptions over 24 hours</string>

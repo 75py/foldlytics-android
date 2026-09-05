@@ -13,6 +13,7 @@ import com.nagopy.android.foldlytics.data.UsageReadUnavailableReason
 import com.nagopy.android.foldlytics.data.UsageSyncResult
 import com.nagopy.android.foldlytics.data.UsageSyncState
 import com.nagopy.android.foldlytics.data.createUsageAnalysisWindow
+import com.nagopy.android.foldlytics.data.collectionHealthAttemptsForRange
 import com.nagopy.android.foldlytics.data.detectCollectionGaps
 import com.nagopy.android.foldlytics.data.toDisplayConfiguration
 import com.nagopy.android.foldlytics.model.AnalysisPeriod
@@ -623,6 +624,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 health.longestSuccessfulSyncGapMillis?.let { gap ->
                     appendField(R.string.label_longest_sync_gap, gap.toDurationText(resources))
                 }
+                appendLine(resources.getString(R.string.collection_health_scope_note))
             }
         }
     }
@@ -723,7 +725,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     checkpointRevision = checkpointRevision,
                 )
             }
-            combine(requests, analysisRevision) { request, _ -> request }
+            val requestsWithSyncHistory = combine(
+                requests,
+                syncRepository.observeSyncHistoryRevision(),
+            ) { request, _ -> request }
+            combine(requestsWithSyncHistory, analysisRevision) { request, _ -> request }
                 .collectLatest { request ->
                     _uiState.update {
                         it.copy(
@@ -738,7 +744,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     try {
                         val snapshot = withContext(Dispatchers.IO) {
                             val syncState = request.syncState
-                                ?: return@withContext StoredAnalysisSnapshot(
+                            val currentMillis = System.currentTimeMillis()
+                            val allSyncAttempts = syncRepository.loadSyncAttempts(
+                                beginMillis = 0L,
+                                endMillis = currentMillis.endExclusive(),
+                            )
+                            if (syncState == null) {
+                                return@withContext StoredAnalysisSnapshot(
                                     selectedPeriod = request.period.takeIf {
                                         it in DEFAULT_AVAILABLE_PERIODS
                                     } ?: AnalysisPeriod.HOURS_24,
@@ -750,9 +762,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                     periodSummary = null,
                                     innerSessionSummary = null,
                                     longTermInsights = null,
-                                    collectionHealth = null,
+                                    collectionHealth = longTermAnalyzer.collectionHealth(allSyncAttempts),
                                     dailySummaries = emptyList(),
                                 )
+                            }
                             val window = createUsageAnalysisWindow(
                                 periodHours = request.period.diagnosticHours,
                                 syncedThroughMillis = syncState.lastSuccessfulEndMillis,
@@ -771,10 +784,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                     window.rangeEndMillis,
                                 )
                             val zoneId = ZoneId.systemDefault()
-                            val allSyncAttempts = syncRepository.loadSyncAttempts(
-                                beginMillis = 0L,
-                                endMillis = syncState.lastSuccessfulEndMillis + 1L,
-                            )
                             val collectionGaps = detectCollectionGaps(allSyncAttempts)
                             val dailySummaries = dailySummaryRepository.ensureUpToDate(
                                 calibration = request.calibration,
@@ -877,9 +886,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 rangeEndMillis = selectedRangeEnd,
                                 detectedOpenCount = periodSummary.openedCount,
                             )
-                            val periodSyncAttempts = allSyncAttempts.filter {
-                                it.attemptedAtMillis in selectedRangeStart..selectedRangeEnd
-                            }
+                            val periodSyncAttempts = collectionHealthAttemptsForRange(
+                                attempts = allSyncAttempts,
+                                rangeStartMillis = selectedRangeStart,
+                                rangeEndMillis = selectedRangeEnd,
+                                currentMillis = currentMillis,
+                                isCustomRange = effectivePeriod == AnalysisPeriod.CUSTOM,
+                            )
                             StoredAnalysisSnapshot(
                                 selectedPeriod = effectivePeriod,
                                 availablePeriods = availablePeriods,
@@ -975,6 +988,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         closedCount = closedCount,
         apps = apps,
     )
+
+    private fun Long.endExclusive(): Long = if (this == Long.MAX_VALUE) this else this + 1L
 
     companion object {
         private const val MAX_REPORT_POSTURE_EVENTS = 50
