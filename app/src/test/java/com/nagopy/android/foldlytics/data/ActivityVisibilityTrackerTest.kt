@@ -17,13 +17,13 @@ class ActivityVisibilityTrackerTest {
         tracker.apply(record(UsageEventKind.ACTIVITY_RESUMED))
 
         assertEquals(setOf("app.a"), tracker.snapshot.assignablePackages)
-        assertEquals("app.a", tracker.snapshot.exclusiveAssignablePackageOrNull())
+        assertEquals("app.a", tracker.snapshot.singleDefinitePackageForSessionOrNull())
 
         tracker.apply(record(UsageEventKind.ACTIVITY_PAUSED))
 
         assertEquals(emptySet<String>(), tracker.snapshot.assignablePackages)
         assertEquals(setOf("app.a"), tracker.snapshot.possiblePackages)
-        assertNull(tracker.snapshot.exclusiveAssignablePackageOrNull())
+        assertNull(tracker.snapshot.singleDefinitePackageForSessionOrNull())
     }
 
     @Test
@@ -35,7 +35,7 @@ class ActivityVisibilityTrackerTest {
 
         assertEquals(emptySet<String>(), tracker.snapshot.assignablePackages)
         assertEquals(setOf("app.a"), tracker.snapshot.possiblePackages)
-        assertNull(tracker.snapshot.exclusiveAssignablePackageOrNull())
+        assertNull(tracker.snapshot.singleDefinitePackageForSessionOrNull())
     }
 
     @Test
@@ -48,7 +48,7 @@ class ActivityVisibilityTrackerTest {
     }
 
     @Test
-    fun uncertainPackageAllowsKnownUnrelatedPackageButBlocksExclusiveAllocation() {
+    fun uncertainPackageDoesNotBlockSingleDefiniteSessionAllocation() {
         tracker.apply(record(UsageEventKind.ACTIVITY_RESUMED, packageName = "app.a"))
         tracker.apply(record(UsageEventKind.ACTIVITY_RESUMED, packageName = "app.a"))
         tracker.apply(record(UsageEventKind.ACTIVITY_PAUSED, packageName = "app.a"))
@@ -57,7 +57,7 @@ class ActivityVisibilityTrackerTest {
         assertEquals(setOf("app.b"), tracker.snapshot.assignablePackages)
         assertEquals(setOf("app.a", "app.b"), tracker.snapshot.candidatePackages)
         assertTrue(tracker.snapshot.hasMultipleCandidatePackages)
-        assertNull(tracker.snapshot.exclusiveAssignablePackageOrNull())
+        assertEquals("app.b", tracker.snapshot.singleDefinitePackageForSessionOrNull())
     }
 
     @Test
@@ -70,7 +70,7 @@ class ActivityVisibilityTrackerTest {
         assertEquals(setOf("app.a"), tracker.snapshot.assignablePackages)
         assertEquals(setOf("app.a"), tracker.snapshot.candidatePackages)
         assertFalse(tracker.snapshot.hasMultipleCandidatePackages)
-        assertEquals("app.a", tracker.snapshot.exclusiveAssignablePackageOrNull())
+        assertEquals("app.a", tracker.snapshot.singleDefinitePackageForSessionOrNull())
     }
 
     @Test
@@ -81,13 +81,13 @@ class ActivityVisibilityTrackerTest {
         tracker.apply(record(UsageEventKind.ACTIVITY_RESUMED))
 
         assertEquals(setOf("app.a"), tracker.snapshot.assignablePackages)
-        assertEquals("app.a", tracker.snapshot.exclusiveAssignablePackageOrNull())
+        assertEquals("app.a", tracker.snapshot.singleDefinitePackageForSessionOrNull())
 
         tracker.apply(record(UsageEventKind.ACTIVITY_PAUSED))
 
         assertEquals(emptySet<String>(), tracker.snapshot.assignablePackages)
         assertEquals(setOf("app.a"), tracker.snapshot.possiblePackages)
-        assertNull(tracker.snapshot.exclusiveAssignablePackageOrNull())
+        assertNull(tracker.snapshot.singleDefinitePackageForSessionOrNull())
     }
 
     @Test
@@ -99,7 +99,7 @@ class ActivityVisibilityTrackerTest {
 
         assertEquals(emptySet<String>(), tracker.snapshot.assignablePackages)
         assertEquals(setOf("app.a"), tracker.snapshot.possiblePackages)
-        assertNull(tracker.snapshot.exclusiveAssignablePackageOrNull())
+        assertNull(tracker.snapshot.singleDefinitePackageForSessionOrNull())
     }
 
     @Test
@@ -122,7 +122,7 @@ class ActivityVisibilityTrackerTest {
             .forEach(tracker::apply)
 
         assertEquals(setOf("app.a"), tracker.snapshot.assignablePackages)
-        assertEquals("app.a", tracker.snapshot.exclusiveAssignablePackageOrNull())
+        assertEquals("app.a", tracker.snapshot.singleDefinitePackageForSessionOrNull())
     }
 
     @Test

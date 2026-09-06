@@ -299,10 +299,6 @@ interface UsageEventDao {
         rawEventTypes: List<Int>,
     ): List<UsageEventEntity>
 
-    /**
-     * Collection gaps are supplied outside Room, so the analyzer needs the pre-window activity
-     * evidence stream and cannot safely use one latest row per package/class.
-     */
     @Query(
         """
         SELECT * FROM usage_events
@@ -341,9 +337,12 @@ interface UsageEventDao {
         endMillis: Long,
     ): List<UsageEventEntity> {
         val seeds = buildList {
-            StoredUsageEventTypes.deviceStateGroups.forEach { eventTypes ->
+            StoredUsageEventTypes.latestDeviceStateGroups.forEach { eventTypes ->
                 addAll(loadLatestDeviceEventsBefore(beginMillis, eventTypes))
             }
+            // A latest-only configuration can omit unchanged dimensions. Replay the history,
+            // including resets, so old dimensions cannot leak across a device restart.
+            addAll(loadDeviceEvents(0L, beginMillis, StoredUsageEventTypes.postureEvidence))
             addAll(loadActivityEventsBefore(beginMillis, StoredUsageEventTypes.activity))
         }
         return seeds.distinctBy(UsageEventEntity::eventKey) +

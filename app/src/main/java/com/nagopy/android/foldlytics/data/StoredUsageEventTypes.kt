@@ -78,12 +78,13 @@ internal object StoredUsageEventTypes {
     private val keyguardState: List<Int> = rawEventTypes(Group.KEYGUARD_STATE)
     private val postureState: List<Int> = rawEventTypes(Group.POSTURE_STATE)
     private val resets: List<Int> = rawEventTypes(Group.RESET)
-    val deviceStateGroups: List<List<Int>> = listOf(
+    val latestDeviceStateGroups: List<List<Int>> = listOf(
         screenState,
         keyguardState,
-        postureState,
-        resets,
     )
+    // Configuration events are deltas. Their preceding values and reset boundaries are needed
+    // to reconstruct the posture at the start of an analysis window.
+    val postureEvidence: List<Int> = postureState + resets
 
     init {
         check(definitionsByRawEventType.size == definitions.size) {

@@ -741,11 +741,11 @@ class UsageAnalyzerTest {
     }
 
     @Test
-    fun partialConfigurationChangesPostureWithoutUnknownTime() {
+    fun partialConfigurationWithChangedSmallestWidthChangesPostureWithoutUnknownTime() {
         val partialInnerLandscape = configuration(
             width = 883,
             height = 852,
-            smallest = 0,
+            smallest = 852,
             orientation = 2,
             density = 0,
         )
@@ -887,33 +887,157 @@ class UsageAnalyzerTest {
     }
 
     @Test
-    fun excludesTimeAfterUnusableConfigurationAsConfigurationUnavailable() {
-        val unusableConfiguration = configuration(
-            width = 0,
-            height = 0,
-            smallest = 0,
-            orientation = 0,
-            density = 0,
-        )
+    fun emptyDeltaRetainsInnerPostureAndRawDiagnosticConfiguration() {
+        val emptyDelta = configuration(0, 0, 0, orientation = 0, density = 0)
         val records = listOf(
-            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = cover),
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
             record(0, UsageEventKind.SCREEN_INTERACTIVE),
             record(0, UsageEventKind.KEYGUARD_HIDDEN),
-            record(2_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = unusableConfiguration),
-            record(5_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+            record(0, UsageEventKind.ACTIVITY_RESUMED, "app.a", "A"),
+            record(2_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = emptyDelta),
         )
 
-        val result = analyzer.analyze(records, 0, 10_000, calibration)
+        val result = analyzer.analyze(records, 0, 5_000, calibration)
+
+        assertEquals(5_000L, result.innerMillis)
+        assertEquals(5_000L, result.apps.single().innerMillis)
+        assertEquals(0L, result.excludedPostureMillis)
+        assertEquals(0, result.evidenceGapCount)
+        assertEquals(0, result.openedCount)
+        assertEquals(0, result.closedCount)
+        assertEquals(emptyDelta, result.postureEvents.first().configuration)
+        assertEquals(DisplayPosture.INNER, result.postureEvents.first().posture)
+        assertEquals(null, result.postureEvents.first().unknownReason)
+    }
+
+    @Test
+    fun accumulatesPartialDimensionsBeforeTheFirstUsableBaseline() {
+        val records = listOf(
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(
+                1_000,
+                UsageEventKind.CONFIGURATION_CHANGED,
+                configuration = configuration(0, 0, 0, 0, 0),
+            ),
+            record(
+                2_000,
+                UsageEventKind.CONFIGURATION_CHANGED,
+                configuration = configuration(730, 0, 0, 0, 0),
+            ),
+            record(
+                3_000,
+                UsageEventKind.CONFIGURATION_CHANGED,
+                configuration = configuration(0, 820, 0, 0, 0),
+            ),
+        )
+
+        val result = analyzer.analyze(records, 0, 5_000, calibration)
 
         assertEquals(3_000L, result.excludedPostureMillis)
-        assertEquals(
-            3_000L,
-            result.excludedPostureMillisByReason[UnknownPostureReason.CONFIGURATION_UNAVAILABLE],
+        assertEquals(2_000L, result.innerMillis)
+        assertEquals(0, result.openedCount)
+        assertEquals(2, result.evidenceGapCount)
+    }
+
+    @Test
+    fun changedSmallestWidthSurvivesSubsequentDimensionAndEmptyDeltas() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+            record(
+                1_000,
+                UsageEventKind.CONFIGURATION_CHANGED,
+                configuration = configuration(0, 0, 700, 0, 390),
+            ),
+            record(
+                2_000,
+                UsageEventKind.CONFIGURATION_CHANGED,
+                configuration = configuration(750, 0, 0, 0, 0),
+            ),
+            record(
+                3_000,
+                UsageEventKind.CONFIGURATION_CHANGED,
+                configuration = configuration(0, 0, 0, 0, 0),
+            ),
         )
-        assertEquals(
-            UnknownPostureReason.CONFIGURATION_UNAVAILABLE,
-            result.postureEvents.first { it.posture == DisplayPosture.UNKNOWN }.unknownReason,
+
+        val result = analyzer.analyze(records, 0, 4_000, calibration)
+        val expected = calibration.classifyWithDetails(configuration(750, 820, 700, 1, 390))
+
+        assertEquals(DisplayPosture.INNER, result.postureEvents.first().posture)
+        assertEquals(expected.coverDistance, result.postureEvents.first().coverDistance)
+        assertEquals(expected.innerDistance, result.postureEvents.first().innerDistance)
+        assertEquals(160, result.postureEvents.first().innerDistance)
+    }
+
+    @Test
+    fun nullAndDeviceResetsPreventEmptyDeltasFromRevivingPreviousBaseline() {
+        listOf(
+            UsageEventKind.CONFIGURATION_CHANGED,
+            UsageEventKind.DEVICE_STARTUP,
+            UsageEventKind.DEVICE_SHUTDOWN,
+        ).forEach { resetKind ->
+            val records = listOf(
+                record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+                record(1_000, resetKind),
+                record(2_000, UsageEventKind.SCREEN_INTERACTIVE),
+                record(2_000, UsageEventKind.KEYGUARD_HIDDEN),
+                record(
+                    2_000,
+                    UsageEventKind.CONFIGURATION_CHANGED,
+                    configuration = configuration(0, 0, 0, 0, 0),
+                ),
+            )
+
+            val result = analyzer.analyze(records, 0, 5_000, calibration)
+
+            assertEquals(resetKind.name, 3_000L, result.excludedPostureMillis)
+            assertEquals(resetKind.name, 0L, result.innerMillis)
+        }
+    }
+
+    @Test
+    fun collectionGapClearsDeltaBaseline() {
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+            record(2_000, UsageEventKind.SCREEN_INTERACTIVE),
+            record(2_000, UsageEventKind.KEYGUARD_HIDDEN),
+            record(
+                2_000,
+                UsageEventKind.CONFIGURATION_CHANGED,
+                configuration = configuration(0, 0, 0, 0, 0),
+            ),
         )
+
+        val result = analyzer.analyze(
+            records, 0, 5_000, calibration, collectionGapStarts = listOf(1_000),
+        )
+
+        assertEquals(3_000L, result.excludedPostureMillis)
+        assertEquals(0L, result.innerMillis)
+    }
+
+    @Test
+    fun invalidCheckpointReplacesBaselineAndValidCheckpointRestoresIt() {
+        val emptyDelta = configuration(0, 0, 0, 0, 0)
+        val records = listOf(
+            record(0, UsageEventKind.CONFIGURATION_CHANGED, configuration = inner),
+            record(0, UsageEventKind.SCREEN_INTERACTIVE),
+            record(0, UsageEventKind.KEYGUARD_HIDDEN),
+            record(2_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = emptyDelta),
+            record(4_000, UsageEventKind.CONFIGURATION_CHANGED, configuration = emptyDelta),
+        )
+        val checkpoints = listOf(
+            PostureCheckpoint(1_000, emptyDelta, PostureCheckpointSource.APP_FOREGROUND),
+            PostureCheckpoint(3_000, cover, PostureCheckpointSource.APP_FOREGROUND),
+        )
+
+        val result = analyzer.analyze(records, 0, 5_000, calibration, checkpoints)
+
+        assertEquals(1_000L, result.innerMillis)
+        assertEquals(2_000L, result.excludedPostureMillis)
+        assertEquals(2_000L, result.coverMillis)
+        assertEquals(0, result.closedCount)
     }
 
     @Test

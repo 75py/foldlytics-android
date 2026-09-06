@@ -206,8 +206,10 @@ internal data class ActivityVisibilitySnapshot(
 
     val hasMultipleCandidatePackages: Boolean = candidatePackages.size > 1
 
-    fun exclusiveAssignablePackageOrNull(): String? =
-        candidatePackages.singleOrNull()?.takeIf { packageName ->
-            packageName in definitePackages
-        }
+    /**
+     * Returns the package to use for a session interval when exactly one package is definitely
+     * resumed. Packages supported only by historical, unresolved activity evidence do not make
+     * the interval multi-resume.
+     */
+    fun singleDefinitePackageForSessionOrNull(): String? = definitePackages.singleOrNull()
 }

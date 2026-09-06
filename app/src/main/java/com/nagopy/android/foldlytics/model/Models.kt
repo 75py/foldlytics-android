@@ -228,9 +228,11 @@ data class AppUsage(
  * A session between a detected cover-to-inner transition and the following inner-to-cover
  * transition.
  *
- * The package map contains only time for intervals that had exactly one distinct resumed package.
- * The difference between [innerActiveMillis] and the map total is intentionally retained as
- * unallocated time and is presented as "Other".
+ * The package map contains only time for intervals that had exactly one definitely resumed
+ * package. Historical unresolved activity evidence does not block attribution to the one
+ * definite package, so intervals that were genuinely split despite ambiguous evidence can be
+ * approximated as that package. The difference between [innerActiveMillis] and the map total is
+ * intentionally retained as unallocated time and is presented as "Other".
  */
 data class InnerDisplaySession(
     val openedAtMillis: Long,
