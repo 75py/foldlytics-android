@@ -38,9 +38,11 @@ part of a use has screen or lock evidence that cannot establish either active or
 inactive use, that whole use is left out, even if later evidence is available.
 Confirmed screen-off or locked periods count as zero use, and an opening and
 closing at the same time can remain a valid zero-time use. For the three longest
-uses, the breakdown shows at most three launchable apps; non-launchable apps,
-fourth and later apps, and intervals that cannot be assigned to one app are
-shown as Other. When exactly one app is definitely resumed, its session time is
+uses, the breakdown shows at most three apps or simultaneous-app combinations.
+Simultaneous use is grouped by the definitely resumed apps and each interval
+is counted once. Entries beyond the three shown, time involving non-launchable
+apps, and intervals that cannot be matched to an app are shown as Other.
+When exactly one app is definitely resumed, its session time is
 attributed even if older activity events leave another app only possibly resumed;
 this can approximate genuinely split use when Android's evidence is ambiguous.
 The same usage events already stored on the device are used,
