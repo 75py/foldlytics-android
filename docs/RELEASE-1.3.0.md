@@ -43,6 +43,13 @@ JDK 17 and Android SDK 36:
   separate settings for two real AppWidgetHost IDs, background refresh without an
   Activity, permission restoration through RemoteViews reapply, light-to-dark host
   reinflation, and returning to Home with the requested period after launch sync.
+- Follow-up review added scrolling configuration with safe drawing insets, and
+  host-side text autosizing for font changes between widget updates. Focused
+  configuration tests cover short English and large-text Japanese windows.
+  All 3 focused rendering tests passed, including 48 host-font/state/size/locale
+  combinations and 348 visible text fields from the same standard-text payload
+  reinflated at 0.85×, 1×, and 2× host text. Bounds and donut-center glyph containment
+  are checked directly.
 - Store capture: both Japanese and English capture tests passed. Only changed summary
   images and their contact sheets differ from the previous assets.
 - Shared-image and chart/accessibility checks: 13 tests passed, including the share
