@@ -56,6 +56,29 @@
             android:name="androidx.work.impl.foreground.SystemForegroundService"
             tools:node="remove" />
 
+        <receiver
+            android:name=".widget.SummaryWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.DATE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.LOCALE_CHANGED" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/summary_widget_info" />
+        </receiver>
+
+        <activity
+            android:name=".widget.SummaryWidgetConfigurationActivity"
+            android:exported="true"
+            android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
         <activity
             android:name=".MainActivity"
             android:configChanges="density|orientation|screenLayout|screenSize|smallestScreenSize"

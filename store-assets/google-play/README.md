@@ -7,11 +7,12 @@ dimensions follow the
 [Google Play preview asset requirements](https://support.google.com/googleplay/android-developer/answer/9866151)
 checked on 2026-08-30.
 
-All twelve phone screenshots and their contact sheets were refreshed for 1.2.1
+All twelve phone screenshots and their contact sheets were refreshed for 1.3.0
 on 2026-09-06 using the existing capture helper: Pixel 9 Pro Fold AVD,
 Android 16 / API 36, opened at 1080 × 1920, 390 dpi, font scale 1.0.
-This includes the current classification note, app-ranking selectors and
-percentages, and the session breakdown's explanation of app combinations.
+The summary now draws the inner display first clockwise from 12 o'clock and
+uses inner-before-cover legends and metrics. The captures also retain the current
+classification note, app-ranking selectors and session explanations.
 The representative session examples show single-app entries.
 
 ## Upload-ready files

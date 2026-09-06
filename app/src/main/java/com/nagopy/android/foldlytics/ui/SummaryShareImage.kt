@@ -37,10 +37,10 @@ internal data class SummaryShareContent(
         period,
         innerRatioLabel,
         innerRatio,
-        coverTimeLabel,
-        coverTime,
         innerTimeLabel,
         innerTime,
+        coverTimeLabel,
+        coverTime,
         openedCountLabel,
         openedCount,
     )
@@ -76,8 +76,8 @@ internal object SummaryShareImageRenderer {
     private const val PrimaryTextColor = 0xFF10233A.toInt()
     private const val SecondaryTextColor = 0xFF526273.toInt()
     private const val DividerColor = 0xFFDCE3EB.toInt()
-    private const val CoverColor = 0xFFE87526.toInt()
-    private const val InnerColor = 0xFF2276C5.toInt()
+    private const val CoverColor = DisplayChartPalette.LIGHT_COVER
+    private const val InnerColor = DisplayChartPalette.LIGHT_INNER
 
     private val RegularTypeface = Typeface.create("sans-serif", Typeface.NORMAL)
     private val MediumTypeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
@@ -203,18 +203,18 @@ internal object SummaryShareImageRenderer {
         drawMetricPanel(
             canvas = canvas,
             bounds = RectF(582f, 194f, 1146f, 319f),
-            label = content.coverTimeLabel,
-            value = content.coverTime,
-            accentColor = CoverColor,
+            label = content.innerTimeLabel,
+            value = content.innerTime,
+            accentColor = InnerColor,
             locale = locale,
             measurements = measurements,
         )
         drawMetricPanel(
             canvas = canvas,
             bounds = RectF(582f, 345f, 1146f, 470f),
-            label = content.innerTimeLabel,
-            value = content.innerTime,
-            accentColor = InnerColor,
+            label = content.coverTimeLabel,
+            value = content.coverTime,
+            accentColor = CoverColor,
             locale = locale,
             measurements = measurements,
         )
@@ -247,13 +247,16 @@ internal object SummaryShareImageRenderer {
             style = Paint.Style.STROKE
             strokeWidth = 38f
             strokeCap = Paint.Cap.BUTT
-            color = CoverColor
         }
-        canvas.drawArc(arcBounds, -90f, 360f, false, arcPaint)
         val innerSweep = innerRatio.coerceIn(0f, 1f) * 360f
         if (innerSweep > 0f) {
             arcPaint.color = InnerColor
             canvas.drawArc(arcBounds, -90f, innerSweep, false, arcPaint)
+        }
+        val coverSweep = 360f - innerSweep
+        if (coverSweep > 0f) {
+            arcPaint.color = CoverColor
+            canvas.drawArc(arcBounds, -90f + innerSweep, coverSweep, false, arcPaint)
         }
 
         measurements += canvas.drawFittedText(

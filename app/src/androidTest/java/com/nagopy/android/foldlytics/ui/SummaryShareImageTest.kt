@@ -131,6 +131,41 @@ class SummaryShareImageTest {
     }
 
     @Test
+    fun keepsShareMetricsAndAccessibilityTextsInInnerThenCoverOrder() {
+        val resources = localizedContext(Locale.ENGLISH).resources
+        val summary = summary(
+            period = AnalysisPeriod.DAYS_30,
+            coverMillis = hours(3L),
+            innerMillis = hours(1L),
+        )
+        val content = SummaryShareImageRenderer.createContent(
+            resources,
+            summary,
+        )
+        val result = SummaryShareImageRenderer.renderWithDiagnostics(
+            resources,
+            summary,
+        )
+
+        assertEquals(
+            listOf(
+                content.innerRatioLabel,
+                content.innerRatio,
+                content.innerTimeLabel,
+                content.innerTime,
+                content.coverTimeLabel,
+                content.coverTime,
+                content.openedCountLabel,
+                content.openedCount,
+            ),
+            content.visibleTexts.drop(3),
+        )
+        assertEquals(0xFFF4F7FB.toInt(), result.bitmap.getPixel(0, 0))
+        assertEquals(DisplayChartPalette.LIGHT_INNER, result.bitmap.getPixel(422, 294))
+        assertEquals(DisplayChartPalette.LIGHT_COVER, result.bitmap.getPixel(422, 536))
+    }
+
+    @Test
     fun refusesToCreateAnImageWithoutClassifiedUsage() {
         val result = runCatching {
             SummaryShareImageRenderer.render(

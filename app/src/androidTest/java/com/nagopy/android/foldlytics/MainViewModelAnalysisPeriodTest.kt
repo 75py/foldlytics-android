@@ -19,6 +19,8 @@ import com.nagopy.android.foldlytics.model.DailyPostureSummary
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
 import com.nagopy.android.foldlytics.model.PostureCheckpoint
 import com.nagopy.android.foldlytics.model.UsageAnalysis
+import com.nagopy.android.foldlytics.widget.WidgetPeriod
+import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -99,6 +101,66 @@ class MainViewModelAnalysisPeriodTest {
             val completed = viewModel.awaitState { !it.isAnalysisLoading }
             assertEquals(AnalysisPeriod.HOURS_6, completed.selectedPeriod)
             assertEquals(AnalysisPeriod.HOURS_6, completed.analyzedPeriod)
+        } finally {
+            withContext(NonCancellable + Dispatchers.Main) { store.clear() }
+        }
+    }
+
+    @Test
+    fun widgetTodayWaitsForTheRefreshThatCrossesMidnight() = runBlocking {
+        val source = ControlledDataSource(CompletableDeferred())
+        val store = ViewModelStore()
+        val zone = ZoneId.systemDefault()
+        val today = LocalDate.of(2026, 9, 7)
+        val midnight = today.atStartOfDay(zone).toInstant().toEpochMilli()
+        val newEnd = midnight + 43_200_000L
+        try {
+            val viewModel = withContext(Dispatchers.Main) { createViewModel(store, source) }
+            val initial = source.awaitLoad()
+            withContext(Dispatchers.Main) { viewModel.openWidgetPeriod(WidgetPeriod.TODAY) }
+            val old = snapshot(AnalysisPeriod.HOURS_24, 24L).copy(
+                recordRangeStartMillis = midnight - 7 * 86_400_000L,
+                recordRangeEndMillis = midnight - 1L,
+                availablePeriods = AnalysisPeriod.entries.toSet(),
+            )
+            initial.succeed(old)
+            assertEquals(AnalysisPeriod.HOURS_24, viewModel.awaitState { !it.isAnalysisLoading }.selectedPeriod)
+            source.pendingSync!!.complete(UsageSyncResult.Success(0, newEnd, 0, 0))
+            source.awaitLoad().succeed(old.copy(recordRangeEndMillis = newEnd))
+            // customRange and selectedPeriod are separate flows. combine may start a
+            // HOURS_24 request with the new range, which collectLatest must cancel.
+            var todayLoad = source.awaitLoad()
+            while (todayLoad.request.period != AnalysisPeriod.CUSTOM) {
+                withTimeout(TIMEOUT_MILLIS) { todayLoad.cancelled.await() }
+                todayLoad = source.awaitLoad()
+            }
+            assertEquals(AnalysisPeriod.CUSTOM, todayLoad.request.period)
+            assertEquals(midnight, todayLoad.request.customRange?.startMillis)
+            assertEquals(newEnd, todayLoad.request.customRange?.endMillis)
+        } finally {
+            withContext(NonCancellable + Dispatchers.Main) { store.clear() }
+        }
+    }
+
+    @Test
+    fun explicitPeriodChoiceCancelsPendingWidgetNavigation() = runBlocking {
+        val source = ControlledDataSource(CompletableDeferred())
+        val store = ViewModelStore()
+        try {
+            val viewModel = withContext(Dispatchers.Main) { createViewModel(store, source) }
+            source.awaitLoad().succeed(snapshot(AnalysisPeriod.HOURS_24, 24L))
+            viewModel.awaitState { !it.isAnalysisLoading }
+            withContext(Dispatchers.Main) {
+                viewModel.openWidgetPeriod(WidgetPeriod.TODAY)
+                viewModel.setPeriod(AnalysisPeriod.HOURS_1)
+            }
+            val beforeSync = source.awaitLoad()
+            source.pendingSync!!.complete(UsageSyncResult.Success(0, 100L, 0, 0))
+            withTimeout(TIMEOUT_MILLIS) { beforeSync.cancelled.await() }
+            val afterSync = source.awaitLoad()
+            assertEquals(AnalysisPeriod.HOURS_1, afterSync.request.period)
+            afterSync.succeed(snapshot(AnalysisPeriod.HOURS_1, 100L))
+            assertEquals(AnalysisPeriod.HOURS_1, viewModel.awaitState { !it.isAnalysisLoading }.selectedPeriod)
         } finally {
             withContext(NonCancellable + Dispatchers.Main) { store.clear() }
         }
@@ -187,12 +249,14 @@ class MainViewModelAnalysisPeriodTest {
         )
     }
 
-    private class ControlledDataSource : MainViewModelDataSource {
+    private class ControlledDataSource(
+        val pendingSync: CompletableDeferred<UsageSyncResult>? = null,
+    ) : MainViewModelDataSource {
         private val pendingLoads = Channel<PendingLoad>(Channel.UNLIMITED)
 
-        override fun hasUsageAccess(): Boolean = false
+        override fun hasUsageAccess(): Boolean = pendingSync != null
 
-        override suspend fun sync(): UsageSyncResult = error("sync should not run")
+        override suspend fun sync(): UsageSyncResult = pendingSync?.await() ?: error("sync should not run")
 
         override fun observeSyncState(): Flow<UsageSyncState?> = MutableStateFlow(null)
 

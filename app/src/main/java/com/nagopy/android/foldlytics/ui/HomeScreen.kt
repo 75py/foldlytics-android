@@ -521,14 +521,14 @@ private fun SummaryCard(
         PostureDonutWithLegend(
             segments = listOf(
                 DonutSegment(
-                    stringResource(R.string.posture_cover),
-                    summary.coverMillis,
-                    colors.cover,
-                ),
-                DonutSegment(
                     stringResource(R.string.posture_inner),
                     summary.innerMillis,
                     colors.inner,
+                ),
+                DonutSegment(
+                    stringResource(R.string.posture_cover),
+                    summary.coverMillis,
+                    colors.cover,
                 ),
             ),
             centerLabel = stringResource(R.string.posture_inner),
@@ -549,15 +549,15 @@ private fun SummaryCard(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Metric(
-                stringResource(R.string.posture_cover),
-                summary.coverMillis.toDurationText(resources),
-                colors.cover,
-                Modifier.weight(1f),
-            )
-            Metric(
                 stringResource(R.string.posture_inner),
                 summary.innerMillis.toDurationText(resources),
                 colors.inner,
+                Modifier.weight(1f),
+            )
+            Metric(
+                stringResource(R.string.posture_cover),
+                summary.coverMillis.toDurationText(resources),
+                colors.cover,
                 Modifier.weight(1f),
             )
             Metric(
@@ -724,8 +724,8 @@ private fun PostureDonutWithLegend(
                 )
                 Spacer(Modifier.width(32.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    LegendDot(colors.cover, stringResource(R.string.posture_cover))
                     LegendDot(colors.inner, stringResource(R.string.posture_inner))
+                    LegendDot(colors.cover, stringResource(R.string.posture_cover))
                     LegendDot(colors.unknown, stringResource(R.string.label_no_data))
                 }
             }

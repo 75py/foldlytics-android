@@ -1,0 +1,20 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="vertical" android:padding="8dp" android:background="@drawable/widget_background" android:baselineAligned="false">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:orientation="horizontal" android:baselineAligned="false">
+        <FrameLayout android:id="@+id/widget_configure" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:background="?android:attr/selectableItemBackground" android:contentDescription="@string/widget_configure">
+            <TextView android:id="@+id/widget_period" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center_vertical" android:text="@string/widget_days_7" android:textSize="12sp" android:textColor="@color/widget_secondary" android:maxLines="2" />
+        </FrameLayout>
+        <ImageButton android:id="@+id/widget_refresh" android:layout_width="40dp" android:layout_height="match_parent" android:padding="8dp" android:src="@drawable/widget_refresh_icon" android:background="?android:attr/selectableItemBackground" android:contentDescription="@string/widget_refresh" />
+    </LinearLayout>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal" android:gravity="center_vertical" android:baselineAligned="false">
+        <TextView android:id="@+id/widget_ratio" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:gravity="center" android:textSize="14sp" android:textStyle="bold" android:textColor="@color/widget_text" android:maxLines="2" />
+        <LinearLayout android:id="@+id/widget_metrics" android:layout_width="0dp" android:layout_weight="1.6" android:layout_height="wrap_content" android:orientation="vertical" >
+            <TextView android:id="@+id/widget_inner_time" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="@color/widget_text" android:maxLines="2" />
+            <TextView android:id="@+id/widget_cover_time" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="@color/widget_text" android:maxLines="2" />
+            <TextView android:id="@+id/widget_open_count" android:layout_width="match_parent" android:layout_height="wrap_content" android:textSize="11sp" android:textColor="@color/widget_text" android:maxLines="2" />
+        </LinearLayout>
+        <TextView android:id="@+id/widget_status" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:gravity="center" android:textSize="11sp" android:textColor="@color/widget_text" android:maxLines="3" />
+    </LinearLayout>
+    <TextView android:id="@+id/widget_sync" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/widget_never_synced" android:textSize="11sp" android:textColor="@color/widget_secondary" android:maxLines="2" />
+</LinearLayout>

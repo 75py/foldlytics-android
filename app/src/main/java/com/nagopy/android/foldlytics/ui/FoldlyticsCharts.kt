@@ -42,8 +42,8 @@ import com.nagopy.android.foldlytics.model.LongTermBucket
 import com.nagopy.android.foldlytics.toShortDateText
 
 internal data class PostureColors(
-    val cover: Color,
     val inner: Color,
+    val cover: Color,
     val unknown: Color,
 )
 
@@ -71,14 +71,14 @@ internal fun openCountChartScale(observedMaximum: Int): OpenCountChartScale {
 @Composable
 internal fun postureColors(): PostureColors = if (isSystemInDarkTheme()) {
     PostureColors(
-        cover = Color(0xFFFFB077),
-        inner = Color(0xFF73C7FF),
+        inner = Color(DisplayChartPalette.DARK_INNER),
+        cover = Color(DisplayChartPalette.DARK_COVER),
         unknown = Color(0xFF9CA3AF),
     )
 } else {
     PostureColors(
-        cover = Color(0xFFC44E00),
-        inner = Color(0xFF0067A5),
+        inner = Color(DisplayChartPalette.LIGHT_INNER),
+        cover = Color(DisplayChartPalette.LIGHT_COVER),
         unknown = Color(0xFF6B7280),
     )
 }
@@ -155,8 +155,8 @@ internal fun DonutChart(
 @Composable
 internal fun PostureLegend(colors: PostureColors) {
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        LegendDot(colors.cover, stringResource(R.string.posture_cover))
         LegendDot(colors.inner, stringResource(R.string.posture_inner))
+        LegendDot(colors.cover, stringResource(R.string.posture_cover))
         LegendDot(colors.unknown, stringResource(R.string.label_no_data))
     }
 }

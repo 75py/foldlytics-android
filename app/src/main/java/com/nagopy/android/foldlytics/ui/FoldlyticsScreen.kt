@@ -103,6 +103,7 @@ fun FoldlyticsScreen(
     appName: String? = null,
     screenshotSectionEndSpacing: Dp = 0.dp,
     screenshotHomeItemIndex: Int? = null,
+    homeNavigationRequest: Int = 0,
 ) {
     val analysisProgressDescription = stringResource(R.string.content_desc_analysis_progress)
     val resolvedAppName = appName ?: stringResource(R.string.app_name)
@@ -116,6 +117,15 @@ fun FoldlyticsScreen(
         LazyListState()
     }
 
+    LaunchedEffect(homeNavigationRequest) {
+        if (homeNavigationRequest > 0) {
+            destination = ScreenDestination.HOME
+            showUsageAccessDisclosure = false
+            summaryShareSnapshot = null
+            drawerState.close()
+            homeListState.scrollToItem(0)
+        }
+    }
     LaunchedEffect(state.isAnalysisLoading) {
         if (state.isAnalysisLoading) {
             delay(ANALYSIS_PROGRESS_DELAY_MILLIS)

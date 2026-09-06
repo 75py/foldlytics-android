@@ -19,6 +19,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -31,6 +33,8 @@ import com.nagopy.android.foldlytics.data.toDisplayConfiguration
 import com.nagopy.android.foldlytics.share.SummaryImageShare
 import com.nagopy.android.foldlytics.ui.FoldlyticsScreen
 import com.nagopy.android.foldlytics.ui.FoldlyticsTheme
+import com.nagopy.android.foldlytics.widget.SummaryWidgetProvider
+import com.nagopy.android.foldlytics.widget.WidgetPeriod
 import java.time.LocalDate
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -41,6 +45,7 @@ private const val PRIVACY_POLICY_URL = "https://www.nagopy.com/privacy-policy/"
 
 class MainActivity : ComponentActivity(), SensorEventListener {
     private val viewModel: MainViewModel by viewModels()
+    private var homeNavigationRequest by mutableIntStateOf(0)
     private lateinit var sensorManager: SensorManager
     private var hingeSensor: Sensor? = null
     private val createCsvDocument = registerForActivityResult(
@@ -81,6 +86,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         viewModel.updateHingeSensor(available = hingeSensor != null)
         updateConfiguration(resources.configuration)
         viewModel.recordAppLaunchCheckpoint()
+        applyWidgetIntent(intent)
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -100,6 +106,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
                 FoldlyticsScreen(
                     state = state,
+                    homeNavigationRequest = homeNavigationRequest,
                     onOpenUsageAccess = ::openUsageAccessSettings,
                     onSaveCover = viewModel::saveCurrentAsCover,
                     onSaveInner = viewModel::saveCurrentAsInner,
@@ -115,6 +122,20 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                     onShareSummary = ::shareSummaryImage,
                 )
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        applyWidgetIntent(intent)
+    }
+
+    private fun applyWidgetIntent(intent: Intent) {
+        if (intent.hasExtra(SummaryWidgetProvider.EXTRA_PERIOD)) {
+            homeNavigationRequest += 1
+            viewModel.openWidgetPeriod(WidgetPeriod.fromName(intent.getStringExtra(SummaryWidgetProvider.EXTRA_PERIOD)))
+            intent.removeExtra(SummaryWidgetProvider.EXTRA_PERIOD)
         }
     }
 

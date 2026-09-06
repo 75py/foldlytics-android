@@ -43,7 +43,7 @@ Foldlytics：折りたたみ利用分析
 
 ### 詳しい説明
 
-956 / 4,000文字
+1,032 / 4,000文字
 
 ```text
 折りたたみスマホを、実際どれくらい開いて使っていますか？
@@ -61,6 +61,9 @@ Foldlyticsは、外側・内側の画面を使った時間や、画面ごとに�
 
 ■ 使い方は変わってきた？
 期間を切り替えたり、日付を指定したりして、内側の利用割合や検出した「開いた」回数の変化をグラフで確認できます。
+
+■ ホーム画面でさっと確認
+ウィジェットで内側の利用割合を確認できます。大きく配置すると、内側・外側の利用時間と検出した「開いた」回数も表示します。
 
 利用サマリーは、画像にして共有できます。保存済みの全期間の記録を、日ごとに集計したCSVとして書き出すこともできます。
 
@@ -110,7 +113,7 @@ See how much you use each display on your foldable and which apps you use most.
 
 ### Full description
 
-2,141 / 4,000 characters
+2,300 / 4,000 characters
 
 ```text
 How often do you actually unfold your phone?
@@ -128,6 +131,9 @@ Find your most-used apps, ranked by usage time. See each app's cover and inner d
 
 ■ Has your usage changed?
 Choose a preset period or your own date range to explore charts of your inner display share and detected opens over time.
+
+■ Check your usage from the home screen
+See your inner display share in a widget. A larger layout also shows inner and cover display time and detected opens.
 
 Share your usage summary as an image, or export daily totals for all your saved history as a CSV file.
 

@@ -1,0 +1,9 @@
+<resources>
+    <color name="widget_background">#FFF9F5</color>
+    <color name="widget_text">#242424</color>
+    <color name="widget_secondary">#575757</color>
+    <color name="widget_neutral">#BDBAB6</color>
+    <!-- Kept in agreement with DisplayChartPalette by SummaryWidgetRenderingTest. -->
+    <color name="widget_inner">#0067A5</color>
+    <color name="widget_cover">#C44E00</color>
+</resources>

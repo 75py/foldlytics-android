@@ -94,6 +94,17 @@ Android retains usage events for a limited time. Events from before the first sy
 
 If Usage Access is unavailable, Android cannot provide events, or reading or saving fails, Foldlytics does not advance the successful synchronization endpoint. Before the first user unlock after a reboot (Android Direct Boot), the user data needed for synchronization is unavailable and the attempt waits for that first unlock; this is different from the ordinary screen/keyguard lock after the device has already been unlocked. Foldlytics can continue background synchronization after that first unlock even while the screen is locked. The displayed usage analysis ends at the latest successful synchronization time, while collection diagnostics also show recent attempts that have not yet succeeded. See [Android Direct Boot](https://developer.android.com/privacy-and-security/direct-boot).
 
+## Home-screen widget
+
+The widget uses daily aggregates derived from the existing on-device event history.
+Its inner display share includes only classified inner and cover use in the denominator;
+display-undetermined time stays excluded. The one-day, seven-day, and thirty-day periods
+end on the last successfully collected day, with the actual dates and last sync time shown.
+Stale records are not labeled as usage on the current day. Unavailable data is distinct from 0%.
+
+Periodic collection remains scheduled about every six hours. The widget's Refresh button can
+also request a sync. Widget updates add no new event categories or network permission.
+
 ## Device support and other limitations
 
 - Foldlytics requires Android 10 (API 29) or later.
