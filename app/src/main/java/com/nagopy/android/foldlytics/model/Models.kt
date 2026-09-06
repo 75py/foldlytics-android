@@ -228,11 +228,12 @@ data class AppUsage(
  * A session between a detected cover-to-inner transition and the following inner-to-cover
  * transition.
  *
- * The package map contains only time for intervals that had exactly one definitely resumed
- * package. Historical unresolved activity evidence does not block attribution to the one
- * definite package, so intervals that were genuinely split despite ambiguous evidence can be
- * approximated as that package. The difference between [innerActiveMillis] and the map total is
- * intentionally retained as unallocated time and is presented as "Other".
+ * [appUsageMillis] is the existing persisted singleton-package cache. [appSetUsageMillis] is
+ * transient exclusive attribution, reconstructed from raw evidence for selected session details.
+ * Only definitely resumed packages join a set; unresolved possible activity evidence is omitted.
+ * Historical ambiguity can therefore approximate a genuinely split interval as a singleton.
+ * Unknown intervals and undisplayed entries are presented as "Other" so the detail reconciles
+ * to the authoritative cached [innerActiveMillis].
  */
 data class InnerDisplaySession(
     val openedAtMillis: Long,
@@ -240,6 +241,8 @@ data class InnerDisplaySession(
     val closedAtMillis: Long?,
     val innerActiveMillis: Long,
     val appUsageMillis: Map<String, Long> = emptyMap(),
+    /** Exclusive definite-package sets, replayed for selected details; never persisted. */
+    val appSetUsageMillis: Map<Set<String>, Long>? = null,
 ) {
     val isComplete: Boolean = closedAtMillis != null
 }
@@ -249,6 +252,8 @@ data class InnerSessionAppUsage(
     val label: String,
     val innerActiveMillis: Long,
     val isLauncherApp: Boolean = true,
+    val packageNames: List<String> = listOf(packageName),
+    val labels: List<String> = listOf(label),
 )
 
 data class InnerSessionDetail(

@@ -36,6 +36,7 @@ class FoldlyticsApplication : Application() {
             usageEventDao = database.usageEventDao(),
             checkpointDao = database.postureCheckpointDao(),
             summaryDao = database.dailyPostureSummaryDao(),
+            database = database,
         )
     }
 

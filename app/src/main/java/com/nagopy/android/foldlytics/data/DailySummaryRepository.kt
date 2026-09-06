@@ -1,5 +1,6 @@
 package com.nagopy.android.foldlytics.data
 
+import androidx.room.withTransaction
 import com.nagopy.android.foldlytics.model.Calibration
 import com.nagopy.android.foldlytics.model.CalibrationValidationFailure
 import com.nagopy.android.foldlytics.model.DailyAppUsageSummary
@@ -15,9 +16,14 @@ class DailySummaryRepository(
     private val usageEventDao: UsageEventDao,
     private val checkpointDao: PostureCheckpointDao,
     private val summaryDao: DailyPostureSummaryDao,
+    private val database: FoldlyticsDatabase? = null,
 ) {
     private val analyzer = UsageAnalyzer { packageName -> packageName }
     private val aggregationMutex = Mutex()
+
+    /** Encloses source reads and derived-cache updates in the same Room snapshot. */
+    internal suspend fun <T> withDatabaseSnapshot(read: suspend () -> T): T =
+        if (database == null) read() else database.withTransaction { read() }
 
     suspend fun <T> withUpToDateSnapshot(
         calibration: Calibration,
@@ -27,18 +33,20 @@ class DailySummaryRepository(
         zoneId: ZoneId,
         collectionGapStarts: List<Long>,
         read: suspend DailySummarySnapshot.() -> T,
-    ): T = aggregationMutex.withLock {
-        DailySummarySnapshot(
-            dailySummaries = ensureUpToDateLocked(
-                calibration = calibration,
-                syncedThroughMillis = syncedThroughMillis,
-                syncQueryBeginMillis = syncQueryBeginMillis,
-                checkpointRevision = checkpointRevision,
-                zoneId = zoneId,
-                collectionGapStarts = collectionGapStarts,
-            ),
-            summaryDao = summaryDao,
-        ).read()
+    ): T = withDatabaseSnapshot {
+        aggregationMutex.withLock {
+            DailySummarySnapshot(
+                dailySummaries = ensureUpToDateLocked(
+                    calibration = calibration,
+                    syncedThroughMillis = syncedThroughMillis,
+                    syncQueryBeginMillis = syncQueryBeginMillis,
+                    checkpointRevision = checkpointRevision,
+                    zoneId = zoneId,
+                    collectionGapStarts = collectionGapStarts,
+                ),
+                summaryDao = summaryDao,
+            ).read()
+        }
     }
 
     suspend fun ensureUpToDate(
