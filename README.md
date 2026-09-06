@@ -59,8 +59,10 @@ and percentages.
 
 ## Home-screen widget
 
-Add Foldlytics from your launcher's widget picker. The donut shows your inner display share;
-widen the widget to also see inner and cover display time and detected opens.
+Add Foldlytics from your launcher's widget picker. The donut shows your inner display share
+from a 2×2 size, including with larger system text. Widen the widget to also see inner and
+cover display time and opens, grouped beside the chart as in the shared image.
+Increasing the height keeps these rows together.
 Choose a one-day, seven-day, or thirty-day period; seven days is the default.
 
 Values reflect the last successfully collected records. Check the displayed dates and last sync

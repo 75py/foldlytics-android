@@ -12,7 +12,7 @@
     <string name="widget_period_dates">%1$s · %2$s–%3$s</string>
     <string name="widget_inner">内側</string>
     <string name="widget_cover">外側</string>
-    <string name="widget_opens">開いた回数（検出）</string>
+    <string name="widget_opens">開いた回数</string>
     <string name="widget_inner_ratio">内側画面 %1$s</string>
     <string name="widget_no_data">判定済みの使用記録なし</string>
     <string name="widget_permission_required">アプリで使用履歴へのアクセスを許可</string>

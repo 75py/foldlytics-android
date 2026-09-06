@@ -26,7 +26,7 @@ internal object SummaryWidgetRenderer {
         val small = render(context, id, state, wide = false)
         val wide = render(context, id, state, wide = true)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            return RemoteViews(mapOf(SizeF(140f, 180f) to small, SizeF(280f, 180f) to wide))
+            return RemoteViews(mapOf(SizeF(140f, 140f) to small, SizeF(280f, 140f) to wide))
         }
         val options = AppWidgetManager.getInstance(context).getAppWidgetOptions(id)
         val portrait = if (options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH) >= 280) wide else small
@@ -35,13 +35,7 @@ internal object SummaryWidgetRenderer {
     }
 
     fun render(context: Context, id: Int, state: SummaryWidgetState, wide: Boolean): RemoteViews {
-        val largeType = context.resources.configuration.fontScale >= 1.3f
-        val layout = when {
-            largeType && wide -> R.layout.summary_widget_large_type_wide
-            largeType -> R.layout.summary_widget_large_type_small
-            wide -> R.layout.summary_widget_wide
-            else -> R.layout.summary_widget_small
-        }
+        val layout = if (wide) R.layout.summary_widget_wide else R.layout.summary_widget_small
         val views = RemoteViews(context.packageName, layout)
         val locale = context.resources.configuration.locales[0]
         val number = NumberFormat.getIntegerInstance(locale)
@@ -62,15 +56,14 @@ internal object SummaryWidgetRenderer {
         val percent = ratio?.let { number.format((it * 100f).roundToInt()) + "%" } ?: "—"
         views.setTextViewText(R.id.widget_ratio, percent)
         views.setContentDescription(R.id.widget_ratio, context.getString(R.string.widget_inner_ratio, percent))
-        if (!largeType) {
-            // Tint resources are resolved by the host, including after process death/theme changes.
-            views.setImageViewBitmap(R.id.widget_donut, arcMask(-90f, if (ratio == null) 360f else 0f))
-            views.setImageViewBitmap(R.id.widget_inner_arc, arcMask(-90f, (ratio ?: 0f) * 360f))
-            views.setImageViewBitmap(R.id.widget_cover_arc, arcMask(-90f + (ratio ?: 0f) * 360f, if (ratio == null) 0f else (1f - ratio) * 360f))
-            views.setViewVisibility(R.id.widget_ratio_label, if (ratio == null) View.GONE else View.VISIBLE)
-            views.setViewVisibility(R.id.widget_chart, if (state.status == WidgetStatus.PERMISSION_REQUIRED) View.GONE else View.VISIBLE)
-            views.setViewVisibility(R.id.widget_metrics, if (wide && state.status != WidgetStatus.PERMISSION_REQUIRED) View.VISIBLE else View.GONE)
-        }
+        // Tint resources are resolved by the host, including after process death/theme changes.
+        // Keep the chart at every font scale; the host autosizes text within its bounds.
+        views.setImageViewBitmap(R.id.widget_donut, arcMask(-90f, if (ratio == null) 360f else 0f))
+        views.setImageViewBitmap(R.id.widget_inner_arc, arcMask(-90f, (ratio ?: 0f) * 360f))
+        views.setImageViewBitmap(R.id.widget_cover_arc, arcMask(-90f + (ratio ?: 0f) * 360f, if (ratio == null) 0f else (1f - ratio) * 360f))
+        views.setViewVisibility(R.id.widget_ratio_label, if (ratio == null) View.GONE else View.VISIBLE)
+        views.setViewVisibility(R.id.widget_chart, if (state.status == WidgetStatus.PERMISSION_REQUIRED) View.GONE else View.VISIBLE)
+        views.setViewVisibility(R.id.widget_metrics, if (wide && state.status != WidgetStatus.PERMISSION_REQUIRED) View.VISIBLE else View.GONE)
         views.setTextViewText(R.id.widget_inner_time, formatDuration(context, state.innerMillis))
         views.setTextViewText(R.id.widget_cover_time, formatDuration(context, state.coverMillis))
         views.setTextViewText(R.id.widget_open_count, number.format(state.openedCount))
@@ -83,36 +76,25 @@ internal object SummaryWidgetRenderer {
         val message = when (state.status) {
             WidgetStatus.READY -> null
             WidgetStatus.NO_DATA -> R.string.widget_no_data
-            WidgetStatus.PERMISSION_REQUIRED -> R.string.widget_permission_required
+            WidgetStatus.PERMISSION_REQUIRED -> if (wide) R.string.widget_permission_required else R.string.widget_permission_short
             WidgetStatus.UPDATE_FAILED -> R.string.widget_update_failed
         }
         views.setViewVisibility(R.id.widget_status, if (message == null) View.GONE else View.VISIBLE)
-        message?.let { views.setTextViewText(R.id.widget_status, context.getString(it)) }
+        message?.let {
+            views.setTextViewText(R.id.widget_status, context.getString(it))
+            val description = if (state.status == WidgetStatus.PERMISSION_REQUIRED) {
+                R.string.widget_permission_required
+            } else {
+                it
+            }
+            views.setContentDescription(R.id.widget_status, context.getString(description))
+        }
         views.setTextViewText(
             R.id.widget_sync,
             state.lastSyncMillis?.let {
                 context.getString(R.string.widget_last_sync, DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, locale).format(Date(it)))
             } ?: context.getString(R.string.widget_never_synced),
         )
-        if (largeType) {
-            val ready = state.status == WidgetStatus.READY
-            views.setViewVisibility(R.id.widget_ratio, if (ready) View.VISIBLE else View.GONE)
-            views.setViewVisibility(R.id.widget_metrics, if (ready && wide) View.VISIBLE else View.GONE)
-            views.setTextViewText(R.id.widget_ratio, context.getString(R.string.widget_inner) + (if (wide) "\n" else " ") + percent)
-            if (!wide && state.period != WidgetPeriod.TODAY) {
-                views.setTextViewText(R.id.widget_period, context.getString(periodLabel(state.period)))
-            }
-            views.setTextViewText(R.id.widget_inner_time, context.getString(R.string.widget_inner) + " " + compactDuration(context, state.innerMillis))
-            views.setTextViewText(R.id.widget_cover_time, context.getString(R.string.widget_cover) + " " + compactDuration(context, state.coverMillis))
-            views.setTextViewText(R.id.widget_open_count, context.getString(R.string.widget_compact_opens) + " " + number.format(state.openedCount))
-            if (state.status == WidgetStatus.PERMISSION_REQUIRED) views.setTextViewText(R.id.widget_status, context.getString(R.string.widget_permission_short))
-            state.lastSyncMillis?.let {
-                val datePart = DateFormat.getDateInstance(DateFormat.SHORT, locale).format(Date(it))
-                val timePart = DateFormat.getTimeInstance(DateFormat.SHORT, locale).format(Date(it))
-                views.setTextViewText(R.id.widget_sync, "↻ " + datePart + (if (wide) " " else "\n") + timePart)
-                views.setContentDescription(R.id.widget_sync, context.getString(R.string.widget_last_sync, datePart + " " + timePart))
-            }
-        }
         val open = Intent(context, MainActivity::class.java).apply {
             data = "foldlytics://widget/$id/open".toUri()
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -142,10 +124,6 @@ internal object SummaryWidgetRenderer {
         Canvas(bitmap).drawArc(RectF(24f, 24f, 232f, 232f), start, sweep, false, paint)
         return bitmap
     }
-
-    private fun compactDuration(context: Context, millis: Long): String =
-        if (millis >= 3_600_000L) context.getString(R.string.widget_compact_hours, millis / 3_600_000L)
-        else context.getString(R.string.widget_compact_minutes, millis / 60_000L)
 
     private fun formatDuration(context: Context, millis: Long): String {
         val minutes = millis / 60_000L
