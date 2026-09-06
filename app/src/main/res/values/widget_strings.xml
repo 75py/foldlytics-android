@@ -1,0 +1,30 @@
+<resources>
+    <string name="widget_name">Display usage summary</string>
+    <string name="widget_description">Inner display share, usage time, and detected opens.</string>
+    <string name="widget_configuration_title">Summary widget</string>
+    <string name="widget_configuration_description">Choose a period for this widget. Dates and usage reflect the last successful sync. Background updates run about every 6 hours.</string>
+    <string name="widget_today">Today</string>
+    <string name="widget_days_7">7 days</string>
+    <string name="widget_days_30">30 days</string>
+    <string name="widget_save">Save</string>
+    <string name="widget_refresh">Refresh</string>
+    <string name="widget_configure">Period</string>
+    <string name="widget_period_dates">%1$s · %2$s–%3$s</string>
+    <string name="widget_inner">Inner</string>
+    <string name="widget_cover">Outer</string>
+    <string name="widget_opens">Detected opens</string>
+    <string name="widget_inner_ratio">Inner display %1$s</string>
+    <string name="widget_no_data">No classified usage</string>
+    <string name="widget_permission_required">Open app to grant usage access</string>
+    <string name="widget_update_failed">Update failed · tap Refresh</string>
+    <string name="widget_last_sync">Synced %1$s</string>
+    <string name="widget_never_synced">Not synced yet</string>
+    <string name="widget_duration">%1$dh %2$dm</string>
+    <string name="widget_less_than_minute">&lt;1m</string>
+    <string name="widget_permission_short">Usage access required</string>
+    <string name="widget_unavailable_value" translatable="false">—</string>
+    <string name="widget_compact_hours">%1$dh</string>
+    <string name="widget_compact_minutes">%1$dm</string>
+    <string name="widget_compact_opens">Opens</string>
+    <string name="widget_preview_ratio" translatable="false">25%</string>
+</resources>

@@ -8,6 +8,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.nagopy.android.foldlytics.FoldlyticsApplication
+import com.nagopy.android.foldlytics.widget.SummaryWidgetUpdater
 import java.util.concurrent.TimeUnit
 
 class UsageSyncWorker(
@@ -16,7 +17,9 @@ class UsageSyncWorker(
 ) : CoroutineWorker(appContext, workerParameters) {
     override suspend fun doWork(): Result {
         val app = applicationContext as? FoldlyticsApplication ?: return Result.failure()
-        return when (val result = app.usageSyncRepository.sync()) {
+        val result = app.usageSyncRepository.sync()
+        SummaryWidgetUpdater.onSyncCompleted(applicationContext, result)
+        return when (result) {
             is UsageSyncResult.Success -> Result.success()
             is UsageSyncResult.Skipped -> when (result.reason) {
                 UsageReadUnavailableReason.PERMISSION_DENIED -> Result.success()

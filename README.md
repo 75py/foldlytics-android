@@ -16,6 +16,7 @@ Download: [https://play.google.com/store/apps/details?id=com.nagopy.android.fold
 
 ## What you can see
 
+- A home-screen widget showing your inner display share and usage summary.
 - Cover and inner display time, plus the inner-display ratio.
 - Detected open counts.
 - Inner-display use for each opening, with median, average, and longest time,
@@ -55,6 +56,16 @@ display where it was used longer. Each list is sorted by time on that display,
 longest first. Apps with equal time on both displays appear in neither list.
 Time when the display is unknown is shown separately and excluded from totals
 and percentages.
+
+## Home-screen widget
+
+Add Foldlytics from your launcher's widget picker. The donut shows your inner display share;
+widen the widget to also see inner and cover display time and detected opens.
+Choose a one-day, seven-day, or thirty-day period; seven days is the default.
+
+Values reflect the last successfully collected records. Check the displayed dates and last sync
+time. Use Refresh to sync, or tap the widget to open analysis for the corresponding period.
+The widget distinguishes unavailable records and required Usage Access from a measured zero.
 
 ## Build and test
 

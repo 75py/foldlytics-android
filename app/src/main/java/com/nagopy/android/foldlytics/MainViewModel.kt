@@ -24,6 +24,9 @@ import com.nagopy.android.foldlytics.model.DisplayConfiguration
 import com.nagopy.android.foldlytics.model.PostureCheckpoint
 import com.nagopy.android.foldlytics.model.PostureCheckpointSource
 import com.nagopy.android.foldlytics.model.isValidCustomAnalysisRange
+import com.nagopy.android.foldlytics.widget.SummaryWidgetUpdater
+import com.nagopy.android.foldlytics.widget.WidgetPeriod
+import com.nagopy.android.foldlytics.widget.widgetDateRange
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -67,7 +70,7 @@ internal interface MainViewModelDataSource {
 }
 
 private class ProductionMainViewModelDataSource(
-    application: FoldlyticsApplication,
+    private val application: FoldlyticsApplication,
 ) : MainViewModelDataSource {
     private val checkpointRepository = application.postureCheckpointRepository
     private val syncRepository = application.usageSyncRepository
@@ -81,7 +84,9 @@ private class ProductionMainViewModelDataSource(
 
     override fun hasUsageAccess(): Boolean = syncRepository.hasUsageAccess()
 
-    override suspend fun sync(): UsageSyncResult = syncRepository.sync()
+    override suspend fun sync(): UsageSyncResult = syncRepository.sync().also {
+        SummaryWidgetUpdater.onSyncCompleted(application, it)
+    }
 
     override fun observeSyncState(): Flow<UsageSyncState?> = syncRepository.observeSyncState()
 
@@ -92,6 +97,7 @@ private class ProductionMainViewModelDataSource(
 
     override suspend fun saveCheckpoint(checkpoint: PostureCheckpoint) {
         checkpointRepository.save(checkpoint)
+        SummaryWidgetUpdater.enqueue(application)
     }
 
     override suspend fun load(
@@ -128,6 +134,9 @@ class MainViewModel internal constructor(
         )
     }
     private var refreshJob: Job? = null
+    private var pendingWidgetPeriod: WidgetPeriod? = null
+    private var pendingWidgetAwaitingSync = false
+    private var pendingWidgetSyncEndMillis: Long? = null
 
     private val _uiState = MutableStateFlow(
         MainUiState(
@@ -150,6 +159,8 @@ class MainViewModel internal constructor(
             refresh()
         } else {
             refreshJob?.cancel()
+            pendingWidgetAwaitingSync = false
+            enqueueWidgetUpdate()
             _uiState.update { it.copy(isLoading = false) }
         }
     }
@@ -191,13 +202,58 @@ class MainViewModel internal constructor(
         refresh()
     }
 
+    /** Widget intents can arrive before the first database snapshot is available. */
+    fun openWidgetPeriod(period: WidgetPeriod) {
+        pendingWidgetPeriod = period
+        pendingWidgetSyncEndMillis = null
+        pendingWidgetAwaitingSync = _uiState.value.hasUsageAccess
+        if (pendingWidgetAwaitingSync) refresh() else applyPendingWidgetPeriod()
+    }
+
+    private fun applyPendingWidgetPeriod() {
+        val period = pendingWidgetPeriod ?: return
+        if (pendingWidgetAwaitingSync) return
+        val state = _uiState.value
+        val recordStart = state.recordRangeStartMillis ?: return
+        val recordEnd = state.recordRangeEndMillis ?: return
+        if (pendingWidgetSyncEndMillis?.let { recordEnd < it } == true) return
+        pendingWidgetPeriod = null
+        pendingWidgetSyncEndMillis = null
+        val appPeriod = when (period) {
+            WidgetPeriod.TODAY -> AnalysisPeriod.CUSTOM
+            WidgetPeriod.DAYS_7 -> AnalysisPeriod.DAYS_7
+            WidgetPeriod.DAYS_30 -> AnalysisPeriod.DAYS_30
+        }
+        if (appPeriod != AnalysisPeriod.CUSTOM && appPeriod in state.availablePeriods) {
+            setPeriod(appPeriod)
+        } else {
+            val zone = ZoneId.systemDefault()
+            val range = widgetDateRange(period, recordEnd, zone)
+            setCustomPeriod(maxOf(recordStart, range.startMillis(zone)), recordEnd)
+        }
+    }
+
+    private fun clearPendingWidgetPeriod() {
+        pendingWidgetPeriod = null
+        pendingWidgetAwaitingSync = false
+        pendingWidgetSyncEndMillis = null
+    }
+
+    private fun enqueueWidgetUpdate() {
+        (getApplication<Application>() as? FoldlyticsApplication)?.let {
+            SummaryWidgetUpdater.enqueue(it)
+        }
+    }
+
     fun setPeriod(period: AnalysisPeriod) {
+        clearPendingWidgetPeriod()
         if (period == AnalysisPeriod.CUSTOM || period !in _uiState.value.availablePeriods) return
         _uiState.update { it.copy(selectedPeriod = period) }
         selectedPeriod.value = period
     }
 
     fun setCustomPeriod(startMillis: Long, endMillis: Long) {
+        clearPendingWidgetPeriod()
         val state = _uiState.value
         val recordStart = state.recordRangeStartMillis ?: return
         val recordEnd = state.recordRangeEndMillis ?: return
@@ -249,6 +305,7 @@ class MainViewModel internal constructor(
             }
             when (val result = dataSource.sync()) {
                 is UsageSyncResult.Success -> {
+                    if (pendingWidgetPeriod != null) pendingWidgetSyncEndMillis = result.endMillis
                     _uiState.update { it.copy(isLoading = false) }
                 }
 
@@ -294,6 +351,7 @@ class MainViewModel internal constructor(
                     }
                 }
             }
+            pendingWidgetAwaitingSync = false
             analysisRevision.value += 1L
         }
     }
@@ -350,6 +408,7 @@ class MainViewModel internal constructor(
     private fun reloadCalibrationAndRefresh() {
         val calibration = calibrationStore.load()
         activeCalibration.value = calibration
+        enqueueWidgetUpdate()
         _uiState.update { it.withCalibration(calibration) }
         refresh()
     }
@@ -450,6 +509,7 @@ class MainViewModel internal constructor(
                         if (customRange.value != snapshot.customRange) {
                             customRange.value = snapshot.customRange
                         }
+                        applyPendingWidgetPeriod()
                     } catch (error: CancellationException) {
                         throw error
                     } catch (error: Exception) {
