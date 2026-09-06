@@ -223,15 +223,17 @@
     <string name="long_inner_sessions_title">Longest inner-display uses (up to 3)</string>
     <string name="long_inner_sessions_empty">No completed sessions with inner-display usage in this period.</string>
     <string name="inner_session_duration">Inner use %1$s</string>
+    <string name="inner_session_app_joiner">" + "</string>
+    <string name="inner_session_simultaneous_apps">%1$s (simultaneous)</string>
     <string name="inner_session_other">Other</string>
-    <string name="inner_session_other_description">Other includes time from apps beyond the three shown, apps that cannot be launched from the launcher, and time that could not be matched to an app.</string>
+    <string name="inner_session_other_description">Other includes apps or combinations beyond the three shown, combinations containing an app that cannot be launched from the launcher, and time that could not be matched to an app.</string>
     <string name="inner_sessions_empty_no_opens">No opening records were detected in this period.</string>
     <plurals name="inner_sessions_empty_no_complete">
         <item quantity="one">%1$d opening was detected, but we could not confirm inner-display use through a closing.</item>
         <item quantity="other">%1$d openings were detected, but we could not confirm inner-display use through a closing.</item>
     </plurals>
     <string name="inner_sessions_method_title">How this is calculated</string>
-    <string name="inner_sessions_method_body">Each use is measured from an opening until the next closing. Only completed records are included in the summary. Screen-off and locked intervals count as 0 seconds. Apps beyond the top three, apps that cannot be launched from the launcher, and time that cannot be matched to an app are included in Other.</string>
+    <string name="inner_sessions_method_body">Each use is measured from an opening until the next closing. Only completed records are included. Screen-off and locked intervals count as 0 seconds. Simultaneous use groups definitely resumed apps together and counts each interval once. Entries beyond the top three, time involving apps that cannot be launched from the launcher, and unmatched time are included in Other.</string>
 
     <!-- Summary image sharing -->
     <string name="share_summary_brand" translatable="false">Foldlytics</string>

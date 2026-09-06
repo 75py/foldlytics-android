@@ -25,18 +25,7 @@ class InnerSessionSummarizer(
         val durations = completeSessions
             .map { it.innerActiveMillis.coerceAtLeast(0L) }
             .sorted()
-        val longSessions = completeSessions
-            .asSequence()
-            .filter { it.innerActiveMillis > 0L }
-            .sortedWith(
-                compareByDescending<InnerDisplaySession> { it.innerActiveMillis }
-                    .thenByDescending { it.openedAtMillis }
-                    // Sequence is a deterministic tie-breaker for same-time opens.
-                    .thenBy { it.openedSequenceAtTimestamp },
-            )
-            .take(MAX_LONG_SESSIONS)
-            .map(::toDetail)
-            .toList()
+        val longSessions = selectLongSessions(completeSessions).map(::toDetail)
 
         return InnerSessionSummary(
             rangeStartMillis = rangeStartMillis,
@@ -50,17 +39,34 @@ class InnerSessionSummarizer(
         )
     }
 
+    internal fun selectLongSessions(sessions: List<InnerDisplaySession>): List<InnerDisplaySession> =
+        sessions.asSequence()
+            .filter { it.isComplete && it.innerActiveMillis > 0L }
+            .sortedWith(
+                compareByDescending<InnerDisplaySession> { it.innerActiveMillis }
+                    .thenByDescending { it.openedAtMillis }
+                    .thenBy { it.openedSequenceAtTimestamp },
+            )
+            .take(MAX_LONG_SESSIONS)
+            .toList()
+
     private fun toDetail(session: InnerDisplaySession): InnerSessionDetail {
         val sessionMillis = session.innerActiveMillis.coerceAtLeast(0L)
-        val apps = session.appUsageMillis
-            .asSequence()
-            .filter { (_, millis) -> millis > 0L }
-            .filter { (packageName, _) -> isLauncherApp(packageName) }
-            .map { (packageName, millis) ->
+        val usage = session.appSetUsageMillis
+            ?: session.appUsageMillis.mapKeys { setOf(it.key) }
+        val apps = usage.asSequence()
+            .filter { (packages, millis) ->
+                millis > 0L && packages.isNotEmpty() && packages.all(isLauncherApp)
+            }
+            .map { (packages, millis) ->
+                val names = packages.sorted()
+                val labels = names.map(packageLabel)
                 InnerSessionAppUsage(
-                    packageName = packageName,
-                    label = packageLabel(packageName),
+                    packageName = names.joinToString("+"),
+                    label = labels.joinToString(" + "),
                     innerActiveMillis = millis,
+                    packageNames = names,
+                    labels = labels,
                 )
             }
             .sortedWith(
@@ -70,14 +76,21 @@ class InnerSessionSummarizer(
             )
             .take(MAX_APPS_PER_SESSION)
             .toList()
-        val displayedAppMillis = apps.fold(0L) { total, app ->
+        // Invalid or stale replay must never create a breakdown larger than its cached duration.
+        var remainingMillis = sessionMillis
+        val boundedApps = apps.mapNotNull { app ->
+            val millis = minOf(app.innerActiveMillis, remainingMillis)
+            remainingMillis -= millis
+            app.copy(innerActiveMillis = millis).takeIf { millis > 0L }
+        }
+        val displayedAppMillis = boundedApps.fold(0L) { total, app ->
             total + app.innerActiveMillis
         }
         return InnerSessionDetail(
             openedAtMillis = session.openedAtMillis,
             openedSequenceAtTimestamp = session.openedSequenceAtTimestamp,
             innerActiveMillis = sessionMillis,
-            appUsages = apps,
+            appUsages = boundedApps,
             otherInnerActiveMillis = (sessionMillis - displayedAppMillis).coerceAtLeast(0L),
         )
     }

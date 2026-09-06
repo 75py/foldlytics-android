@@ -193,7 +193,7 @@ private fun InnerSessionOverviewCard(summary: InnerSessionSummary) {
 }
 
 @Composable
-private fun InnerSessionLongSessionsCard(summary: InnerSessionSummary) {
+internal fun InnerSessionLongSessionsCard(summary: InnerSessionSummary) {
     val innerColor = postureColors().inner
     LabCard(
         title = stringResource(R.string.long_inner_sessions_title),
@@ -251,7 +251,7 @@ private fun InnerSessionDetailContent(
         .map { app ->
             resources.getString(
                 R.string.content_desc_inner_session_app,
-                app.label,
+                app.displayLabel(resources),
                 app.innerActiveMillis.toDurationText(resources),
             )
         }
@@ -286,24 +286,39 @@ private fun InnerSessionDetailContent(
             .clearAndSetSemantics { contentDescription = detailDescription },
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                openedAtText,
-                modifier = Modifier.weight(1f),
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                stringResource(R.string.inner_session_duration, durationText),
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold,
-                color = color,
-            )
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            if (maxWidth < 360.dp) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        openedAtText,
+                        modifier = Modifier.fillMaxWidth(),
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        stringResource(R.string.inner_session_duration, durationText),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = color,
+                    )
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(
+                        openedAtText,
+                        modifier = Modifier.weight(1f),
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        stringResource(R.string.inner_session_duration, durationText),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = color,
+                    )
+                }
+            }
         }
         session.appUsages.forEach { app ->
             InnerSessionAppRow(app)
@@ -320,27 +335,60 @@ private fun InnerSessionDetailContent(
 @Composable
 private fun InnerSessionAppRow(app: InnerSessionAppUsage) {
     val resources = LocalResources.current
-    Row(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("$INNER_SESSION_APP_TAG_PREFIX${app.packageName}")
             .semantics(mergeDescendants = true) {},
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        ApplicationIcon(app.packageName, app.label)
-        Text(
-            app.label,
-            modifier = Modifier.weight(1f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            app.innerActiveMillis.toDurationText(resources),
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.Medium,
-        )
+        if (maxWidth < 360.dp && app.packageNames.size > 1) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(app.displayLabel(resources), modifier = Modifier.fillMaxWidth())
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    InnerSessionAppIcons(app)
+                    Spacer(Modifier.weight(1f))
+                    InnerSessionAppDuration(app, resources)
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                InnerSessionAppIcons(app)
+                Text(
+                    app.displayLabel(resources),
+                    modifier = Modifier.weight(1f),
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                InnerSessionAppDuration(app, resources)
+            }
+        }
     }
+}
+
+@Composable
+private fun InnerSessionAppIcons(app: InnerSessionAppUsage) {
+    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        app.packageNames.take(2).forEachIndexed { index, packageName ->
+            ApplicationIcon(packageName, app.labels[index])
+        }
+    }
+}
+
+@Composable
+private fun InnerSessionAppDuration(app: InnerSessionAppUsage, resources: Resources) {
+    Text(
+        app.innerActiveMillis.toDurationText(resources),
+        style = MaterialTheme.typography.bodySmall,
+        fontWeight = FontWeight.Medium,
+    )
 }
 
 @Composable
@@ -372,3 +420,13 @@ private fun InnerSessionOtherRow(
         )
     }
 }
+
+internal fun InnerSessionAppUsage.displayLabel(resources: Resources): String =
+    if (packageNames.size > 1) {
+        resources.getString(
+            R.string.inner_session_simultaneous_apps,
+            labels.joinToString(resources.getString(R.string.inner_session_app_joiner)),
+        )
+    } else {
+        label
+    }

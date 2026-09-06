@@ -36,7 +36,7 @@ class StoredAnalysisSnapshotConcurrencyTest {
             val screen = async(start = CoroutineStart.UNDISPATCHED) {
                 loader.load(request(CALIBRATION), zoneId)
             }
-            summaryDao.appUsageReadEntered.await()
+            summaryDao.sessionReadEntered.await()
 
             val competingRebuild = async(start = CoroutineStart.UNDISPATCHED) {
                 repository.ensureUpToDate(
@@ -49,20 +49,23 @@ class StoredAnalysisSnapshotConcurrencyTest {
                 )
             }
             assertEquals(
-                listOf("loadState", "loadAll", "loadAggregatedAppUsage"),
-                summaryDao.operations,
-            )
-            assertFalse(summaryDao.competingLoadStateEntered.isCompleted)
-
-            summaryDao.releaseAppUsageRead.complete(Unit)
-            summaryDao.sessionReadEntered.await()
-            assertEquals(
-                listOf("loadState", "loadAll", "loadAggregatedAppUsage", "loadSessions"),
+                listOf("loadState", "loadAll", "loadSessions"),
                 summaryDao.operations,
             )
             assertFalse(summaryDao.competingLoadStateEntered.isCompleted)
 
             summaryDao.releaseSessionRead.complete(Unit)
+            summaryDao.appUsageReadEntered.await()
+            assertEquals(
+                listOf(
+                    "loadState", "loadAll", "loadSessions", "loadSessionAppUsages",
+                    "loadAggregatedAppUsage",
+                ),
+                summaryDao.operations,
+            )
+            assertFalse(summaryDao.competingLoadStateEntered.isCompleted)
+
+            summaryDao.releaseAppUsageRead.complete(Unit)
             val snapshot = screen.await()
             withTimeout(1_000L) {
                 summaryDao.competingLoadStateEntered.await()
@@ -93,9 +96,9 @@ class StoredAnalysisSnapshotConcurrencyTest {
             val screen = async(start = CoroutineStart.UNDISPATCHED) {
                 loader.load(request(CALIBRATION), zoneId)
             }
-            summaryDao.appUsageReadEntered.await()
-            summaryDao.releaseAppUsageRead.complete(Unit)
             summaryDao.sessionReadEntered.await()
+            summaryDao.releaseSessionRead.complete(Unit)
+            summaryDao.appUsageReadEntered.await()
 
             val competingRebuild = async(start = CoroutineStart.UNDISPATCHED) {
                 repository.ensureUpToDate(

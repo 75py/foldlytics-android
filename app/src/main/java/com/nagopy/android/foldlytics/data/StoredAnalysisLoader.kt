@@ -69,6 +69,13 @@ class StoredAnalysisLoader(
     suspend fun loadSavedDailyHistory(
         calibration: Calibration,
         zoneId: ZoneId,
+    ): List<DailyPostureSummary> = dailySummaryRepository.withDatabaseSnapshot {
+        loadSavedDailyHistoryInSnapshot(calibration, zoneId)
+    }
+
+    private suspend fun loadSavedDailyHistoryInSnapshot(
+        calibration: Calibration,
+        zoneId: ZoneId,
     ): List<DailyPostureSummary> {
         val syncState = syncRepository.observeSyncState().first() ?: return emptyList()
         val checkpointRevision = checkpointRepository.observeRevision().first()
@@ -88,6 +95,13 @@ class StoredAnalysisLoader(
     }
 
     suspend fun load(
+        request: StoredAnalysisRequest,
+        zoneId: ZoneId,
+    ): StoredAnalysisSnapshot = dailySummaryRepository.withDatabaseSnapshot {
+        loadInSnapshot(request, zoneId)
+    }
+
+    private suspend fun loadInSnapshot(
         request: StoredAnalysisRequest,
         zoneId: ZoneId,
     ): StoredAnalysisSnapshot {
@@ -115,18 +129,6 @@ class StoredAnalysisLoader(
         val window = createUsageAnalysisWindow(
             periodHours = request.period.diagnosticHours,
             syncedThroughMillis = syncState.lastSuccessfulEndMillis,
-        )
-        val records = syncRepository.loadRecordsForAnalysis(
-            window.seedStartMillis,
-            window.rangeEndMillis,
-        )
-        val checkpoints = checkpointRepository.loadForAnalysis(
-            window.seedStartMillis,
-            window.rangeEndMillis,
-        )
-        val deviceStateCheckpoints = syncRepository.loadDeviceStateCheckpointsForAnalysis(
-            window.seedStartMillis,
-            window.rangeEndMillis,
         )
         val collectionGaps = detectCollectionGaps(allSyncAttempts)
         return dailySummaryRepository.withUpToDateSnapshot(
@@ -162,16 +164,6 @@ class StoredAnalysisLoader(
                 period in availablePeriods &&
                     (period != AnalysisPeriod.CUSTOM || validCustomRange != null)
             } ?: AnalysisPeriod.HOURS_24
-            val diagnosticAnalysis = analyzer.analyze(
-                records = records,
-                rangeStartMillis = window.rangeStartMillis,
-                rangeEndMillis = window.rangeEndMillis,
-                calibration = request.calibration,
-                checkpoints = checkpoints,
-                zoneId = zoneId,
-                collectionGapStarts = collectionGaps.map(CollectionGap::startMillis),
-                deviceStateCheckpoints = deviceStateCheckpoints,
-            )
             val longTermInsights = if (effectivePeriod == AnalysisPeriod.CUSTOM) {
                 val range = requireNotNull(validCustomRange)
                 longTermAnalyzer.analyzeRange(
@@ -191,6 +183,35 @@ class StoredAnalysisLoader(
                     )
                 }
             }
+            val selectedRangeStart = longTermInsights?.rangeStartMillis ?: window.rangeStartMillis
+            val selectedRangeEnd =
+                longTermInsights?.rangeEndMillis ?: syncState.lastSuccessfulEndMillis
+            val cachedSessions = loadCompleteInnerSessions(
+                beginMillis = selectedRangeStart,
+                endMillis = selectedRangeEnd,
+            )
+            val selectedSessions = innerSessionSummarizer.selectLongSessions(cachedSessions)
+            val seedStart = minOf(
+                window.seedStartMillis,
+                selectedSessions.minOfOrNull { it.openedAtMillis } ?: window.seedStartMillis,
+            )
+            // One historical seed read supplies both diagnostic analysis and selected details.
+            val records = syncRepository.loadRecordsForAnalysis(seedStart, window.rangeEndMillis)
+            val checkpoints = checkpointRepository.loadForAnalysis(seedStart, window.rangeEndMillis)
+            val deviceStateCheckpoints = syncRepository.loadDeviceStateCheckpointsForAnalysis(
+                seedStart,
+                window.rangeEndMillis,
+            )
+            val diagnosticAnalysis = analyzer.analyze(
+                records = records,
+                rangeStartMillis = window.rangeStartMillis,
+                rangeEndMillis = window.rangeEndMillis,
+                calibration = request.calibration,
+                checkpoints = checkpoints,
+                zoneId = zoneId,
+                collectionGapStarts = collectionGaps.map(CollectionGap::startMillis),
+                deviceStateCheckpoints = deviceStateCheckpoints,
+            )
             val periodSummary = if (longTermInsights == null) {
                 diagnosticAnalysis.toPeriodSummary(effectivePeriod)
             } else {
@@ -212,14 +233,19 @@ class StoredAnalysisLoader(
                 )
                 longTermInsights.toPeriodSummary(effectivePeriod, apps)
             }
-            val selectedRangeStart = longTermInsights?.rangeStartMillis ?: window.rangeStartMillis
-            val selectedRangeEnd =
-                longTermInsights?.rangeEndMillis ?: syncState.lastSuccessfulEndMillis
+            val replayedSessions = replaySelectedInnerSessions(
+                selectedSessions = selectedSessions,
+                records = records,
+                checkpoints = checkpoints,
+                deviceStateCheckpoints = deviceStateCheckpoints,
+                collectionGapStarts = collectionGaps.map(CollectionGap::startMillis),
+                calibration = request.calibration,
+            ).associateBy { it.openedAtMillis to it.openedSequenceAtTimestamp }
             val innerSessionSummary = innerSessionSummarizer.summarize(
-                sessions = loadCompleteInnerSessions(
-                    beginMillis = selectedRangeStart,
-                    endMillis = selectedRangeEnd,
-                ),
+                sessions = cachedSessions.map { cached ->
+                    replayedSessions[cached.openedAtMillis to cached.openedSequenceAtTimestamp]
+                        ?: cached
+                },
                 rangeStartMillis = selectedRangeStart,
                 rangeEndMillis = selectedRangeEnd,
                 detectedOpenCount = periodSummary.openedCount,

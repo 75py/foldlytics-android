@@ -3,6 +3,7 @@ package com.nagopy.android.foldlytics.data
 import android.app.usage.UsageEvents
 import android.content.Context
 import androidx.room.Room
+import androidx.room.withTransaction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nagopy.android.foldlytics.model.AnalysisPeriod
@@ -16,6 +17,7 @@ import java.time.ZoneOffset
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
@@ -42,6 +44,7 @@ import org.junit.runner.RunWith
 class StoredAnalysisRoomTest {
     private lateinit var context: Context
     private lateinit var database: FoldlyticsDatabase
+    private var testDatabaseName: String? = null
     private val zoneId = ZoneOffset.UTC
     private val coverConfiguration = DisplayConfiguration(
         screenWidthDp = 443,
@@ -89,7 +92,11 @@ class StoredAnalysisRoomTest {
 
     @After
     fun tearDown() {
-        database.close()
+        try {
+            database.close()
+        } finally {
+            testDatabaseName?.let { context.deleteDatabase(it) }
+        }
     }
 
     @Test
@@ -471,6 +478,152 @@ class StoredAnalysisRoomTest {
         )
     }
 
+    @Test
+    fun replaysSelectedCachedSessionsWithOldActivitySeedsAndKeepsAdditiveRankings() = runBlocking {
+        persistRecordedHistory()
+        // Make an older session (before the diagnostic seed) the longest cached session.
+        val openedAt = dayStart(1) + TimeUnit.HOURS.toMillis(1)
+        val closeEvent = database.usageEventDao().loadEvents(dayStart(1), dayStart(2))
+            .single { it.eventKey == "${dayStart(1)}-closed" }
+        database.usageEventDao().updateEvents(
+            listOf(closeEvent.copy(timestampMillis = closeEvent.timestampMillis + 1_800_000L)),
+        )
+        database.usageEventDao().insertEvents(
+            listOf(
+                event(
+                    "concurrent-resume", openedAt - 60_000, 0,
+                    UsageEvents.Event.ACTIVITY_RESUMED, packageName = "app.concurrent",
+                ),
+                event(
+                    "concurrent-pause", openedAt + 60_000, 0,
+                    UsageEvents.Event.ACTIVITY_PAUSED, packageName = "app.concurrent",
+                ),
+            ),
+        )
+        val snapshot = loader(launchable = true).load(request(AnalysisPeriod.DAYS_7), zoneId)
+        val detail = requireNotNull(snapshot.innerSessionSummary).longSessions.first()
+        val combination = detail.appUsages.single { it.packageNames.size == 2 }
+        assertEquals(listOf(INNER_APP, "app.concurrent").sorted(), combination.packageNames)
+        assertEquals(60_000L, combination.innerActiveMillis)
+        assertEquals(openedAt, detail.openedAtMillis)
+        assertEquals(
+            innerMillisPerDay + 1_800_000L,
+            detail.appUsages.sumOf { it.innerActiveMillis } + detail.otherInnerActiveMillis,
+        )
+        assertEquals(innerMillisPerDay, snapshot.analysis?.innerMillis)
+        val apps = requireNotNull(snapshot.periodSummary).apps
+        assertEquals(innerMillisPerDay * 7, apps.single { it.packageName == INNER_APP }.innerMillis)
+        assertEquals(60_000L, apps.single { it.packageName == "app.concurrent" }.innerMillis)
+        // A warm load has identical cached boundaries and replayed entries.
+        assertEquals(
+            snapshot.innerSessionSummary,
+            loader(launchable = true).load(request(AnalysisPeriod.DAYS_7), zoneId).innerSessionSummary,
+        )
+    }
+
+    @Test(timeout = CONCURRENCY_TEST_TIMEOUT_MILLIS)
+    fun rawWriterWaitsUntilCachedSummaryAndReplaySnapshotFinish() = runBlocking {
+        persistRecordedHistory()
+        val shared = repository()
+        loader(shared).load(request(AnalysisPeriod.DAYS_7), zoneId)
+        val parked = AtomicBoolean(false)
+        val insideSnapshot = CountDownLatch(1)
+        val releaseSnapshot = CountDownLatch(1)
+        val writerEntered = CountDownLatch(1)
+        val writerFinished = CountDownLatch(1)
+        val screen = async(Dispatchers.IO) {
+            loader(shared, launchable = true) { name ->
+                if (parked.compareAndSet(false, true)) {
+                    insideSnapshot.countDown()
+                    check(releaseSnapshot.await(10, TimeUnit.SECONDS))
+                }
+                name
+            }.load(request(AnalysisPeriod.DAYS_7), zoneId)
+        }
+        check(insideSnapshot.await(10, TimeUnit.SECONDS))
+        val writer = async(Dispatchers.IO) {
+            writerEntered.countDown()
+            database.withTransaction {
+                database.usageEventDao().insertEvents(
+                    listOf(
+                        event(
+                            "concurrent-writer", dayStart(7) + TimeUnit.HOURS.toMillis(2), 0,
+                            UsageEvents.Event.ACTIVITY_RESUMED, packageName = "app.writer",
+                        ),
+                    ),
+                )
+            }
+            writerFinished.countDown()
+        }
+        try {
+            check(writerEntered.await(10, TimeUnit.SECONDS))
+            assertFalse(writerFinished.await(200, TimeUnit.MILLISECONDS))
+        } finally {
+            releaseSnapshot.countDown()
+        }
+        val detail = requireNotNull(screen.await().innerSessionSummary).longSessions.first()
+        writer.await()
+        assertEquals(listOf(listOf(INNER_APP)), detail.appUsages.map { it.packageNames })
+        assertEquals(innerMillisPerDay, detail.appUsages.sumOf { it.innerActiveMillis })
+    }
+
+    /** File-backed synthetic measurement: 365 days, 77,380 events, one cold and three warm loads. */
+    @Test
+    fun measuresYearOfDenseHistoryWithThreeSelectedSessionReplays() = runBlocking<Unit> {
+        database.close()
+        val databaseName = "inner-session-performance-test.db"
+        testDatabaseName = databaseName
+        context.deleteDatabase(databaseName)
+        database = Room.databaseBuilder(context, FoldlyticsDatabase::class.java, databaseName).build()
+        persistRecordedHistory()
+        database.withTransaction {
+            (-357L until 0L).forEach { day ->
+                database.usageEventDao().insertEvents(eventsForDay(dayStart(day)))
+            }
+            (-357L until 8L).forEach { day ->
+                val start = dayStart(day) + TimeUnit.HOURS.toMillis(1)
+                database.usageEventDao().insertEvents((0 until 100).flatMap { index ->
+                    val time = start + index * 60_000L
+                    listOf(
+                        event(
+                            "$day-$index-resume", time, 10, UsageEvents.Event.ACTIVITY_RESUMED,
+                            packageName = "app.synthetic",
+                        ),
+                        event(
+                            "$day-$index-pause", time + 30_000L, 10, UsageEvents.Event.ACTIVITY_PAUSED,
+                            packageName = "app.synthetic",
+                        ),
+                    )
+                })
+            }
+        }
+        // Reopen after persistence so the measured read starts with a fresh Room connection.
+        // OS page caches are intentionally not flushed; "cold" means the aggregate cache is empty.
+        database.close()
+        database = Room.databaseBuilder(context, FoldlyticsDatabase::class.java, databaseName).build()
+        val source = loader(launchable = true)
+        val request = request(AnalysisPeriod.DAYS_365)
+        val coldMillis = measureTimeMillis { source.load(request, zoneId) }
+        val warmMillis = (1..3).map {
+            measureTimeMillis {
+                val snapshot = source.load(request, zoneId)
+                val sessions = requireNotNull(snapshot.innerSessionSummary)
+                assertEquals(365, sessions.completeSessionCount)
+                assertEquals(3, sessions.longSessions.size)
+                sessions.longSessions.forEach { detail ->
+                    assertEquals(
+                        detail.innerActiveMillis,
+                        detail.appUsages.sumOf { it.innerActiveMillis } + detail.otherInnerActiveMillis,
+                    )
+                }
+            }
+        }
+        android.util.Log.i(
+            "InnerSessionPerformance",
+            "synthetic storage=file days=365 events=77380 selected=3 coldMs=$coldMillis warmMs=$warmMillis",
+        )
+    }
+
     private suspend fun persistRecordedHistory() {
         (0 until recordedDayCount).forEach { day ->
             database.usageEventDao().insertEvents(eventsForDay(dayStart(day)))
@@ -630,6 +783,7 @@ class StoredAnalysisRoomTest {
 
     private fun loader(
         dailySummaryRepository: DailySummaryRepository = repository(),
+        launchable: Boolean = false,
         packageLabel: (String) -> String = { it },
     ) = StoredAnalysisLoader(
         syncRepository = UsageSyncRepository(
@@ -639,7 +793,7 @@ class StoredAnalysisRoomTest {
         checkpointRepository = PostureCheckpointRepository(database.postureCheckpointDao()),
         dailySummaryRepository = dailySummaryRepository,
         packageLabel = packageLabel,
-        isLauncherApp = { false },
+        isLauncherApp = { launchable },
         currentTimeMillis = { syncedThroughMillis },
     )
 
@@ -647,6 +801,7 @@ class StoredAnalysisRoomTest {
         usageEventDao = database.usageEventDao(),
         checkpointDao = database.postureCheckpointDao(),
         summaryDao = database.dailyPostureSummaryDao(),
+        database = database,
     )
 
     private suspend fun exportRows(

@@ -152,6 +152,47 @@ class InnerSessionSummarizerTest {
         )
     }
 
+    @Test
+    fun normalizesSetsRanksExclusiveEntriesAndKeepsHiddenMembersInOther() {
+        val usage = linkedMapOf(
+            setOf("b", "a") to 30L,
+            setOf("a") to 20L,
+            setOf("b") to 10L,
+            setOf("c") to 5L,
+            setOf("a", "hidden") to 25L,
+        )
+        assertEquals(30L, usage[setOf("a", "b")])
+        val summary = InnerSessionSummarizer({ it.uppercase() }, { it != "hidden" }).summarize(
+            sessions = listOf(session(10, 110, 100).copy(appSetUsageMillis = usage)),
+            rangeStartMillis = 0,
+            rangeEndMillis = 111,
+            detectedOpenCount = 1,
+        )
+        val detail = summary.longSessions.single()
+        assertEquals(
+            listOf(listOf("a", "b"), listOf("a"), listOf("b")),
+            detail.appUsages.map { it.packageNames },
+        )
+        assertEquals(listOf(30L, 20L, 10L), detail.appUsages.map { it.innerActiveMillis })
+        assertEquals(40L, detail.otherInnerActiveMillis)
+        assertEquals(100L, detail.appUsages.sumOf { it.innerActiveMillis } + detail.otherInnerActiveMillis)
+    }
+
+    @Test
+    fun replayWithNoDefinitePackagesDoesNotFallBackToCachedSingletons() {
+        val detail = summarizer().summarize(
+            sessions = listOf(
+                session(10, 110, 100, appUsageMillis = mapOf("a" to 100L))
+                    .copy(appSetUsageMillis = emptyMap()),
+            ),
+            rangeStartMillis = 0,
+            rangeEndMillis = 111,
+            detectedOpenCount = 1,
+        ).longSessions.single()
+        assertTrue(detail.appUsages.isEmpty())
+        assertEquals(100L, detail.otherInnerActiveMillis)
+    }
+
     private fun summarizer() = InnerSessionSummarizer(
         packageLabel = { it },
         isLauncherApp = { true },

@@ -17,6 +17,8 @@ import com.nagopy.android.foldlytics.model.UsageRecord
 class InnerDisplaySessionAnalyzer(
     private val calibration: Calibration,
     private val analysisStartMillis: Long,
+    private val captureAppSets: Boolean = false,
+    private val sessionKeysToInclude: Set<Pair<Long, Int>>? = null,
 ) {
     private var lastTimestampMillis: Long? = null
     private var screenInteractive = EvidenceState.UNKNOWN
@@ -97,7 +99,13 @@ class InnerDisplaySessionAnalyzer(
             when (innerIntervalState()) {
                 InnerIntervalState.ACTIVE -> {
                     pending.innerActiveMillis += duration
-                    val packageName = activityTracker.snapshot.singleDefinitePackageForSessionOrNull()
+                    val visible = activityTracker.snapshot
+                    if (captureAppSets && visible.definitePackages.isNotEmpty()) {
+                        val packages = visible.definitePackages.toSortedSet().toSet()
+                        pending.appSetUsageMillis[packages] =
+                            pending.appSetUsageMillis.getOrDefault(packages, 0L) + duration
+                    }
+                    val packageName = visible.singleDefinitePackageForSessionOrNull()
                     if (packageName != null) {
                         pending.appUsageMillis[packageName] =
                             pending.appUsageMillis.getOrDefault(packageName, 0L) + duration
@@ -182,11 +190,14 @@ class InnerDisplaySessionAnalyzer(
             isConfigurationEvent &&
             timestampMillis >= analysisStartMillis &&
             previousPosture == DisplayPosture.COVER &&
-            nextPosture == DisplayPosture.INNER
+            nextPosture == DisplayPosture.INNER &&
+            (sessionKeysToInclude == null ||
+                (timestampMillis to sequenceAtTimestamp) in sessionKeysToInclude)
         ) {
             pendingSession = PendingSession(
                 openedAtMillis = timestampMillis,
                 openedSequenceAtTimestamp = sequenceAtTimestamp,
+                captureAppSets = captureAppSets,
             )
         }
         posture = nextPosture
@@ -204,7 +215,9 @@ class InnerDisplaySessionAnalyzer(
     private data class PendingSession(
         val openedAtMillis: Long,
         val openedSequenceAtTimestamp: Int,
+        val captureAppSets: Boolean,
         var innerActiveMillis: Long = 0L,
+        val appSetUsageMillis: LinkedHashMap<Set<String>, Long> = linkedMapOf(),
         val appUsageMillis: LinkedHashMap<String, Long> = linkedMapOf(),
         var hasUnknownEvidence: Boolean = false,
     ) {
@@ -214,6 +227,7 @@ class InnerDisplaySessionAnalyzer(
             closedAtMillis = closedAtMillis,
             innerActiveMillis = innerActiveMillis,
             appUsageMillis = appUsageMillis.toMap(),
+            appSetUsageMillis = appSetUsageMillis.toMap().takeIf { captureAppSets },
         )
     }
 

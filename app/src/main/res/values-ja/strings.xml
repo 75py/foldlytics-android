@@ -218,14 +218,16 @@
     <string name="long_inner_sessions_title">長く使った回（最大3件）</string>
     <string name="long_inner_sessions_empty">この期間に、内側画面の利用時間がある完了記録はありません。</string>
     <string name="inner_session_duration">内側利用 %1$s</string>
+    <string name="inner_session_app_joiner">＋</string>
+    <string name="inner_session_simultaneous_apps">%1$s（同時使用）</string>
     <string name="inner_session_other">その他</string>
-    <string name="inner_session_other_description">「その他」には、表示した上位3件以外、ランチャーから起動できないアプリ、アプリを特定できない時間が含まれます。</string>
+    <string name="inner_session_other_description">「その他」には、上位3件以外のアプリ・組み合わせ、ランチャーから起動できないアプリを含む組み合わせ、アプリを特定できない時間が含まれます。</string>
     <string name="inner_sessions_empty_no_opens">この期間は、端末を開いた記録がありません。</string>
     <plurals name="inner_sessions_empty_no_complete">
         <item quantity="other">「開いた」記録は%1$d回ありますが、閉じるまでの内側画面利用を確認できる記録はありません。</item>
     </plurals>
     <string name="inner_sessions_method_title">集計方法</string>
-    <string name="inner_sessions_method_body">端末を開いてから、次に閉じるまでを1回として集計します。集計には完了した記録だけを含めます。画面消灯中・ロック中の時間は0秒として扱います。上位3件以外、ランチャーから起動できないアプリ、アプリを特定できない時間は「その他」に含めます。</string>
+    <string name="inner_sessions_method_body">端末を開いてから、次に閉じるまでを1回として集計します。集計には完了した記録だけを含めます。画面消灯中・ロック中の時間は0秒として扱います。同時利用は確実にresume中のアプリの組み合わせとして計上し、各区間の時間は1回だけ数えます。上位3件以外、ランチャーから起動できないアプリを含む時間、アプリを特定できない時間は「その他」に含めます。</string>
 
     <!-- Summary image sharing -->
     <string name="share_summary_period">%1$s · %2$s</string>
