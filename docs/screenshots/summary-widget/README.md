@@ -1,5 +1,8 @@
 # Summary widget and chart consistency review
 
+These captures record the initial widget implementation. See the
+[compact widget update](../widget-compact/README.md) for the current layout.
+
 Device: Foldlytics Pixel 9 Pro Fold AVD, Android 16 / API 36, opened display at
 1080 × 1920 pixels, 390 dpi. All usage values in these captures are synthetic.
 The widget fixtures render real native `RemoteViews`; they are not design mockups.

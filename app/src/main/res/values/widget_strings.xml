@@ -12,7 +12,7 @@
     <string name="widget_period_dates">%1$s · %2$s–%3$s</string>
     <string name="widget_inner">Inner</string>
     <string name="widget_cover">Outer</string>
-    <string name="widget_opens">Detected opens</string>
+    <string name="widget_opens">Opens</string>
     <string name="widget_inner_ratio">Inner display %1$s</string>
     <string name="widget_no_data">No classified usage</string>
     <string name="widget_permission_required">Open app to grant usage access</string>

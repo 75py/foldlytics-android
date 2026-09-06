@@ -92,6 +92,7 @@ class SummaryWidgetRenderingTest {
             var checkedCases = 0
             var checkedTextViews = 0
             val states = listOf(
+                "permission" to fixture().copy(status = WidgetStatus.PERMISSION_REQUIRED),
                 "ready" to fixture().copy(lastSyncMillis = 1_788_688_800_000L),
                 "all-inner" to fixture().copy(coverMillis = 0L, lastSyncMillis = 1_788_688_800_000L),
                 "update-failed" to fixture().copy(
@@ -114,60 +115,89 @@ class SummaryWidgetRenderingTest {
                         // Reuse this exact payload: the producer does not run when the
                         // launcher reinflates it at the new font scale.
                         val payload = SummaryWidgetRenderer.render(producer, 999_999, state, wide)
-                        for (hostScale in listOf(0.85f, 1f, 2f)) {
-                            val host = localizedContext(target, locale, fontScale = hostScale)
-                            val view = payload.apply(host, FrameLayout(host))
-                            layout(view, host, wide)
-                            val case = "${locale.language}, wide=$wide, $stateName, host=$hostScale"
-                            saveCapture(view, target, locale, wide, "$stateName-font$hostScale")
+                        for (heightDp in listOf(140, 180, 280)) {
+                            for (hostScale in listOf(0.85f, 1f, 2f)) {
+                                val host = localizedContext(target, locale, fontScale = hostScale)
+                                val view = payload.apply(host, FrameLayout(host))
+                                layout(view, host, wide, heightDp)
+                                val case = "${locale.language}, wide=$wide, $stateName, host=$hostScale, height=$heightDp"
+                                saveCapture(view, target, locale, wide, "$stateName-${heightDp}dp-font$hostScale")
 
-                            assertEquals(visibleWidth(wide, host), view.measuredWidth)
-                            assertEquals((180 * host.resources.displayMetrics.density).toInt(), view.measuredHeight)
-                            val expectedIds = buildSet {
-                                addAll(listOf(R.id.widget_period, R.id.widget_ratio, R.id.widget_sync))
-                                if (state.innerRatio != null) add(R.id.widget_ratio_label)
-                                if (state.status != WidgetStatus.READY) add(R.id.widget_status)
-                                if (wide) addAll(METRIC_TEXT_IDS)
+                                assertEquals(visibleWidth(wide, host), view.measuredWidth)
+                                assertEquals((heightDp * host.resources.displayMetrics.density).toInt(), view.measuredHeight)
+                                val expectedIds = buildSet {
+                                    addAll(listOf(R.id.widget_period, R.id.widget_sync))
+                                    if (state.status != WidgetStatus.PERMISSION_REQUIRED) add(R.id.widget_ratio)
+                                    if (state.innerRatio != null && state.status != WidgetStatus.PERMISSION_REQUIRED) add(R.id.widget_ratio_label)
+                                    if (state.status != WidgetStatus.READY) add(R.id.widget_status)
+                                    if (wide && state.status != WidgetStatus.PERMISSION_REQUIRED) addAll(METRIC_TEXT_IDS)
+                                }
+                                val visibleTextViews = (listOf(
+                                    R.id.widget_period,
+                                    R.id.widget_ratio,
+                                    R.id.widget_ratio_label,
+                                    R.id.widget_status,
+                                    R.id.widget_sync,
+                                ) + METRIC_TEXT_IDS)
+                                    .map { view.findViewById<TextView>(it) }
+                                    .filter { isEffectivelyVisible(view, it) }
+                                assertEquals("Visible text coverage: $case", expectedIds, visibleTextViews.map { it.id }.toSet())
+                                visibleTextViews.forEach { text ->
+                                    assertTextFits(text, case)
+                                    assertWithinRoot(view, text)
+                                }
+                                assertCenterTextInsideHole(view, R.id.widget_ratio, case)
+                                assertCenterTextInsideHole(view, R.id.widget_ratio_label, case)
+                                if (wide) {
+                                    listOf(
+                                        R.id.widget_inner_label to R.id.widget_inner_time,
+                                        R.id.widget_cover_label to R.id.widget_cover_time,
+                                        R.id.widget_opens_label to R.id.widget_open_count,
+                                    ).forEach { (labelId, valueId) -> assertNonOverlapping(view, labelId, valueId) }
+                                }
+                                checkedCases += 1
+                                checkedTextViews += visibleTextViews.size
                             }
-                            val visibleTextViews = (listOf(
-                                R.id.widget_period,
-                                R.id.widget_ratio,
-                                R.id.widget_ratio_label,
-                                R.id.widget_status,
-                                R.id.widget_sync,
-                            ) + METRIC_TEXT_IDS)
-                                .map { view.findViewById<TextView>(it) }
-                                .filter { isEffectivelyVisible(view, it) }
-                            assertEquals("Visible text coverage: $case", expectedIds, visibleTextViews.map { it.id }.toSet())
-                            visibleTextViews.forEach { text ->
-                                assertTextFits(text, case)
-                                assertWithinRoot(view, text)
-                            }
-                            assertCenterTextInsideHole(view, R.id.widget_ratio, case)
-                            assertCenterTextInsideHole(view, R.id.widget_ratio_label, case)
-                            if (wide) {
-                                listOf(
-                                    R.id.widget_inner_label to R.id.widget_inner_time,
-                                    R.id.widget_cover_label to R.id.widget_cover_time,
-                                    R.id.widget_opens_label to R.id.widget_open_count,
-                                ).forEach { (labelId, valueId) -> assertNonOverlapping(view, labelId, valueId) }
-                            }
-                            checkedCases += 1
-                            checkedTextViews += visibleTextViews.size
                         }
                     }
                 }
             }
             // Offscreen RemoteViews are not attached: isShown would skip every assertion.
-            assertEquals(48, checkedCases)
-            assertEquals(348, checkedTextViews)
+            assertEquals(180, checkedCases)
+            assertEquals(1152, checkedTextViews)
         }
     }
 
-    private fun layout(view: View, context: android.content.Context, wide: Boolean) {
+    @Test
+    fun tallWidgetsKeepMetricRowsGroupedAndLargeTextStillShowsChart() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            for (locale in listOf(Locale.ENGLISH, Locale.JAPANESE)) {
+                for (scale in listOf(1f, 2f)) {
+                    val context = localizedContext(instrumentation.targetContext, locale, scale)
+                    val payload = SummaryWidgetRenderer.render(context, 999_999, fixture(), wide = true)
+                    val view = payload.apply(context, FrameLayout(context))
+                    var compactSpacing: List<Int>? = null
+                    for (height in listOf(140, 180, 280)) {
+                        layout(view, context, wide = true, heightDp = height)
+                        val chart = view.findViewById<ImageView>(R.id.widget_inner_arc)
+                        assertTrue("The donut must remain visible with large text", isEffectivelyVisible(view, chart))
+                        assertTrue("The donut must contain a rendered arc", chart.containsPixelColor(chart.imageTintList!!.defaultColor))
+                        val positions = listOf(R.id.widget_inner_label, R.id.widget_cover_label, R.id.widget_opens_label)
+                            .map { boundsInRoot(view, view.findViewById(it)).top }
+                        val spacing = positions.zipWithNext { first, second -> second - first }
+                        if (compactSpacing == null) compactSpacing = spacing
+                        assertEquals("Extra widget height must not spread metric rows", compactSpacing, spacing)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun layout(view: View, context: android.content.Context, wide: Boolean, heightDp: Int = 140) {
         val density = context.resources.displayMetrics.density
         val width = visibleWidth(wide, context)
-        val height = (180 * density).toInt()
+        val height = (heightDp * density).toInt()
         view.measure(
             View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY),
@@ -195,7 +225,9 @@ class SummaryWidgetRenderingTest {
         assertTrue("$name has no rendered text", layout.lineCount > 0)
         val minimumDp = if (textView.resources.configuration.fontScale < 1f) 8f else 10f
         assertTrue(
-            "$name text is below the ${minimumDp}dp readable floor",
+            "$name text is below the ${minimumDp}dp readable floor: " +
+                "textSize=${textView.paint.textSize}, density=${textView.resources.displayMetrics.density}, " +
+                "viewHeight=${textView.height}, layoutHeight=${layout.height}, text=${textView.text}",
             textView.paint.textSize + 0.5f >= minimumDp * textView.resources.displayMetrics.density,
         )
         assertTrue(

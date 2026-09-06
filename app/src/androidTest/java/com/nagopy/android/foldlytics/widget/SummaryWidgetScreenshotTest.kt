@@ -23,32 +23,34 @@ class SummaryWidgetScreenshotTest {
             for (locale in listOf(Locale.ENGLISH, Locale.JAPANESE)) {
                 for (dark in listOf(false, true)) {
                     for (wide in listOf(false, true)) {
-                        for (scale in listOf(1f, 1.3f, 2f)) {
-                            for (status in listOf(WidgetStatus.READY, WidgetStatus.NO_DATA, WidgetStatus.PERMISSION_REQUIRED, WidgetStatus.UPDATE_FAILED)) {
-                                val context = localizedContext(target, locale, dark, scale)
-                                val state = SummaryWidgetState(
-                                    period = WidgetPeriod.DAYS_7,
-                                    dateRange = WidgetDateRange(LocalDate.of(2026, 8, 31), LocalDate.of(2026, 9, 6)),
-                                    innerMillis = if (status == WidgetStatus.NO_DATA) 0 else 21_600_000,
-                                    coverMillis = if (status == WidgetStatus.NO_DATA) 0 else 64_800_000,
-                                    openedCount = if (status == WidgetStatus.NO_DATA) 0 else 42,
-                                    hasRecordedEvidence = status != WidgetStatus.NO_DATA,
-                                    lastSyncMillis = 1_788_688_800_000L,
-                                    status = status,
-                                )
-                                val views = SummaryWidgetRenderer.render(context, 999_999, state, wide)
-                                val parent = FrameLayout(context)
-                                val view = views.apply(context, parent)
-                                val density = context.resources.displayMetrics.density
-                                val width = ((if (wide) 280 else 140) * density).toInt()
-                                val height = (180 * density).toInt()
-                                view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
-                                view.layout(0, 0, width, height)
-                                val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                                view.draw(Canvas(bitmap))
-                                val name = "${locale.language}-${if (dark) "dark" else "light"}-${if (wide) "wide" else "small"}-$scale-${status.name.lowercase()}.png"
-                                File(output, name).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
-                                bitmap.recycle()
+                        for (heightDp in listOf(140, 180, 280)) {
+                            for (scale in listOf(1f, 1.3f, 2f)) {
+                                for (status in listOf(WidgetStatus.READY, WidgetStatus.NO_DATA, WidgetStatus.PERMISSION_REQUIRED, WidgetStatus.UPDATE_FAILED)) {
+                                    val context = localizedContext(target, locale, dark, scale)
+                                    val state = SummaryWidgetState(
+                                        period = WidgetPeriod.DAYS_7,
+                                        dateRange = WidgetDateRange(LocalDate.of(2026, 8, 31), LocalDate.of(2026, 9, 6)),
+                                        innerMillis = if (status == WidgetStatus.NO_DATA) 0 else 21_600_000,
+                                        coverMillis = if (status == WidgetStatus.NO_DATA) 0 else 64_800_000,
+                                        openedCount = if (status == WidgetStatus.NO_DATA) 0 else 42,
+                                        hasRecordedEvidence = status != WidgetStatus.NO_DATA,
+                                        lastSyncMillis = 1_788_688_800_000L,
+                                        status = status,
+                                    )
+                                    val views = SummaryWidgetRenderer.render(context, 999_999, state, wide)
+                                    val parent = FrameLayout(context)
+                                    val view = views.apply(context, parent)
+                                    val density = context.resources.displayMetrics.density
+                                    val width = ((if (wide) 280 else 140) * density).toInt()
+                                    val height = (heightDp * density).toInt()
+                                    view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
+                                    view.layout(0, 0, width, height)
+                                    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                                    view.draw(Canvas(bitmap))
+                                    val name = "${locale.language}-${if (dark) "dark" else "light"}-${if (wide) "wide" else "small"}-${heightDp}dp-$scale-${status.name.lowercase()}.png"
+                                    File(output, name).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                                    bitmap.recycle()
+                                }
                             }
                         }
                     }
