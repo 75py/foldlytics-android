@@ -9,8 +9,10 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -335,49 +337,76 @@ private fun InnerSessionDetailContent(
 @Composable
 private fun InnerSessionAppRow(app: InnerSessionAppUsage) {
     val resources = LocalResources.current
-    BoxWithConstraints(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("$INNER_SESSION_APP_TAG_PREFIX${app.packageName}")
             .semantics(mergeDescendants = true) {},
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        if (maxWidth < 360.dp && app.packageNames.size > 1) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(app.displayLabel(resources), modifier = Modifier.fillMaxWidth())
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    InnerSessionAppIcons(app)
-                    Spacer(Modifier.weight(1f))
-                    InnerSessionAppDuration(app, resources)
-                }
-            }
-        } else {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+        InnerSessionAppIcons(app)
+        if (app.packageNames.size > 1) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                InnerSessionAppIcons(app)
                 Text(
-                    app.displayLabel(resources),
-                    modifier = Modifier.weight(1f),
+                    app.labels.joinToString(
+                        resources.getString(R.string.inner_session_app_joiner),
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                 )
-                InnerSessionAppDuration(app, resources)
+                Text(
+                    stringResource(R.string.inner_session_simultaneous_subtitle),
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
+        } else {
+            Text(
+                app.displayLabel(resources),
+                modifier = Modifier.weight(1f),
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
+        InnerSessionAppDuration(app, resources)
     }
 }
 
 @Composable
 private fun InnerSessionAppIcons(app: InnerSessionAppUsage) {
-    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-        app.packageNames.take(2).forEachIndexed { index, packageName ->
-            ApplicationIcon(packageName, app.labels[index])
+    val isSimultaneous = app.packageNames.size > 1
+    Box(
+        modifier = Modifier
+            .width(44.dp)
+            .height(if (isSimultaneous) 68.dp else 44.dp)
+            .testTag("$INNER_SESSION_APP_ICONS_TAG_PREFIX${app.packageName}"),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (isSimultaneous) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                app.packageNames.take(2).forEachIndexed { index, packageName ->
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .testTag(
+                                "$INNER_SESSION_APP_ICON_TAG_PREFIX${app.packageName}_$index",
+                            ),
+                    ) {
+                        ApplicationIcon(packageName, app.labels[index], size = 32.dp)
+                    }
+                }
+            }
+        } else {
+            ApplicationIcon(app.packageName, app.label)
         }
     }
 }
@@ -386,6 +415,7 @@ private fun InnerSessionAppIcons(app: InnerSessionAppUsage) {
 private fun InnerSessionAppDuration(app: InnerSessionAppUsage, resources: Resources) {
     Text(
         app.innerActiveMillis.toDurationText(resources),
+        modifier = Modifier.testTag("$INNER_SESSION_APP_DURATION_TAG_PREFIX${app.packageName}"),
         style = MaterialTheme.typography.bodySmall,
         fontWeight = FontWeight.Medium,
     )

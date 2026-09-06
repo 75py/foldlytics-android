@@ -35,6 +35,7 @@ import com.nagopy.android.foldlytics.model.InnerSessionSummary
 import com.nagopy.android.foldlytics.toDurationText
 import com.nagopy.android.foldlytics.toInnerSessionStartText
 import java.util.Locale
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -107,12 +108,15 @@ class InnerSessionConcurrentScreenshotTest {
         val bitmap = composeRule.onNodeWithTag("concurrent_capture").captureToImage().asAndroidBitmap()
         save(target, bitmap, "${if (legacy) "before" else "after"}-${locale.language}.png")
         if (!legacy) {
-            val label = if (locale.language == "ja") {
-                "Chrome＋YouTube（同時使用）"
+            val visibleName = if (locale.language == "ja") {
+                "Chrome＋YouTube"
             } else {
-                "Chrome + YouTube (simultaneous)"
+                "Chrome + YouTube"
             }
-            assertTextFits(label)
+            assertTextFits(visibleName)
+            val subtitle = context.resources.getString(R.string.inner_session_simultaneous_subtitle)
+            assertTextFits(subtitle)
+            assertConcurrentRowLayout(simultaneous, subtitle)
             val resources = context.resources
             val description = resources.getString(
                 R.string.content_desc_inner_session_detail_without_other,
@@ -131,6 +135,40 @@ class InnerSessionConcurrentScreenshotTest {
             composeRule.onNodeWithContentDescription(description).assertIsDisplayed()
         }
         assertTextFits(detail.openedAtMillis.toInnerSessionStartText(context.resources))
+    }
+
+    private fun assertConcurrentRowLayout(app: InnerSessionAppUsage, subtitle: String) {
+        val rowBounds = composeRule.onNodeWithTag(
+            "$INNER_SESSION_APP_TAG_PREFIX${app.packageName}",
+            useUnmergedTree = true,
+        ).fetchSemanticsNode().boundsInRoot
+        val stackBounds = composeRule.onNodeWithTag(
+            "$INNER_SESSION_APP_ICONS_TAG_PREFIX${app.packageName}",
+            useUnmergedTree = true,
+        ).fetchSemanticsNode().boundsInRoot
+        val firstIconBounds = composeRule.onNodeWithTag(
+            "$INNER_SESSION_APP_ICON_TAG_PREFIX${app.packageName}_0",
+            useUnmergedTree = true,
+        ).fetchSemanticsNode().boundsInRoot
+        val secondIconBounds = composeRule.onNodeWithTag(
+            "$INNER_SESSION_APP_ICON_TAG_PREFIX${app.packageName}_1",
+            useUnmergedTree = true,
+        ).fetchSemanticsNode().boundsInRoot
+        val subtitleBounds = composeRule.onNodeWithText(
+            subtitle,
+            useUnmergedTree = true,
+        ).fetchSemanticsNode().boundsInRoot
+        val durationBounds = composeRule.onNodeWithTag(
+            "$INNER_SESSION_APP_DURATION_TAG_PREFIX${app.packageName}",
+            useUnmergedTree = true,
+        ).fetchSemanticsNode().boundsInRoot
+
+        assertEquals("The icon column must remain the singleton width", 88f, stackBounds.width, 0.01f)
+        assertEquals("The icon stack must fit its two icons", 136f, stackBounds.height, 0.01f)
+        assertTrue("The two icons must be vertically stacked", firstIconBounds.bottom < secondIconBounds.top)
+        assertEquals("The two icons must share a column", firstIconBounds.left, secondIconBounds.left, 0.01f)
+        assertTrue("The subtitle must remain beside the icons", subtitleBounds.left > stackBounds.right)
+        assertTrue("The duration must remain inside the row", durationBounds.right <= rowBounds.right)
     }
 
     private fun assertTextFits(text: String) {

@@ -220,6 +220,7 @@
     <string name="inner_session_duration">内側利用 %1$s</string>
     <string name="inner_session_app_joiner">＋</string>
     <string name="inner_session_simultaneous_apps">%1$s（同時使用）</string>
+    <string name="inner_session_simultaneous_subtitle">同時使用</string>
     <string name="inner_session_other">その他</string>
     <string name="inner_session_other_description">「その他」には、上位3件以外のアプリ・組み合わせ、ランチャーから起動できないアプリを含む組み合わせ、アプリを特定できない時間が含まれます。</string>
     <string name="inner_sessions_empty_no_opens">この期間は、端末を開いた記録がありません。</string>

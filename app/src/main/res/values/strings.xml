@@ -225,6 +225,7 @@
     <string name="inner_session_duration">Inner use %1$s</string>
     <string name="inner_session_app_joiner">" + "</string>
     <string name="inner_session_simultaneous_apps">%1$s (simultaneous)</string>
+    <string name="inner_session_simultaneous_subtitle">Simultaneous</string>
     <string name="inner_session_other">Other</string>
     <string name="inner_session_other_description">Other includes apps or combinations beyond the three shown, combinations containing an app that cannot be launched from the launcher, and time that could not be matched to an app.</string>
     <string name="inner_sessions_empty_no_opens">No opening records were detected in this period.</string>

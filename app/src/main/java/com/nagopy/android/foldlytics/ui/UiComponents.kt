@@ -47,7 +47,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.nagopy.android.foldlytics.R
 import com.nagopy.android.foldlytics.labelRes
@@ -76,6 +79,9 @@ internal const val INNER_SESSION_OTHER_DESCRIPTION_TAG = "inner_session_other_de
 internal const val INNER_SESSION_DETAIL_TAG_PREFIX = "inner_session_detail_"
 internal const val INNER_SESSION_OTHER_TAG_PREFIX = "inner_session_other_"
 internal const val INNER_SESSION_APP_TAG_PREFIX = "inner_session_app_"
+internal const val INNER_SESSION_APP_ICONS_TAG_PREFIX = "inner_session_app_icons_"
+internal const val INNER_SESSION_APP_ICON_TAG_PREFIX = "inner_session_app_icon_"
+internal const val INNER_SESSION_APP_DURATION_TAG_PREFIX = "inner_session_app_duration_"
 internal const val INNER_SESSION_LONG_SESSIONS_CARD_TAG = "inner_session_long_sessions_card"
 internal const val INNER_SESSION_METHOD_TAG = "inner_session_method"
 
@@ -237,7 +243,11 @@ internal fun AnalysisPeriodContext(
 }
 
 @Composable
-internal fun ApplicationIcon(packageName: String, label: String) {
+internal fun ApplicationIcon(
+    packageName: String,
+    label: String,
+    size: Dp = 44.dp,
+) {
     val context = LocalContext.current
     val icon by produceState<ImageBitmap?>(initialValue = null, key1 = packageName) {
         value = withContext(Dispatchers.IO) {
@@ -253,19 +263,20 @@ internal fun ApplicationIcon(packageName: String, label: String) {
         Image(
             bitmap = requireNotNull(icon),
             contentDescription = null,
-            modifier = Modifier.size(44.dp),
+            modifier = Modifier.size(size),
             contentScale = ContentScale.Fit,
         )
     } else {
         Box(
             modifier = Modifier
-                .size(44.dp)
+                .size(size)
                 .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(11.dp))
                 .clearAndSetSemantics {},
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 label.firstOrNull()?.uppercase() ?: "?",
+                fontSize = if (size < 44.dp) 12.sp else TextUnit.Unspecified,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
             )
