@@ -116,6 +116,7 @@
     <string name="duration_seconds">%1$ds</string>
 
     <!-- Domain labels -->
+    <string name="period_today">Today</string>
     <string name="period_1_hour">1 hour</string>
     <string name="period_6_hours">6 hours</string>
     <string name="period_24_hours">24 hours</string>
@@ -198,6 +199,9 @@
     <string name="custom_period_dialog_title">Select analysis period</string>
     <string name="record_range_empty">No recorded date range yet</string>
     <string name="record_range">Recorded range: %1$s – %2$s (%3$s)</string>
+    <string name="analysis_partial_recording">Recorded range: %1$s (part of the selected period)</string>
+    <string name="analysis_today_not_updated">Today has not been updated yet</string>
+    <string name="analysis_period_no_recording">No recorded data in this period</string>
     <string name="analysis_range">Analyzed range (%1$s): %2$s – %3$s</string>
     <string name="summary_title">Usage summary</string>
     <string name="label_analysis_range">Analyzed range</string>

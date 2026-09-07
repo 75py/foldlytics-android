@@ -356,6 +356,19 @@ private fun ResultHeader(
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
             )
+            summary.calendarRange?.let { range ->
+                val days = range.recordedDayCount(ZoneId.systemDefault())
+                if (days > 0 && days.toLong() < requireNotNull(summary.period.calendarDays)) {
+                    Text(
+                        stringResource(
+                            R.string.analysis_partial_recording,
+                            resources.getQuantityString(R.plurals.days_count, days, days),
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
         Text(
             state.lastSuccessfulSyncMillis?.let {
@@ -762,12 +775,20 @@ private fun MainUiState.recordRangeText(resources: Resources): String {
     )
 }
 
-private fun PeriodUsageSummary.analysisRangeText(resources: Resources): String = resources.getString(
-    R.string.analysis_range,
-    resources.getString(period.labelRes),
-    rangeStartMillis.toShortDateText(resources),
-    (rangeEndMillis - 1L).coerceAtLeast(0L).toShortDateText(resources),
-)
+private fun PeriodUsageSummary.analysisRangeText(resources: Resources): String {
+    if (calendarRange != null && calendarRange.dataRange == null) {
+        return resources.getString(
+            if (period == AnalysisPeriod.TODAY) R.string.analysis_today_not_updated
+            else R.string.analysis_period_no_recording,
+        )
+    }
+    return resources.getString(
+        R.string.analysis_range,
+        resources.getString(period.labelRes),
+        rangeStartMillis.toShortDateText(resources),
+        (rangeEndMillis - 1L).coerceAtLeast(0L).toShortDateText(resources),
+    )
+}
 
 private fun DisplayPosture.liveStateDescriptionRes(hasUsageAccess: Boolean): Int = when (this) {
     DisplayPosture.COVER -> if (hasUsageAccess) {

@@ -17,6 +17,9 @@ import com.nagopy.android.foldlytics.MainActivity
 import com.nagopy.android.foldlytics.R
 import java.text.DateFormat
 import java.text.NumberFormat
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Date
 import kotlin.math.roundToInt
@@ -39,19 +42,29 @@ internal object SummaryWidgetRenderer {
         val views = RemoteViews(context.packageName, layout)
         val locale = context.resources.configuration.locales[0]
         val number = NumberFormat.getIntegerInstance(locale)
-        val date = DateTimeFormatter.ofPattern("M/d", locale)
-        val dateLabel = if (state.period == WidgetPeriod.TODAY) {
-            state.dateRange.endInclusive.format(DateTimeFormatter.ofPattern("yyyy/M/d", locale))
+        val selectedPeriod = context.getString(periodLabel(state.period))
+        val actualRange = state.dataRange?.format(context, locale)
+        val actualRangeDescription = actualRange ?: context.getString(R.string.widget_dates_unavailable)
+        val compactActualRange = actualRange ?: context.getString(R.string.widget_unavailable_value)
+        val compactHeader = if (state.period == WidgetPeriod.TODAY) {
+            selectedPeriod
         } else {
-            context.getString(
-                R.string.widget_period_dates,
-                context.getString(periodLabel(state.period)),
-                state.dateRange.start.format(date),
-                state.dateRange.endInclusive.format(date),
-            )
+            compactActualRange
         }
-        views.setTextViewText(R.id.widget_period, if (!wide) dateLabel.replace(" · ", "\n") else dateLabel)
-        views.setContentDescription(R.id.widget_configure, context.getString(R.string.widget_configure) + ": " + dateLabel)
+        val header = if (wide && state.period != WidgetPeriod.TODAY) {
+            context.getString(R.string.widget_period_dates, selectedPeriod, actualRangeDescription)
+        } else {
+            compactHeader
+        }
+        views.setTextViewText(R.id.widget_period, header)
+        views.setContentDescription(
+            R.id.widget_configure,
+            context.getString(
+                R.string.widget_configure_description,
+                selectedPeriod,
+                actualRangeDescription,
+            ),
+        )
         val ratio = state.innerRatio
         val percent = ratio?.let { number.format((it * 100f).roundToInt()) + "%" } ?: "—"
         views.setTextViewText(R.id.widget_ratio, percent)
@@ -75,7 +88,11 @@ internal object SummaryWidgetRenderer {
         }
         val message = when (state.status) {
             WidgetStatus.READY -> null
-            WidgetStatus.NO_DATA -> R.string.widget_no_data
+            WidgetStatus.NO_DATA -> if (state.period == WidgetPeriod.TODAY && state.isStale) {
+                R.string.widget_today_not_updated
+            } else {
+                R.string.widget_no_data
+            }
             WidgetStatus.PERMISSION_REQUIRED -> if (wide) R.string.widget_permission_required else R.string.widget_permission_short
             WidgetStatus.UPDATE_FAILED -> R.string.widget_update_failed
         }
@@ -91,9 +108,8 @@ internal object SummaryWidgetRenderer {
         }
         views.setTextViewText(
             R.id.widget_sync,
-            state.lastSyncMillis?.let {
-                context.getString(R.string.widget_last_sync, DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, locale).format(Date(it)))
-            } ?: context.getString(R.string.widget_never_synced),
+            state.lastSyncMillis?.let { context.getString(R.string.widget_updated, formatUpdatedAt(it, locale)) }
+                ?: context.getString(R.string.widget_never_updated),
         )
         val open = Intent(context, MainActivity::class.java).apply {
             data = "foldlytics://widget/$id/open".toUri()
@@ -129,6 +145,28 @@ internal object SummaryWidgetRenderer {
         val minutes = millis / 60_000L
         return if (millis in 1L until 60_000L) context.getString(R.string.widget_less_than_minute) else
             context.getString(R.string.widget_duration, minutes / 60L, minutes % 60L)
+    }
+
+    private fun WidgetDateRange.format(context: Context, locale: java.util.Locale): String {
+        val formatter = DateTimeFormatter.ofPattern("M/d", locale)
+        return context.getString(
+            R.string.widget_date_range,
+            start.format(formatter),
+            endInclusive.format(formatter),
+        )
+    }
+
+    private fun formatUpdatedAt(timestamp: Long, locale: java.util.Locale): String {
+        val date = Date(timestamp)
+        val zoneId = ZoneId.systemDefault()
+        val updatedDate = Instant.ofEpochMilli(timestamp).atZone(zoneId).toLocalDate()
+        val today = LocalDate.now(zoneId)
+        val time = DateFormat.getTimeInstance(DateFormat.SHORT, locale).format(date)
+        return when {
+            updatedDate == today -> time
+            updatedDate.year == today.year -> "${updatedDate.format(DateTimeFormatter.ofPattern("M/d", locale))} $time"
+            else -> DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, locale).format(date)
+        }
     }
 
     internal fun periodLabel(period: WidgetPeriod): Int = when (period) {

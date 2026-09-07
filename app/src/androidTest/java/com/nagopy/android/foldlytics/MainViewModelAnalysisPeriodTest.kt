@@ -107,54 +107,99 @@ class MainViewModelAnalysisPeriodTest {
     }
 
     @Test
-    fun widgetTodayWaitsForTheRefreshThatCrossesMidnight() = runBlocking {
+    fun widgetTodaySelectsTodayBeforeRefreshAndKeepsItAcrossMidnight() = runBlocking {
         val source = ControlledDataSource(CompletableDeferred())
         val store = ViewModelStore()
         val zone = ZoneId.systemDefault()
-        val today = LocalDate.of(2026, 9, 7)
-        val midnight = today.atStartOfDay(zone).toInstant().toEpochMilli()
+        val midnight = LocalDate.of(2026, 9, 7).atStartOfDay(zone).toInstant().toEpochMilli()
         val newEnd = midnight + 43_200_000L
         try {
             val viewModel = withContext(Dispatchers.Main) { createViewModel(store, source) }
-            val initial = source.awaitLoad()
+            source.awaitLoad().succeed(snapshot(AnalysisPeriod.HOURS_24, midnight - 1L))
+            viewModel.awaitState { !it.isAnalysisLoading }
             withContext(Dispatchers.Main) { viewModel.openWidgetPeriod(WidgetPeriod.TODAY) }
-            val old = snapshot(AnalysisPeriod.HOURS_24, 24L).copy(
-                recordRangeStartMillis = midnight - 7 * 86_400_000L,
-                recordRangeEndMillis = midnight - 1L,
-                availablePeriods = AnalysisPeriod.entries.toSet(),
-            )
-            initial.succeed(old)
-            assertEquals(AnalysisPeriod.HOURS_24, viewModel.awaitState { !it.isAnalysisLoading }.selectedPeriod)
+            val loading = viewModel.awaitState { it.selectedPeriod == AnalysisPeriod.TODAY }
+            assertEquals(null, loading.periodSummary)
+            val today = source.awaitLoad()
+            assertEquals(AnalysisPeriod.TODAY, today.request.period)
+            assertEquals(null, today.request.customRange)
+            today.succeed(snapshot(AnalysisPeriod.TODAY, midnight - 1L))
+            viewModel.awaitState { !it.isAnalysisLoading }
+
             source.pendingSync!!.complete(UsageSyncResult.Success(0, newEnd, 0, 0))
-            source.awaitLoad().succeed(old.copy(recordRangeEndMillis = newEnd))
-            // customRange and selectedPeriod are separate flows. combine may start a
-            // HOURS_24 request with the new range, which collectLatest must cancel.
-            var todayLoad = source.awaitLoad()
-            while (todayLoad.request.period != AnalysisPeriod.CUSTOM) {
-                withTimeout(TIMEOUT_MILLIS) { todayLoad.cancelled.await() }
-                todayLoad = source.awaitLoad()
-            }
-            assertEquals(AnalysisPeriod.CUSTOM, todayLoad.request.period)
-            assertEquals(midnight, todayLoad.request.customRange?.startMillis)
-            assertEquals(newEnd, todayLoad.request.customRange?.endMillis)
+            val refreshed = source.awaitLoad()
+            assertEquals(AnalysisPeriod.TODAY, refreshed.request.period)
+            assertEquals(null, refreshed.request.customRange)
+            refreshed.succeed(snapshot(AnalysisPeriod.TODAY, newEnd))
+            assertEquals(AnalysisPeriod.TODAY, viewModel.awaitState { !it.isAnalysisLoading }.selectedPeriod)
         } finally {
             withContext(NonCancellable + Dispatchers.Main) { store.clear() }
         }
     }
 
     @Test
-    fun explicitPeriodChoiceCancelsPendingWidgetNavigation() = runBlocking {
+    fun widgetThirtyDaysKeepsPresetWithOnlyTenDaysOfHistory() = runBlocking {
+        val source = ControlledDataSource()
+        val store = ViewModelStore()
+        try {
+            val viewModel = withContext(Dispatchers.Main) { createViewModel(store, source) }
+            source.awaitLoad().succeed(snapshot(AnalysisPeriod.HOURS_24, 1L).copy(
+                recordRangeStartMillis = 1L,
+                recordRangeEndMillis = 10L * 86_400_000L,
+            ))
+            viewModel.awaitState { !it.isAnalysisLoading }
+            withContext(Dispatchers.Main) { viewModel.openWidgetPeriod(WidgetPeriod.DAYS_30) }
+            val load = source.awaitLoad()
+            assertEquals(AnalysisPeriod.DAYS_30, load.request.period)
+            assertEquals(null, load.request.customRange)
+            load.succeed(snapshot(AnalysisPeriod.DAYS_30, 30L))
+            assertEquals(AnalysisPeriod.DAYS_30, viewModel.awaitState { !it.isAnalysisLoading }.selectedPeriod)
+
+            withContext(Dispatchers.Main) { viewModel.openWidgetPeriod(WidgetPeriod.TODAY) }
+            val secondWidget = source.awaitLoad()
+            assertEquals(AnalysisPeriod.TODAY, secondWidget.request.period)
+            secondWidget.succeed(snapshot(AnalysisPeriod.TODAY, 1L))
+            viewModel.awaitState { !it.isAnalysisLoading }
+            withContext(Dispatchers.Main) { viewModel.openWidgetPeriod(WidgetPeriod.TODAY) }
+            assertEquals(AnalysisPeriod.TODAY, source.awaitLoad().request.period)
+        } finally {
+            withContext(NonCancellable + Dispatchers.Main) { store.clear() }
+        }
+    }
+
+    @Test
+    fun widgetCanSelectPeriodBeforeTheInitialDatabaseLoad() = runBlocking {
+        val source = ControlledDataSource()
+        val store = ViewModelStore()
+        try {
+            val viewModel = withContext(Dispatchers.Main) { createViewModel(store, source) }
+            val initial = source.awaitLoad()
+            withContext(Dispatchers.Main) { viewModel.openWidgetPeriod(WidgetPeriod.DAYS_7) }
+            withTimeout(TIMEOUT_MILLIS) { initial.cancelled.await() }
+            val widget = source.awaitLoad()
+            assertEquals(AnalysisPeriod.DAYS_7, widget.request.period)
+            widget.succeed(snapshot(AnalysisPeriod.DAYS_7, 7L))
+            assertEquals(AnalysisPeriod.DAYS_7, viewModel.awaitState { !it.isAnalysisLoading }.selectedPeriod)
+        } finally {
+            withContext(NonCancellable + Dispatchers.Main) { store.clear() }
+        }
+    }
+
+    @Test
+    fun explicitPeriodChoiceSurvivesWidgetRefresh() = runBlocking {
         val source = ControlledDataSource(CompletableDeferred())
         val store = ViewModelStore()
         try {
             val viewModel = withContext(Dispatchers.Main) { createViewModel(store, source) }
             source.awaitLoad().succeed(snapshot(AnalysisPeriod.HOURS_24, 24L))
             viewModel.awaitState { !it.isAnalysisLoading }
-            withContext(Dispatchers.Main) {
-                viewModel.openWidgetPeriod(WidgetPeriod.TODAY)
-                viewModel.setPeriod(AnalysisPeriod.HOURS_1)
-            }
+            withContext(Dispatchers.Main) { viewModel.openWidgetPeriod(WidgetPeriod.TODAY) }
+            val widgetLoad = source.awaitLoad()
+            assertEquals(AnalysisPeriod.TODAY, widgetLoad.request.period)
+            withContext(Dispatchers.Main) { viewModel.setPeriod(AnalysisPeriod.HOURS_1) }
+            withTimeout(TIMEOUT_MILLIS) { widgetLoad.cancelled.await() }
             val beforeSync = source.awaitLoad()
+            assertEquals(AnalysisPeriod.HOURS_1, beforeSync.request.period)
             source.pendingSync!!.complete(UsageSyncResult.Success(0, 100L, 0, 0))
             withTimeout(TIMEOUT_MILLIS) { beforeSync.cancelled.await() }
             val afterSync = source.awaitLoad()

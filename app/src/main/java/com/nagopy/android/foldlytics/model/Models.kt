@@ -353,6 +353,7 @@ enum class AnalysisPeriod(
     HOURS_1(hours = 1),
     HOURS_6(hours = 6),
     HOURS_24(hours = 24),
+    TODAY,
     DAYS_7(longTermPeriod = LongTermPeriod.DAYS_7),
     DAYS_30(longTermPeriod = LongTermPeriod.DAYS_30),
     DAYS_90(longTermPeriod = LongTermPeriod.DAYS_90),
@@ -363,6 +364,13 @@ enum class AnalysisPeriod(
     val showsTrends: Boolean
         get() = longTermPeriod != null || this == CUSTOM
     val diagnosticHours: Int = hours ?: 24
+    val calendarDays: Long?
+        get() = when (this) {
+            TODAY -> 1L
+            DAYS_7 -> 7L
+            DAYS_30 -> 30L
+            else -> null
+        }
 }
 
 data class CustomAnalysisRange(
@@ -428,6 +436,7 @@ data class PeriodUsageSummary(
     val openedCount: Int,
     val closedCount: Int,
     val apps: List<AppUsage>,
+    val calendarRange: CalendarAnalysisRange? = null,
 ) {
     val classifiedMillis: Long = coverMillis + innerMillis
     val observedMillis: Long = classifiedMillis + excludedMillis

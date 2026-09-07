@@ -20,8 +20,22 @@ class AnalysisPeriodAvailabilityTest {
         assertTrue(AnalysisPeriod.HOURS_1 in available)
         assertTrue(AnalysisPeriod.HOURS_6 in available)
         assertTrue(AnalysisPeriod.HOURS_24 in available)
-        assertFalse(AnalysisPeriod.DAYS_7 in available)
+        assertTrue(AnalysisPeriod.TODAY in available)
+        assertTrue(AnalysisPeriod.DAYS_7 in available)
+        assertTrue(AnalysisPeriod.DAYS_30 in available)
         assertFalse(AnalysisPeriod.CUSTOM in available)
+    }
+
+    @Test
+    fun enablesSevenAndThirtyDaysWithOnlyTenRecordedDays() {
+        val start = dateMillis(LocalDate.of(2026, 1, 1))
+        val end = dateMillis(LocalDate.of(2026, 1, 11))
+        val available = availableAnalysisPeriods(start, end, zoneId)
+
+        assertTrue(AnalysisPeriod.TODAY in available)
+        assertTrue(AnalysisPeriod.DAYS_7 in available)
+        assertTrue(AnalysisPeriod.DAYS_30 in available)
+        assertFalse(AnalysisPeriod.DAYS_90 in available)
     }
 
     @Test

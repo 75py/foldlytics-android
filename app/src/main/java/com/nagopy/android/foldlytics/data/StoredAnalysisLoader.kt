@@ -13,6 +13,7 @@ import com.nagopy.android.foldlytics.model.PeriodUsageSummary
 import com.nagopy.android.foldlytics.model.UsageAnalysis
 import com.nagopy.android.foldlytics.model.availableAnalysisPeriods
 import com.nagopy.android.foldlytics.model.isValidCustomAnalysisRange
+import com.nagopy.android.foldlytics.model.resolveCalendarAnalysisRange
 import java.time.ZoneId
 import kotlinx.coroutines.flow.first
 
@@ -164,7 +165,23 @@ class StoredAnalysisLoader(
                 period in availablePeriods &&
                     (period != AnalysisPeriod.CUSTOM || validCustomRange != null)
             } ?: AnalysisPeriod.HOURS_24
-            val longTermInsights = if (effectivePeriod == AnalysisPeriod.CUSTOM) {
+            val calendarRange = effectivePeriod.calendarDays?.let { days ->
+                resolveCalendarAnalysisRange(
+                    days = days,
+                    nowMillis = currentMillis,
+                    recordRangeStartMillis = recordRangeStartMillis,
+                    syncedThroughMillis = syncState.lastSuccessfulEndMillis,
+                    zoneId = zoneId,
+                )
+            }
+            val longTermInsights = if (calendarRange != null) {
+                longTermAnalyzer.analyzeCalendarRange(
+                    summaries = summaries,
+                    range = calendarRange,
+                    syncedThroughMillis = syncState.lastSuccessfulEndMillis,
+                    zoneId = zoneId,
+                )
+            } else if (effectivePeriod == AnalysisPeriod.CUSTOM) {
                 val range = requireNotNull(validCustomRange)
                 longTermAnalyzer.analyzeRange(
                     summaries = summaries,
@@ -232,6 +249,7 @@ class StoredAnalysisLoader(
                         .thenByDescending { it.observedMillis },
                 )
                 longTermInsights.toPeriodSummary(effectivePeriod, apps)
+                    .copy(calendarRange = calendarRange)
             }
             val replayedSessions = replaySelectedInnerSessions(
                 selectedSessions = selectedSessions,

@@ -256,7 +256,12 @@ class DailySummaryRepository(
                 collectionGapStarts = gaps,
                 deviceStateCheckpoints = deviceStateCheckpoints,
             )
-            summaries += analysis.dailySummaries
+            summaries += includeRecordedZeroUsageDays(
+                summaries = analysis.dailySummaries,
+                rangeStartMillis = chunkStart,
+                rangeEndMillis = chunkEnd,
+                zoneId = zoneId,
+            )
             appUsage += analysis.dailyAppSummaries
             sessionAnalyzer.processChunk(
                 records = if (firstChunk) {
@@ -288,7 +293,7 @@ class DailySummaryRepository(
     }
 
     private companion object {
-        const val AGGREGATION_VERSION = 9
+        const val AGGREGATION_VERSION = 10
         const val AGGREGATION_CHUNK_DAYS = 93L
     }
 
@@ -298,6 +303,39 @@ class DailySummaryRepository(
         val innerSessions: List<InnerDisplaySession> = emptyList(),
         val innerSessionAppUsages: List<InnerDisplaySessionAppUsageEntity> = emptyList(),
     )
+}
+
+/** Keep recorded, inactive days in the cache, including days before the first usage interval. */
+internal fun includeRecordedZeroUsageDays(
+    summaries: List<DailyPostureSummary>,
+    rangeStartMillis: Long,
+    rangeEndMillis: Long,
+    zoneId: ZoneId,
+): List<DailyPostureSummary> {
+    if (rangeStartMillis >= rangeEndMillis) return emptyList()
+    val summariesByDay = summaries.associateBy(DailyPostureSummary::dayStartMillis)
+    return buildList {
+        var date = Instant.ofEpochMilli(rangeStartMillis).atZone(zoneId).toLocalDate()
+        while (true) {
+            val dayStart = date.atStartOfDay(zoneId).toInstant().toEpochMilli()
+            if (dayStart >= rangeEndMillis) break
+            val dayEnd = date.plusDays(1L).atStartOfDay(zoneId).toInstant().toEpochMilli()
+            add(
+                summariesByDay[dayStart] ?: DailyPostureSummary(
+                    dayStartMillis = dayStart,
+                    dayEndMillis = dayEnd,
+                    zoneId = zoneId.id,
+                    coverMillis = 0L,
+                    innerMillis = 0L,
+                    excludedMillis = 0L,
+                    openedCount = 0,
+                    closedCount = 0,
+                    evidenceGapCount = 0,
+                ),
+            )
+            date = date.plusDays(1L)
+        }
+    }
 }
 
 class DailySummarySnapshot internal constructor(

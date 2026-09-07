@@ -45,8 +45,10 @@ import com.nagopy.android.foldlytics.model.LongTermBucket
 import com.nagopy.android.foldlytics.model.LongTermInsights
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
 import com.nagopy.android.foldlytics.model.availableAnalysisPeriods
+import com.nagopy.android.foldlytics.model.resolveCalendarAnalysisRange
 import java.time.LocalDate
 import java.time.ZoneOffset
+import java.time.ZoneId
 import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -203,6 +205,7 @@ class FoldlyticsScreenLoadingTest {
 
         composeRule.onNodeWithTag(ANALYSIS_PERIOD_SELECTOR_TAG).performClick()
 
+        option(AnalysisPeriod.TODAY).assertIsEnabled()
         option(AnalysisPeriod.HOURS_1).assertIsEnabled()
         option(AnalysisPeriod.HOURS_6).assertIsEnabled()
         option(AnalysisPeriod.HOURS_24).assertIsEnabled()
@@ -211,6 +214,74 @@ class FoldlyticsScreenLoadingTest {
         option(AnalysisPeriod.DAYS_90).assertIsNotEnabled()
         option(AnalysisPeriod.DAYS_365).assertIsNotEnabled()
         option(AnalysisPeriod.CUSTOM).assertIsEnabled()
+    }
+
+    @Test
+    fun thirtyDayPresetShowsOnlyTheTenDayRecordedRange() {
+        val zone = ZoneId.systemDefault()
+        val start = LocalDate.of(2026, 8, 29).atStartOfDay(zone).toInstant().toEpochMilli()
+        val end = LocalDate.of(2026, 9, 7).atTime(14, 32).atZone(zone).toInstant().toEpochMilli()
+        val range = resolveCalendarAnalysisRange(30L, end, start, end, zone)
+        val summary = rankingState().periodSummary!!.copy(
+            period = AnalysisPeriod.DAYS_30,
+            rangeStartMillis = start,
+            rangeEndMillis = end,
+            calendarRange = range,
+        )
+        setContent(MainUiState(
+            hasUsageAccess = true,
+            selectedPeriod = AnalysisPeriod.DAYS_30,
+            periodSummary = summary,
+            recordRangeStartMillis = start,
+            recordRangeEndMillis = end,
+            availablePeriods = availableAnalysisPeriods(start, end, zone),
+        ))
+        composeRule.onNodeWithText(text(R.string.period_30_days)).assertIsDisplayed()
+        composeRule.onNodeWithText(text(
+            R.string.analysis_range,
+            text(R.string.period_30_days),
+            start.toShortDateText(englishContext.resources),
+            (end - 1L).toShortDateText(englishContext.resources),
+        )).assertIsDisplayed()
+        composeRule.onNodeWithText(text(
+            R.string.analysis_partial_recording,
+            englishContext.resources.getQuantityString(R.plurals.days_count, 10, 10),
+        )).assertIsDisplayed()
+        composeRule.onNodeWithTag(ANALYSIS_PERIOD_SELECTOR_TAG).performClick()
+        option(AnalysisPeriod.DAYS_30).assertIsEnabled()
+    }
+
+    @Test
+    fun staleTodayExplainsThatTodayHasNotBeenUpdated() {
+        val zone = ZoneId.systemDefault()
+        val today = LocalDate.of(2026, 9, 7).atStartOfDay(zone).toInstant().toEpochMilli()
+        val range = resolveCalendarAnalysisRange(1L, today + 1L, today - 86_400_000L, today, zone)
+        setContent(MainUiState(
+            hasUsageAccess = true,
+            selectedPeriod = AnalysisPeriod.TODAY,
+            periodSummary = rankingState().periodSummary!!.copy(
+                period = AnalysisPeriod.TODAY,
+                rangeStartMillis = today,
+                rangeEndMillis = today,
+                coverMillis = 0L,
+                innerMillis = 0L,
+                calendarRange = range,
+            ),
+        ))
+        composeRule.onNodeWithText(text(R.string.period_today)).assertIsDisplayed()
+        composeRule.onNodeWithText(text(R.string.analysis_today_not_updated)).assertIsDisplayed()
+        composeRule.onNodeWithText(text(R.string.period_custom)).assertDoesNotExist()
+        for (tag in listOf(HOME_APP_USAGE_LINK_TAG, HOME_INNER_SESSIONS_LINK_TAG)) {
+            composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag(tag))
+            composeRule.onNodeWithTag(tag).performClick()
+            composeRule.onNodeWithText(text(R.string.analysis_today_not_updated)).assertIsDisplayed()
+            composeRule.onNodeWithText(text(
+                R.string.date_range,
+                today.toShortDateText(englishContext.resources),
+                (today - 1L).toShortDateText(englishContext.resources),
+            )).assertDoesNotExist()
+            composeRule.onNodeWithTag(DETAIL_BACK_BUTTON_TAG).performClick()
+        }
     }
 
     @Test

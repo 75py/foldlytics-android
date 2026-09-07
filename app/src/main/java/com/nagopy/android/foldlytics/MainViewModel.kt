@@ -26,7 +26,6 @@ import com.nagopy.android.foldlytics.model.PostureCheckpointSource
 import com.nagopy.android.foldlytics.model.isValidCustomAnalysisRange
 import com.nagopy.android.foldlytics.widget.SummaryWidgetUpdater
 import com.nagopy.android.foldlytics.widget.WidgetPeriod
-import com.nagopy.android.foldlytics.widget.widgetDateRange
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -134,9 +133,6 @@ class MainViewModel internal constructor(
         )
     }
     private var refreshJob: Job? = null
-    private var pendingWidgetPeriod: WidgetPeriod? = null
-    private var pendingWidgetAwaitingSync = false
-    private var pendingWidgetSyncEndMillis: Long? = null
 
     private val _uiState = MutableStateFlow(
         MainUiState(
@@ -159,7 +155,6 @@ class MainViewModel internal constructor(
             refresh()
         } else {
             refreshJob?.cancel()
-            pendingWidgetAwaitingSync = false
             enqueueWidgetUpdate()
             _uiState.update { it.copy(isLoading = false) }
         }
@@ -202,41 +197,33 @@ class MainViewModel internal constructor(
         refresh()
     }
 
-    /** Widget intents can arrive before the first database snapshot is available. */
+    /** Select the calendar preset immediately, including before the first database load. */
     fun openWidgetPeriod(period: WidgetPeriod) {
-        pendingWidgetPeriod = period
-        pendingWidgetSyncEndMillis = null
-        pendingWidgetAwaitingSync = _uiState.value.hasUsageAccess
-        if (pendingWidgetAwaitingSync) refresh() else applyPendingWidgetPeriod()
-    }
-
-    private fun applyPendingWidgetPeriod() {
-        val period = pendingWidgetPeriod ?: return
-        if (pendingWidgetAwaitingSync) return
-        val state = _uiState.value
-        val recordStart = state.recordRangeStartMillis ?: return
-        val recordEnd = state.recordRangeEndMillis ?: return
-        if (pendingWidgetSyncEndMillis?.let { recordEnd < it } == true) return
-        pendingWidgetPeriod = null
-        pendingWidgetSyncEndMillis = null
         val appPeriod = when (period) {
-            WidgetPeriod.TODAY -> AnalysisPeriod.CUSTOM
+            WidgetPeriod.TODAY -> AnalysisPeriod.TODAY
             WidgetPeriod.DAYS_7 -> AnalysisPeriod.DAYS_7
             WidgetPeriod.DAYS_30 -> AnalysisPeriod.DAYS_30
         }
-        if (appPeriod != AnalysisPeriod.CUSTOM && appPeriod in state.availablePeriods) {
-            setPeriod(appPeriod)
-        } else {
-            val zone = ZoneId.systemDefault()
-            val range = widgetDateRange(period, recordEnd, zone)
-            setCustomPeriod(maxOf(recordStart, range.startMillis(zone)), recordEnd)
+        // A widget opens its own results, so do not flash a retained, unrelated period.
+        _uiState.update {
+            it.copy(
+                selectedPeriod = appPeriod,
+                analyzedPeriod = null,
+                analysis = null,
+                periodSummary = null,
+                innerSessionSummary = null,
+                longTermInsights = null,
+                collectionHealth = null,
+                isAnalysisLoading = true,
+            )
         }
-    }
-
-    private fun clearPendingWidgetPeriod() {
-        pendingWidgetPeriod = null
-        pendingWidgetAwaitingSync = false
-        pendingWidgetSyncEndMillis = null
+        if (selectedPeriod.value == appPeriod) {
+            // A second widget using the same preset still needs a fresh result.
+            analysisRevision.value += 1L
+        } else {
+            selectedPeriod.value = appPeriod
+        }
+        refresh()
     }
 
     private fun enqueueWidgetUpdate() {
@@ -246,14 +233,12 @@ class MainViewModel internal constructor(
     }
 
     fun setPeriod(period: AnalysisPeriod) {
-        clearPendingWidgetPeriod()
         if (period == AnalysisPeriod.CUSTOM || period !in _uiState.value.availablePeriods) return
         _uiState.update { it.copy(selectedPeriod = period) }
         selectedPeriod.value = period
     }
 
     fun setCustomPeriod(startMillis: Long, endMillis: Long) {
-        clearPendingWidgetPeriod()
         val state = _uiState.value
         val recordStart = state.recordRangeStartMillis ?: return
         val recordEnd = state.recordRangeEndMillis ?: return
@@ -305,7 +290,6 @@ class MainViewModel internal constructor(
             }
             when (val result = dataSource.sync()) {
                 is UsageSyncResult.Success -> {
-                    if (pendingWidgetPeriod != null) pendingWidgetSyncEndMillis = result.endMillis
                     _uiState.update { it.copy(isLoading = false) }
                 }
 
@@ -351,7 +335,6 @@ class MainViewModel internal constructor(
                     }
                 }
             }
-            pendingWidgetAwaitingSync = false
             analysisRevision.value += 1L
         }
     }
@@ -483,6 +466,7 @@ class MainViewModel internal constructor(
                         val snapshot = withContext(Dispatchers.IO) {
                             dataSource.load(request, ZoneId.systemDefault())
                         }
+                        if (request.period != selectedPeriod.value) return@collectLatest
                         _uiState.update {
                             it.copy(
                                 selectedPeriod = snapshot.selectedPeriod,
@@ -509,7 +493,6 @@ class MainViewModel internal constructor(
                         if (customRange.value != snapshot.customRange) {
                             customRange.value = snapshot.customRange
                         }
-                        applyPendingWidgetPeriod()
                     } catch (error: CancellationException) {
                         throw error
                     } catch (error: Exception) {

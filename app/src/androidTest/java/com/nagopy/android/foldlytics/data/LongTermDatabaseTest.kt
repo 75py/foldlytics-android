@@ -176,7 +176,7 @@ class LongTermDatabaseTest {
             calibrationKey = "calibration",
             zoneId = zoneId.id,
             checkpointRevision = 0L,
-            aggregationVersion = 9,
+            aggregationVersion = 10,
         )
         val first = session(1_000L, 100L)
         val second = session(5_000L, 200L)
@@ -763,7 +763,7 @@ class LongTermDatabaseTest {
             zoneId = zoneId,
             collectionGapStarts = emptyList(),
         )
-        assertEquals(listOf(TimeUnit.MINUTES.toMillis(45L)), incremental.map { it.coverMillis })
+        assertEquals(listOf(TimeUnit.MINUTES.toMillis(45L), 0L), incremental.map { it.coverMillis })
         val incrementalState = requireNotNull(database.dailyPostureSummaryDao().loadState())
         assertEquals(3L, incrementalState.lastAggregatedSyncHistoryId)
 
@@ -780,7 +780,7 @@ class LongTermDatabaseTest {
         )
 
         assertEquals(full, incremental)
-        assertEquals(9, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
+        assertEquals(10, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
     }
 
     @Test
@@ -929,7 +929,7 @@ class LongTermDatabaseTest {
                     calibrationKey = calibration.dailySummaryCacheKey(),
                     zoneId = zoneId.id,
                     checkpointRevision = 0L,
-                    aggregationVersion = 9,
+                    aggregationVersion = 10,
                 ),
             )
 
@@ -1117,13 +1117,16 @@ class LongTermDatabaseTest {
         val summaries = aggregation.first
         val appUsage = aggregation.second
 
-        assertEquals(2, summaries.size)
+        assertEquals(94, summaries.size)
+        assertEquals(start, summaries.first().dayStartMillis)
+        assertTrue(summaries.dropLast(2).all { it.observedMillis == 0L })
+        val activeSummaries = summaries.takeLast(2)
         assertEquals(
             LocalDate.of(2024, 4, 2).atStartOfDay(zoneId).toInstant().toEpochMilli(),
-            summaries[0].dayStartMillis,
+            activeSummaries[0].dayStartMillis,
         )
-        assertEquals(TimeUnit.HOURS.toMillis(12), summaries[0].coverMillis)
-        assertEquals(TimeUnit.HOURS.toMillis(24), summaries[1].coverMillis)
+        assertEquals(TimeUnit.HOURS.toMillis(12), activeSummaries[0].coverMillis)
+        assertEquals(TimeUnit.HOURS.toMillis(24), activeSummaries[1].coverMillis)
         assertEquals(TimeUnit.HOURS.toMillis(36), summaries.sumOf { it.coverMillis })
         assertEquals(TimeUnit.HOURS.toMillis(36), appUsage.coverMillis)
         assertEquals(0L, summaries.sumOf { it.innerMillis })
@@ -1461,8 +1464,8 @@ class LongTermDatabaseTest {
                     "cover=443,994,443,1,420|inner=852,883,852,1,420",
                 zoneId = zoneId.id,
                 checkpointRevision = 0L,
-                // Version 6 is the previous cache format; version 7 must rebuild it.
-                aggregationVersion = 6,
+                // Version 9 is the previous cache format; version 10 must rebuild it.
+                aggregationVersion = 9,
             ),
         )
 
@@ -1479,7 +1482,7 @@ class LongTermDatabaseTest {
         }
         assertEquals(listOf(openedAt), sessions.map { it.openedAtMillis })
         assertEquals(1_000L, sessions.single().innerActiveMillis)
-        assertEquals(9, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
+        assertEquals(10, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
         assertEquals(1, database.dailyPostureSummaryDao().loadAll().single().openedCount)
     }
 
@@ -1549,7 +1552,7 @@ class LongTermDatabaseTest {
                 calibrationKey = calibration.dailySummaryCacheKey(),
                 zoneId = zoneId.id,
                 checkpointRevision = 0L,
-                aggregationVersion = 9,
+                aggregationVersion = 10,
             ),
         )
 
