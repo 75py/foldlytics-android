@@ -34,6 +34,11 @@ class SummaryWidgetScreenshotTest {
                                         coverMillis = if (status == WidgetStatus.NO_DATA) 0 else 64_800_000,
                                         openedCount = if (status == WidgetStatus.NO_DATA) 0 else 42,
                                         hasRecordedEvidence = status != WidgetStatus.NO_DATA,
+                                        dataRange = if (status == WidgetStatus.PERMISSION_REQUIRED) {
+                                            null
+                                        } else {
+                                            WidgetDateRange(LocalDate.of(2026, 8, 31), LocalDate.of(2026, 9, 6))
+                                        },
                                         lastSyncMillis = 1_788_688_800_000L,
                                         status = status,
                                     )

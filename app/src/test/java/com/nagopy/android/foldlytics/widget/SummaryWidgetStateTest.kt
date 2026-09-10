@@ -30,21 +30,63 @@ class SummaryWidgetStateTest {
     }
 
     @Test
-    fun midnightSyncEndsOnThePreviousCalendarDay() {
+    fun todayStartsAtCurrentMidnight() {
         val midnight = today.atStartOfDay(zone).toInstant().toEpochMilli()
         val range = widgetDateRange(WidgetPeriod.TODAY, midnight, zone)
-        assertEquals(today.minusDays(1), range.start)
+        assertEquals(today, range.start)
         assertEquals(range.start, range.endInclusive)
     }
 
     @Test
-    fun oldSyncKeepsItsAbsoluteDateAfterMidnight() {
+    fun oldSyncDoesNotShowYesterdayAsToday() {
         val state = buildSummaryWidgetState(
             WidgetPeriod.TODAY, listOf(summary(today)), through, through,
             hasPermission = true, updateFailed = false, nowMillis = through + 86_400_000L, zoneId = zone,
         )
-        assertEquals(today, state.dateRange.endInclusive)
-        assertEquals(100L, state.innerMillis)
+        assertEquals(today.plusDays(1), state.dateRange.endInclusive)
+        assertEquals(0L, state.innerMillis)
+        assertEquals(WidgetStatus.NO_DATA, state.status)
+        assertNull(state.dataRange)
+        assertTrue(state.isStale)
+    }
+
+    @Test
+    fun partialThirtyDayHistoryIncludesZeroUsageDaysInItsActualRange() {
+        val summaries = (0L..9L).map {
+            summary(today.minusDays(it)).copy(innerMillis = 0, coverMillis = 0, openedCount = 0)
+        }
+        val state = state(WidgetPeriod.DAYS_30, summaries)
+
+        assertEquals(today.minusDays(29), state.dateRange.start)
+        assertEquals(today.minusDays(9), state.dataRange?.start)
+        assertEquals(today, state.dataRange?.endInclusive)
+        assertEquals(10, state.recordedDayCount)
+        assertEquals(through, state.syncedThroughMillis)
+    }
+
+    @Test
+    fun midnightSyncExcludesBothYesterdayAndUncollectedTodayFromToday() {
+        val midnight = today.atStartOfDay(zone).toInstant().toEpochMilli()
+        val state = buildSummaryWidgetState(
+            WidgetPeriod.TODAY, listOf(summary(today.minusDays(1)), summary(today)),
+            midnight, midnight, true, false, through, zone,
+        )
+        assertEquals(today, state.dateRange.start)
+        assertEquals(0L, state.innerMillis)
+        assertEquals(0, state.openedCount)
+        assertNull(state.dataRange)
+        assertTrue(state.isStale)
+    }
+
+    @Test
+    fun missingSyncDoesNotUseUnverifiedSavedSummaries() {
+        val state = buildSummaryWidgetState(
+            WidgetPeriod.DAYS_30, listOf(summary(today)), null, null,
+            true, false, through, zone,
+        )
+        assertEquals(0L, state.innerMillis)
+        assertEquals(0, state.recordedDayCount)
+        assertNull(state.dataRange)
     }
 
     @Test

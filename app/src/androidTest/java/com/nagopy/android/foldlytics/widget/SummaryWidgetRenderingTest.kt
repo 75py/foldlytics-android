@@ -14,7 +14,9 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.nagopy.android.foldlytics.R
 import com.nagopy.android.foldlytics.ui.DisplayChartPalette
 import java.io.File
+import java.text.DateFormat
 import java.time.LocalDate
+import java.time.ZoneId
 import java.util.Locale
 import kotlin.math.hypot
 import kotlin.math.min
@@ -23,6 +25,105 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SummaryWidgetRenderingTest {
+    @Test
+    fun compactHeaderUsesActualRangeAndStaysCenteredBehindRefresh() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            val context = localizedContext(instrumentation.targetContext, Locale.JAPANESE, fontScale = 1f)
+            val actualRange = WidgetDateRange(LocalDate.of(2026, 8, 29), LocalDate.of(2026, 9, 7))
+            val state = fixture().copy(
+                period = WidgetPeriod.DAYS_30,
+                dateRange = WidgetDateRange(LocalDate.of(2026, 8, 9), LocalDate.of(2026, 9, 7)),
+                dataRange = actualRange,
+                recordedDayCount = 10,
+            )
+            val compact = SummaryWidgetRenderer.render(context, 999_999, state, wide = false)
+                .apply(context, FrameLayout(context))
+            layout(compact, context, wide = false)
+
+            val header = compact.findViewById<TextView>(R.id.widget_period)
+            assertEquals("8/29〜9/7", header.text.toString())
+            val bounds = boundsInRoot(compact, header)
+            assertEquals(compact.width / 2, (bounds.left + bounds.right) / 2)
+            assertEquals(
+                context.getString(R.string.widget_configure_description, "30日間", "8/29〜9/7"),
+                compact.findViewById<View>(R.id.widget_configure).contentDescription,
+            )
+
+            val wide = SummaryWidgetRenderer.render(context, 999_999, state, wide = true)
+                .apply(context, FrameLayout(context))
+            layout(wide, context, wide = true)
+            assertEquals("30日間 · 8/29〜9/7", wide.findViewById<TextView>(R.id.widget_period).text.toString())
+        }
+    }
+
+    @Test
+    fun todayHeaderDoesNotPresentStaleMetricsAsToday() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            val context = localizedContext(instrumentation.targetContext, Locale.ENGLISH, fontScale = 1f)
+            val today = LocalDate.now(ZoneId.systemDefault())
+            val state = fixture().copy(
+                period = WidgetPeriod.TODAY,
+                dateRange = WidgetDateRange(today, today),
+                dataRange = null,
+                innerMillis = 0L,
+                coverMillis = 0L,
+                openedCount = 0,
+                hasRecordedEvidence = false,
+                status = WidgetStatus.NO_DATA,
+                isStale = true,
+            )
+            val view = SummaryWidgetRenderer.render(context, 999_999, state, wide = false)
+                .apply(context, FrameLayout(context))
+            layout(view, context, wide = false)
+
+            assertEquals(context.getString(R.string.widget_today), view.findViewById<TextView>(R.id.widget_period).text.toString())
+            assertEquals("—", view.findViewById<TextView>(R.id.widget_ratio).text.toString())
+            assertEquals(
+                context.getString(R.string.widget_today_not_updated),
+                view.findViewById<TextView>(R.id.widget_status).text.toString(),
+            )
+            assertEquals(
+                context.getString(
+                    R.string.widget_configure_description,
+                    context.getString(R.string.widget_today),
+                    context.getString(R.string.widget_dates_unavailable),
+                ),
+                view.findViewById<View>(R.id.widget_configure).contentDescription,
+            )
+        }
+    }
+
+    @Test
+    fun footerUsesTimeTodayAndLocalizedDateTimeForOlderUpdate() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        instrumentation.runOnMainSync {
+            val context = localizedContext(instrumentation.targetContext, Locale.ENGLISH, fontScale = 1f)
+            val zone = ZoneId.systemDefault()
+            val todayMillis = LocalDate.now(zone).atTime(14, 32).atZone(zone).toInstant().toEpochMilli()
+            val olderMillis = LocalDate.now(zone).minusDays(1).atTime(23, 10).atZone(zone).toInstant().toEpochMilli()
+            fun footer(timestamp: Long): String {
+                val view = SummaryWidgetRenderer.render(context, 999_999, fixture().copy(lastSyncMillis = timestamp), wide = false)
+                    .apply(context, FrameLayout(context))
+                return view.findViewById<TextView>(R.id.widget_sync).text.toString()
+            }
+
+            assertEquals(
+                context.getString(R.string.widget_updated, DateFormat.getTimeInstance(DateFormat.SHORT, Locale.ENGLISH).format(todayMillis)),
+                footer(todayMillis),
+            )
+            val olderDate = LocalDate.now(zone).minusDays(1)
+            val olderLabel = if (olderDate.year == LocalDate.now(zone).year) {
+                "${olderDate.format(java.time.format.DateTimeFormatter.ofPattern("M/d", Locale.ENGLISH))} " +
+                    DateFormat.getTimeInstance(DateFormat.SHORT, Locale.ENGLISH).format(olderMillis)
+            } else {
+                DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, Locale.ENGLISH).format(olderMillis)
+            }
+            assertEquals(context.getString(R.string.widget_updated, olderLabel), footer(olderMillis))
+        }
+    }
+
     @Test
     fun restoresChartAndMetricsWhenPermissionReturnsOnReapply() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()

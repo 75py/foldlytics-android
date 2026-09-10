@@ -1,11 +1,13 @@
 package com.nagopy.android.foldlytics.widget
 
 import com.nagopy.android.foldlytics.model.DailyPostureSummary
+import com.nagopy.android.foldlytics.model.resolveCalendarAnalysisRange
+import com.nagopy.android.foldlytics.model.selectCalendarSummaries
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
-/** Calendar periods ending on the last collected day, as in the app's daily analysis. */
+/** Calendar periods including the current local day, as in the app's daily analysis. */
 enum class WidgetPeriod(val days: Long) {
     TODAY(1),
     DAYS_7(7),
@@ -22,9 +24,8 @@ data class WidgetDateRange(val start: LocalDate, val endInclusive: LocalDate) {
     fun startMillis(zoneId: ZoneId): Long = start.atStartOfDay(zoneId).toInstant().toEpochMilli()
 }
 
-fun widgetDateRange(period: WidgetPeriod, throughMillis: Long, zoneId: ZoneId): WidgetDateRange {
-    // Collection intervals are end-exclusive: a sync at midnight still describes yesterday.
-    val lastDate = Instant.ofEpochMilli((throughMillis - 1L).coerceAtLeast(0L))
+fun widgetDateRange(period: WidgetPeriod, nowMillis: Long, zoneId: ZoneId): WidgetDateRange {
+    val lastDate = Instant.ofEpochMilli(nowMillis)
         .atZone(zoneId).toLocalDate()
     return WidgetDateRange(lastDate.minusDays(period.days - 1L), lastDate)
 }
@@ -40,6 +41,10 @@ data class SummaryWidgetState(
     val hasRecordedEvidence: Boolean = false,
     val lastSyncMillis: Long? = null,
     val status: WidgetStatus = WidgetStatus.NO_DATA,
+    val dataRange: WidgetDateRange? = null,
+    val syncedThroughMillis: Long? = null,
+    val recordedDayCount: Int = 0,
+    val isStale: Boolean = false,
 ) {
     val innerRatio: Float?
         get() = if (innerMillis + coverMillis > 0L && status != WidgetStatus.PERMISSION_REQUIRED) {
@@ -59,11 +64,20 @@ fun buildSummaryWidgetState(
     nowMillis: Long,
     zoneId: ZoneId,
 ): SummaryWidgetState {
-    val range = widgetDateRange(period, syncedThroughMillis ?: nowMillis, zoneId)
-    val selected = if (hasPermission) summaries.filter {
-        val date = Instant.ofEpochMilli(it.dayStartMillis).atZone(zoneId).toLocalDate()
-        date in range.start..range.endInclusive
-    } else emptyList()
+    val range = widgetDateRange(period, nowMillis, zoneId)
+    val calendarRange = resolveCalendarAnalysisRange(
+        days = period.days,
+        nowMillis = nowMillis,
+        recordRangeStartMillis = summaries.minOfOrNull(DailyPostureSummary::dayStartMillis),
+        syncedThroughMillis = syncedThroughMillis,
+        zoneId = zoneId,
+    )
+    val selected = if (hasPermission) {
+        selectCalendarSummaries(summaries, calendarRange)
+    } else {
+        emptyList()
+    }
+    val dataRange = calendarRange.dataRange?.takeIf { hasPermission }
     val inner = selected.sumOf { it.innerMillis }
     val cover = selected.sumOf { it.coverMillis }
     return SummaryWidgetState(
@@ -74,6 +88,17 @@ fun buildSummaryWidgetState(
         openedCount = selected.sumOf { it.openedCount },
         hasRecordedEvidence = selected.any { it.observedMillis > 0L || it.openedCount > 0 || it.closedCount > 0 },
         lastSyncMillis = lastSyncMillis,
+        dataRange = dataRange?.let {
+            WidgetDateRange(
+                start = Instant.ofEpochMilli(it.startMillis).atZone(zoneId).toLocalDate(),
+                endInclusive = Instant.ofEpochMilli(it.endMillis - 1L).atZone(zoneId).toLocalDate(),
+            )
+        },
+        syncedThroughMillis = syncedThroughMillis,
+        recordedDayCount = if (hasPermission) calendarRange.recordedDayCount(zoneId) else 0,
+        isStale = syncedThroughMillis != null && syncedThroughMillis <=
+            Instant.ofEpochMilli(nowMillis).atZone(zoneId).toLocalDate()
+                .atStartOfDay(zoneId).toInstant().toEpochMilli(),
         status = when {
             !hasPermission -> WidgetStatus.PERMISSION_REQUIRED
             updateFailed -> WidgetStatus.UPDATE_FAILED

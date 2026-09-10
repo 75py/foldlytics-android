@@ -52,6 +52,7 @@ internal val PostureEventSource.labelRes: Int
 
 internal val AnalysisPeriod.labelRes: Int
     get() = when (this) {
+        AnalysisPeriod.TODAY -> R.string.period_today
         AnalysisPeriod.HOURS_1 -> R.string.period_1_hour
         AnalysisPeriod.HOURS_6 -> R.string.period_6_hours
         AnalysisPeriod.HOURS_24 -> R.string.period_24_hours

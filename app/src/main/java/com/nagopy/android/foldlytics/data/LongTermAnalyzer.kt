@@ -1,5 +1,6 @@
 package com.nagopy.android.foldlytics.data
 
+import com.nagopy.android.foldlytics.model.CalendarAnalysisRange
 import com.nagopy.android.foldlytics.model.CollectionHealth
 import com.nagopy.android.foldlytics.model.DailyPostureSummary
 import com.nagopy.android.foldlytics.model.LongTermBucket
@@ -12,6 +13,40 @@ import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 class LongTermAnalyzer {
+    fun analyzeCalendarRange(
+        summaries: List<DailyPostureSummary>,
+        range: CalendarAnalysisRange,
+        syncedThroughMillis: Long,
+        zoneId: ZoneId,
+    ): LongTermInsights {
+        val dataRange = range.dataRange
+        if (dataRange != null) {
+            return analyzeRange(
+                summaries = summaries.filter { it.dayStartMillis < dataRange.endMillis },
+                rangeStartMillis = dataRange.startMillis,
+                rangeEndMillis = dataRange.endMillis,
+                recordingEndMillis = syncedThroughMillis,
+                zoneId = zoneId,
+            ).copy(rangeStartMillis = dataRange.startMillis)
+        }
+        return LongTermInsights(
+            rangeStartMillis = range.requestedStartMillis,
+            rangeEndMillis = range.requestedStartMillis,
+            coverMillis = 0L,
+            innerMillis = 0L,
+            excludedMillis = 0L,
+            openedCount = 0,
+            closedCount = 0,
+            calendarDayCount = 0,
+            observedDayCount = 0,
+            innerUsedDayCount = 0,
+            evidenceGapDayCount = 0,
+            buckets = emptyList(),
+            firstThirtyDayInnerRatio = null,
+            recentThirtyDayInnerRatio = null,
+        )
+    }
+
     fun analyze(
         summaries: List<DailyPostureSummary>,
         period: LongTermPeriod,

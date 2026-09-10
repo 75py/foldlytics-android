@@ -227,7 +227,12 @@ internal fun AnalysisPeriodContext(
             fontWeight = FontWeight.Medium,
         )
         Text(
-            if (rangeStartMillis != null && rangeEndMillis != null) {
+            if (rangeStartMillis != null && rangeEndMillis != null && rangeEndMillis <= rangeStartMillis) {
+                stringResource(
+                    if (period == AnalysisPeriod.TODAY) R.string.analysis_today_not_updated
+                    else R.string.analysis_period_no_recording,
+                )
+            } else if (rangeStartMillis != null && rangeEndMillis != null) {
                 stringResource(
                     R.string.date_range,
                     rangeStartMillis.toShortDateText(resources),

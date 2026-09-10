@@ -111,6 +111,7 @@
     <string name="duration_seconds">%1$d秒</string>
 
     <!-- Domain labels -->
+    <string name="period_today">今日</string>
     <string name="period_1_hour">1時間</string>
     <string name="period_6_hours">6時間</string>
     <string name="period_24_hours">24時間</string>
@@ -193,6 +194,9 @@
     <string name="custom_period_dialog_title">対象期間を選択</string>
     <string name="record_range_empty">記録範囲はまだありません</string>
     <string name="record_range">記録範囲 %1$s〜%2$s（%3$s）</string>
+    <string name="analysis_partial_recording">記録期間：%1$s（選択期間の一部）</string>
+    <string name="analysis_today_not_updated">本日分は未更新です</string>
+    <string name="analysis_period_no_recording">この期間の記録はありません</string>
     <string name="analysis_range">集計範囲（%1$s）: %2$s〜%3$s</string>
     <string name="summary_title">利用サマリー</string>
     <string name="label_analysis_range">集計範囲</string>

@@ -9,6 +9,9 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.nagopy.android.foldlytics.model.AnalysisPeriod
 import com.nagopy.android.foldlytics.model.Calibration
 import com.nagopy.android.foldlytics.model.DisplayConfiguration
+import com.nagopy.android.foldlytics.widget.WidgetPeriod
+import com.nagopy.android.foldlytics.widget.WidgetStatus
+import com.nagopy.android.foldlytics.widget.buildSummaryWidgetState
 import java.io.StringWriter
 import java.io.Writer
 import java.time.LocalDate
@@ -24,6 +27,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -138,7 +142,9 @@ class StoredAnalysisRoomTest {
                 AnalysisPeriod.HOURS_1,
                 AnalysisPeriod.HOURS_6,
                 AnalysisPeriod.HOURS_24,
+                AnalysisPeriod.TODAY,
                 AnalysisPeriod.DAYS_7,
+                AnalysisPeriod.DAYS_30,
                 AnalysisPeriod.CUSTOM,
             ),
             snapshot.availablePeriods,
@@ -155,7 +161,7 @@ class StoredAnalysisRoomTest {
         val snapshot = loader().load(request(AnalysisPeriod.DAYS_7), zoneId)
 
         val insights = requireNotNull(snapshot.longTermInsights)
-        // The seven-day window ends on the last recorded day, so the first day stays outside it.
+        // The fixture clock is on the last recorded day; the first day is outside seven days.
         assertEquals(dayStart(1), insights.rangeStartMillis)
         assertEquals(syncedThroughMillis, insights.rangeEndMillis)
         assertEquals(coverMillisPerDay * 7, insights.coverMillis)
@@ -649,6 +655,120 @@ class StoredAnalysisRoomTest {
         )
     }
 
+    @Test
+    fun calendarPeriodsMatchWidgetFromSameRoomSnapshotWithTenRecordedDays() = runBlocking {
+        val syncEnd = dayStart(9) + TimeUnit.HOURS.toMillis(12)
+        persistCalendarHistory(syncEnd)
+
+        database.withTransaction {
+            val screenLoader = loader(nowMillis = syncEnd)
+            for (period in listOf(AnalysisPeriod.TODAY, AnalysisPeriod.DAYS_30)) {
+                val snapshot = screenLoader.load(calendarRequest(period, syncEnd), zoneId)
+                val summary = requireNotNull(snapshot.periodSummary)
+                val daily = screenLoader.loadSavedDailyHistory(calibration, zoneId)
+                val widget = buildSummaryWidgetState(
+                    period = WidgetPeriod.valueOf(period.name),
+                    summaries = daily,
+                    syncedThroughMillis = syncEnd,
+                    lastSyncMillis = syncEnd,
+                    hasPermission = true,
+                    updateFailed = false,
+                    nowMillis = syncEnd,
+                    zoneId = zoneId,
+                )
+
+                assertEquals(period, snapshot.selectedPeriod)
+                assertEquals(summary.innerMillis, widget.innerMillis)
+                assertEquals(summary.coverMillis, widget.coverMillis)
+                assertEquals(summary.openedCount, widget.openedCount)
+                assertEquals(summary.rangeStartMillis, widget.dataRange?.startMillis(zoneId))
+                assertEquals(summary.rangeEndMillis, widget.syncedThroughMillis)
+                assertEquals(10, daily.size)
+                assertEquals(0L, daily.first().observedMillis)
+                if (period == AnalysisPeriod.DAYS_30) {
+                    assertEquals(dayStart(0), summary.rangeStartMillis)
+                    assertEquals(10, widget.recordedDayCount)
+                    assertEquals(innerMillisPerDay * 9, summary.innerMillis)
+                    assertEquals(coverMillisPerDay * 9, summary.coverMillis)
+                } else {
+                    assertEquals(dayStart(9), summary.rangeStartMillis)
+                    assertEquals(1, widget.recordedDayCount)
+                    assertEquals(innerMillisPerDay, summary.innerMillis)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun staleTodayMatchesEmptyWidgetWithoutReusingYesterdayFromRoom() = runBlocking {
+        val syncEnd = dayStart(9) + TimeUnit.HOURS.toMillis(12)
+        val now = dayStart(10) + TimeUnit.HOURS.toMillis(12)
+        persistCalendarHistory(syncEnd)
+
+        database.withTransaction {
+            val screenLoader = loader(nowMillis = now)
+            val snapshot = screenLoader.load(calendarRequest(AnalysisPeriod.TODAY, syncEnd), zoneId)
+            val summary = requireNotNull(snapshot.periodSummary)
+            val widget = buildSummaryWidgetState(
+                period = WidgetPeriod.TODAY,
+                summaries = screenLoader.loadSavedDailyHistory(calibration, zoneId),
+                syncedThroughMillis = syncEnd,
+                lastSyncMillis = syncEnd,
+                hasPermission = true,
+                updateFailed = false,
+                nowMillis = now,
+                zoneId = zoneId,
+            )
+
+            assertEquals(AnalysisPeriod.TODAY, snapshot.selectedPeriod)
+            assertEquals(0L, summary.innerMillis)
+            assertEquals(0L, summary.coverMillis)
+            assertEquals(0, summary.openedCount)
+            assertTrue(summary.apps.isEmpty())
+            assertNull(summary.calendarRange?.dataRange)
+            assertEquals(summary.rangeStartMillis, summary.rangeEndMillis)
+            assertEquals(summary.innerMillis, widget.innerMillis)
+            assertEquals(summary.coverMillis, widget.coverMillis)
+            assertEquals(summary.openedCount, widget.openedCount)
+            assertEquals(WidgetStatus.NO_DATA, widget.status)
+            assertNull(widget.dataRange)
+            assertTrue(widget.isStale)
+        }
+    }
+
+    private suspend fun persistCalendarHistory(syncEnd: Long) {
+        val events = listOf(
+            event(
+                key = "inactive-recording-start",
+                timestampMillis = dayStart(0),
+                sequence = 0,
+                rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+                eventConfiguration = coverConfiguration,
+            ),
+        ) + (1L..9L).flatMap { eventsForDay(dayStart(it)) }
+        database.usageEventDao().persistSuccessfulSync(
+            events = events,
+            state = UsageSyncStateEntity(
+                lastSuccessfulEndMillis = syncEnd,
+                lastSuccessfulAtMillis = syncEnd,
+                lastQueryBeginMillis = 0L,
+                lastInsertedEventCount = events.size,
+            ),
+            attempt = SyncHistoryEntity(
+                attemptedAtMillis = syncEnd,
+                queryBeginMillis = 0L,
+                queryEndMillis = syncEnd,
+                status = SyncAttemptStatus.SUCCESS.name,
+                readEventCount = events.size,
+                insertedEventCount = events.size,
+            ),
+        )
+    }
+
+    private fun calendarRequest(period: AnalysisPeriod, syncEnd: Long) = request(period).copy(
+        syncState = UsageSyncState(syncEnd, syncEnd, 0L, 0),
+    )
+
     private fun eventsForDay(dayStartMillis: Long): List<UsageEventEntity> {
         val openedAt = dayStartMillis + TimeUnit.HOURS.toMillis(1)
         val closedAt = dayStartMillis + TimeUnit.HOURS.toMillis(4)
@@ -784,6 +904,7 @@ class StoredAnalysisRoomTest {
     private fun loader(
         dailySummaryRepository: DailySummaryRepository = repository(),
         launchable: Boolean = false,
+        nowMillis: Long = syncedThroughMillis - 1L,
         packageLabel: (String) -> String = { it },
     ) = StoredAnalysisLoader(
         syncRepository = UsageSyncRepository(
@@ -794,7 +915,7 @@ class StoredAnalysisRoomTest {
         dailySummaryRepository = dailySummaryRepository,
         packageLabel = packageLabel,
         isLauncherApp = { launchable },
-        currentTimeMillis = { syncedThroughMillis },
+        currentTimeMillis = { nowMillis },
     )
 
     private fun repository() = DailySummaryRepository(

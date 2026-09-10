@@ -8,7 +8,7 @@ const val MAX_CUSTOM_RANGE_DAYS = 1_095L
 
 /** Periods that can be analyzed regardless of how much history has been recorded. */
 val DEFAULT_ANALYSIS_PERIODS: Set<AnalysisPeriod> =
-    AnalysisPeriod.entries.filterTo(mutableSetOf()) { it.hours != null }
+    AnalysisPeriod.entries.filterTo(mutableSetOf()) { it.hours != null || it.calendarDays != null }
 
 fun availableAnalysisPeriods(
     recordRangeStartMillis: Long?,
@@ -16,7 +16,7 @@ fun availableAnalysisPeriods(
     zoneId: ZoneId,
 ): Set<AnalysisPeriod> = AnalysisPeriod.entries.filterTo(mutableSetOf()) { period ->
     when {
-        period.hours != null -> true
+        period in DEFAULT_ANALYSIS_PERIODS -> true
         recordRangeStartMillis == null || recordRangeEndMillis == null -> false
         recordRangeStartMillis >= recordRangeEndMillis -> false
         period == AnalysisPeriod.CUSTOM -> true
