@@ -30,6 +30,7 @@ import androidx.window.layout.FoldingFeature
 import androidx.window.layout.WindowInfoTracker
 import com.google.android.gms.oss.licenses.v2.OssLicensesMenuActivity
 import com.nagopy.android.foldlytics.data.toDisplayConfiguration
+import com.nagopy.android.foldlytics.insight.UsageInsightViewModel
 import com.nagopy.android.foldlytics.share.SummaryImageShare
 import com.nagopy.android.foldlytics.ui.FoldlyticsScreen
 import com.nagopy.android.foldlytics.ui.FoldlyticsTheme
@@ -45,6 +46,7 @@ private const val PRIVACY_POLICY_URL = "https://www.nagopy.com/privacy-policy/"
 
 class MainActivity : ComponentActivity(), SensorEventListener {
     private val viewModel: MainViewModel by viewModels()
+    private val insightViewModel: UsageInsightViewModel by viewModels()
     private var homeNavigationRequest by mutableIntStateOf(0)
     private lateinit var sensorManager: SensorManager
     private var hingeSensor: Sensor? = null
@@ -104,6 +106,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         setContent {
             FoldlyticsTheme {
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
+                val insightState by insightViewModel.state.collectAsStateWithLifecycle()
                 FoldlyticsScreen(
                     state = state,
                     homeNavigationRequest = homeNavigationRequest,
@@ -120,6 +123,8 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                     onOpenPrivacyPolicy = ::openPrivacyPolicy,
                     onOpenOssLicenses = ::openOssLicenses,
                     onShareSummary = ::shareSummaryImage,
+                    insightState = insightState,
+                    onInsightVisibilityChanged = insightViewModel::setHomeVisible,
                 )
             }
         }

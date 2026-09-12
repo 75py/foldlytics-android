@@ -76,6 +76,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
+import com.nagopy.android.foldlytics.insight.InsightStatus
+import com.nagopy.android.foldlytics.insight.UsageInsightUiState
 
 internal const val CUSTOM_PERIOD_DIALOG_TITLE_TAG = "custom_period_dialog_title"
 internal const val CUSTOM_PERIOD_DIALOG_GUIDANCE_TAG = "custom_period_dialog_guidance"
@@ -99,6 +101,7 @@ internal fun HomeScreen(
     onOpenAppUsage: () -> Unit,
     onOpenInnerSessions: () -> Unit,
     screenshotSectionEndSpacing: Dp,
+    insightState: UsageInsightUiState = UsageInsightUiState(),
 ) {
     FoldlyticsLazyColumn(
         scaffoldPadding = scaffoldPadding,
@@ -113,6 +116,9 @@ internal fun HomeScreen(
             }
         }
         item { LiveStateCard(state) }
+        if (insightState.status != InsightStatus.HIDDEN) {
+            item { UsageInsightCard(insightState) }
+        }
         item {
             ResultHeader(
                 state = state,
