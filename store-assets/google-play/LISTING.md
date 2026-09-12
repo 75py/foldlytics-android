@@ -68,7 +68,7 @@ Foldlyticsは、外側・内側の画面を使った時間や、画面ごとに�
 利用サマリーは、画像にして共有できます。保存済みの全期間の記録を、日ごとに集計したCSVとして書き出すこともできます。
 
 データは端末内に保存
-利用履歴は端末内で処理し、外部サーバーへ自動送信しません。広告やアクセス解析SDKは使用していません。CSV保存、サマリー画像や診断レポートの共有は、自分で操作したときだけ行われます。保存した履歴は、Androidの設定からアプリデータを消去するか、アンインストールすると削除できます。
+利用履歴とAI説明文の入力・出力は端末内で処理し、外部サーバーへ自動送信しません。説明文に使うML Kitは、別途APIの性能・利用状況の指標をGoogleへ送信します。広告は表示しません。CSV保存、サマリー画像や診断レポートの共有は、自分で操作したときだけ行われます。保存した履歴は、Androidの設定からアプリデータを消去するか、アンインストールすると削除できます。
 
 ご利用にあたって
 Android 10以降の対応する折りたたみ端末と、Androidの「利用状況へのアクセス」の許可が必要です。表示されたアプリ、画面の点灯・ロック状態などの記録を読み取り、アプリを閉じている間も定期的に記録を更新します。
@@ -138,7 +138,7 @@ See your inner display share in a widget. A larger layout also shows inner and c
 Share your usage summary as an image, or export daily totals for all your saved history as a CSV file.
 
 Your history stays on your device
-Foldlytics processes your usage history on your device and does not automatically send it to an external server. There are no ads or analytics SDKs. CSV export, summary image sharing, and diagnostic report sharing happen only when you choose them. Delete your saved history by clearing the app's data in Android settings or uninstalling the app.
+Foldlytics processes usage history and AI explanation inputs and outputs on your device without automatically sending their contents to an external server. ML Kit, used for explanations, separately sends API performance and utilization metrics to Google. There are no ads. CSV export, summary image sharing, and diagnostic report sharing happen only when you choose them. Delete your saved history by clearing the app's data in Android settings or uninstalling the app.
 
 Before you start
 You need a compatible foldable device running Android 10 or later and Android Usage Access permission. Foldlytics reads records of which apps were displayed, screen and lock states, and related events. It updates your history periodically even while the app is closed.
@@ -171,7 +171,8 @@ Screenshot headline candidates:
 - バージョン間の変更説明ではなく、初めて読む人に現在のアプリを説明する。
 - 日本語は`外側` / `内側`、英語は`cover display` / `inner display`を使う。
 - `開いた回数`だけで終わらせず、本文では`検出した` / `detected`を付ける。
-- `送信しない`ではなく`自動送信しない`とし、ユーザー操作によるCSV保存・共有を
+- ML Kit版の掲載文は改定案。公開前に[リリース条件](../../docs/MLKIT-INSIGHTS.md)を満たし、プライバシーポリシーとData safetyを改定する。
+- 利用履歴・生成内容とML Kitの指標送信を区別する。利用履歴は`自動送信しない`とし、ユーザー操作によるCSV保存・共有を
   別に説明する。
 - `利用時間`は端末全体、アプリ別は厳密には`表示時間`であることを、READMEと
   プライバシーポリシーで補足する。

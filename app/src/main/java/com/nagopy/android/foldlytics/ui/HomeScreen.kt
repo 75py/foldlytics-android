@@ -59,6 +59,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nagopy.android.foldlytics.MainUiState
 import com.nagopy.android.foldlytics.R
+import com.nagopy.android.foldlytics.insight.InsightStatus
+import com.nagopy.android.foldlytics.insight.UsageInsightUiState
 import com.nagopy.android.foldlytics.labelRes
 import com.nagopy.android.foldlytics.model.AnalysisPeriod
 import com.nagopy.android.foldlytics.model.AppUsage
@@ -99,6 +101,7 @@ internal fun HomeScreen(
     onOpenAppUsage: () -> Unit,
     onOpenInnerSessions: () -> Unit,
     screenshotSectionEndSpacing: Dp,
+    insightState: UsageInsightUiState = UsageInsightUiState(),
 ) {
     FoldlyticsLazyColumn(
         scaffoldPadding = scaffoldPadding,
@@ -113,6 +116,9 @@ internal fun HomeScreen(
             }
         }
         item { LiveStateCard(state) }
+        if (insightState.status != InsightStatus.HIDDEN) {
+            item { UsageInsightCard(insightState) }
+        }
         item {
             ResultHeader(
                 state = state,

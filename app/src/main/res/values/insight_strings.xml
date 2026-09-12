@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="insight_title">Your display habits</string>
+    <string name="insight_period">Past 30 complete days: %1$s – %2$s</string>
+    <string name="insight_generated_note">Generated on this device with Gemini Nano. AI can make mistakes; check the evidence.</string>
+    <string name="insight_privacy_note">Usage records and generated text stay on-device. Google receives ML Kit performance and usage metrics.</string>
+    <string name="insight_generating">Preparing your display habits…</string>
+    <string name="insight_insufficient">An explanation will appear automatically once there is enough reliable recorded usage.</string>
+    <string name="insight_unavailable">An explanation could not be prepared. Your usage charts are still available.</string>
+    <string name="insight_evidence">See evidence</string>
+</resources>
