@@ -6,9 +6,17 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val prepareInsightLicenses by tasks.registering(Copy::class) {
+    from("src/main/cpp/LLAMA-LICENSE.txt", "../insight_model/QWEN-LICENSE.txt")
+    into(layout.buildDirectory.dir("generated/insightLicenses"))
+}
+tasks.named("preBuild") { dependsOn(prepareInsightLicenses) }
+
 android {
     namespace = "com.nagopy.android.foldlytics"
     compileSdk = 36
+    ndkVersion = "28.2.13676358"
+    assetPacks += listOf(":insight_model")
 
     defaultConfig {
         applicationId = "com.nagopy.android.foldlytics"
@@ -18,6 +26,13 @@ android {
         versionName = "1.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
+        externalNativeBuild {
+            cmake {
+                arguments += "-DANDROID_STL=c++_shared"
+                cppFlags += "-std=c++17"
+            }
+        }
     }
 
     buildTypes {
@@ -37,6 +52,20 @@ android {
         buildConfig = true
         resValues = true
     }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+    // Standalone debug APKs may include the fixed model for offline device tests.
+    // Store bundles deliver it in the install-time asset pack instead of the base APK.
+    if (providers.gradleProperty("includeInsightModelInApk").orNull == "true") {
+        sourceSets.getByName("debug").assets.srcDir("../insight_model/src/main/assets")
+    }
+    androidResources { noCompress += "gguf" }
+    sourceSets.getByName("main").assets.srcDir(layout.buildDirectory.dir("generated/insightLicenses").get().asFile)
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

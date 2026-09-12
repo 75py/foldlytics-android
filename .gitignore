@@ -36,6 +36,8 @@ secrets.properties
 .env.*
 !.env.example
 google-services.json
+insight_model/src/main/assets/*.gguf
+insight_model/src/main/assets/*.part
 service-account*.json
 play-publisher-credentials.json
 
