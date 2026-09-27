@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.9"
-# dependencies = ["playwright>=1.40"]
+# dependencies = ["playwright>=1.40", "numpy>=1.24", "scipy>=1.10"]
 # ///
 """Render the 30-second Google Play preview video for each locale.
 
 The video reuses the phone screenshot slots from render-phone-screenshots.py
 (headlines, subtitles, crop regions and raw captures), so the video and the
 upload-ready screenshots stay in sync. preview-video/template.html holds the
-layout and the animation timeline; this script drives it frame by frame in
-headless Chromium and encodes the frames with ffmpeg.
+layout and animation; this script drives it frame by frame in headless
+Chromium, encodes the frames with ffmpeg and adds the synthesized soundtrack
+from preview-video/soundtrack.py. TIMELINE below is the single source of timing
+for both the animation and the soundtrack.
 
 Run through generate-preview-video.sh, which checks the dependencies.
 """
@@ -22,6 +24,7 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import tempfile
 
 from playwright.sync_api import sync_playwright
 
@@ -31,11 +34,34 @@ OUTPUT_DIR = SCRIPT_DIR / "preview-video" / "output"
 ICON = SCRIPT_DIR.parent / "app-icon-512.png"
 FPS = 30
 
-_spec = importlib.util.spec_from_file_location(
-    "render_phone_screenshots", SCRIPT_DIR / "render-phone-screenshots.py"
-)
-screenshots = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(screenshots)
+
+
+def _load(name: str, path: pathlib.Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+screenshots = _load("render_phone_screenshots", SCRIPT_DIR / "render-phone-screenshots.py")
+soundtrack = _load("preview_soundtrack", SCRIPT_DIR / "preview-video" / "soundtrack.py")
+
+# Seconds. Scenes follow the screenshot slots; each scene exits during the last
+# exitLength seconds of its own slot, before the next scene enters.
+SCENE0 = 3.8
+SCENE_LENGTH = 3.7
+TIMELINE = {
+    "duration": 30.0,
+    "foldOpen": [0.9, 2.3],
+    "ringFill": [2.1, 3.2],
+    "hookEnd": SCENE0,
+    "scene0": SCENE0,
+    "sceneLength": SCENE_LENGTH,
+    "exitLength": 0.35,
+    # Filled in per locale from the number of slots (end card after the last scene).
+    "endStart": None,
+}
+LOUDNESS = "loudnorm=I=-16:TP=-1.5:LRA=11"
 
 TEXT = {
     "ja": {
@@ -66,6 +92,10 @@ DONUT = {
 DONUT_INNER = (259 * 60 + 1) / ((259 * 60 + 1) + (145 * 60 + 26))
 
 
+def timeline_for(scene_count: int) -> dict:
+    return {**TIMELINE, "endStart": SCENE0 + SCENE_LENGTH * scene_count + 0.05}
+
+
 def video_data(locale: str, magick: str) -> dict:
     slots = []
     for name, headline, sub, layers in screenshots.SLOTS[locale]:
@@ -80,6 +110,7 @@ def video_data(locale: str, magick: str) -> dict:
         "ribbon": screenshots.RIBBON.as_uri(),
         "icon": ICON.as_uri(),
         "donutInner": DONUT_INNER,
+        "timeline": timeline_for(len(slots)),
         **TEXT[locale],
     }
 
@@ -91,6 +122,7 @@ def main() -> None:
         "--frames",
         help="comma-separated times in seconds; write PNG stills instead of a video",
     )
+    parser.add_argument("--no-audio", action="store_true", help="encode the video without the soundtrack")
     args = parser.parse_args()
     unknown = [locale for locale in args.locales if locale not in TEXT]
     if unknown:
@@ -113,7 +145,8 @@ def main() -> None:
         page = browser.new_page(viewport={"width": 1080, "height": 1920}, device_scale_factor=1)
         for locale in locales:
             page.goto(TEMPLATE.as_uri())
-            duration = page.evaluate("data => setup(data)", video_data(locale, magick))
+            data = video_data(locale, magick)
+            duration = page.evaluate("data => setup(data)", data)
             if args.frames:
                 for seconds in (float(value) for value in args.frames.split(",")):
                     page.evaluate(f"render({seconds})")
@@ -122,7 +155,7 @@ def main() -> None:
                     print(still)
                 continue
             output = OUTPUT_DIR / f"foldlytics-preview-{locale}.mp4"
-            partial = output.with_suffix(".partial.mp4")
+            partial = output.with_suffix(".video.mp4")
             encoder = subprocess.Popen(
                 [ffmpeg, "-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", str(FPS),
                  "-i", "-", "-c:v", "libx264", "-preset", "slow", "-crf", "16",
@@ -138,9 +171,28 @@ def main() -> None:
                 encoder.wait()
             if encoder.returncode != 0:
                 sys.exit(f"ffmpeg failed for {locale}")
-            partial.replace(output)
+            if args.no_audio:
+                partial.replace(output)
+            else:
+                add_soundtrack(ffmpeg, partial, output, data["timeline"], len(data["slots"]))
+                partial.unlink()
             print(output)
         browser.close()
+
+
+def add_soundtrack(ffmpeg: str, video: pathlib.Path, output: pathlib.Path, timeline: dict,
+                   scene_count: int) -> None:
+    with tempfile.TemporaryDirectory(prefix="foldlytics-preview-audio.") as work:
+        wav = pathlib.Path(work) / "soundtrack.wav"
+        soundtrack.write_soundtrack(wav, timeline, scene_count)
+        staged = pathlib.Path(work) / output.name
+        subprocess.run(
+            [ffmpeg, "-y", "-loglevel", "error", "-i", str(video), "-i", str(wav),
+             "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-af", LOUDNESS, "-ar", "44100",
+             "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", str(staged)],
+            check=True,
+        )
+        shutil.move(staged, output)
 
 
 if __name__ == "__main__":

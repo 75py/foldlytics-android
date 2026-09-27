@@ -5,8 +5,9 @@
   render-preview-video.py calls setup(data) once per locale and then render(t)
   for every frame. Scenes reuse the phone screenshot slots, so the crop layout
   here mirrors phone-template/template.html.
-  Timeline: 0-4 s folding-phone hook, one 3.7 s scene per screenshot slot,
-  then the end card until 30 s.
+  Timing comes from TIMELINE in render-preview-video.py (passed as
+  data.timeline), which also drives the soundtrack. Each scene finishes its
+  exit before the next scene enters, so headlines never overlap.
 -->
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -102,9 +103,9 @@ const eio = (x) => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
 const $ = (id) => document.getElementById(id);
 const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
-// Timeline (seconds)
-const HOOK_END = 4.0, SCENE0 = 3.8, SCENE_LEN = 3.7, EXIT = 0.4;
-let D, scenes = [], DUR = 30, END0;
+// Timeline (seconds), set from data.timeline in setup().
+let HOOK_END, SCENE0, SCENE_LEN, EXIT, END0, DUR, FOLD, RING;
+let D, scenes = [];
 
 function buildLayer(layer) {
   const el = document.createElement("div");
@@ -162,6 +163,9 @@ function ringSVG(id, label) {
 
 window.setup = async (data) => {
   D = data;
+  const tl = data.timeline;
+  ({ hookEnd: HOOK_END, scene0: SCENE0, sceneLength: SCENE_LEN, exitLength: EXIT,
+     endStart: END0, duration: DUR, foldOpen: FOLD, ringFill: RING } = tl);
   const ribbonUrl = `url("${data.ribbon}")`;
   $("ribbon").style.backgroundImage = ribbonUrl;
   $("bigRibbon").style.backgroundImage = ribbonUrl;
@@ -182,7 +186,6 @@ window.setup = async (data) => {
     root.appendChild(sc);
     scenes.push({ el: sc, layers, lines: [...sc.querySelectorAll("h1 span")], sub: sc.querySelector("p"), bar: sc.querySelector(".bar") });
   });
-  END0 = SCENE0 + SCENE_LEN * data.slots.length + EXIT - 0.1;
   await Promise.all([...document.images].map((i) => i.decode()));
   const pre = new Image(); pre.src = data.ribbon; await pre.decode();
   await document.fonts.ready;
@@ -193,41 +196,51 @@ window.setup = async (data) => {
 window.render = (t) => {
   $("orbit").style.transform = `rotate(${t * 3}deg)`;
   // ---- hook ----
-  const hIn = eo(lin(t, 0, 0.7)), hOut = eio(lin(t, HOOK_END - 0.5, HOOK_END));
+  const hIn = eo(lin(t, 0, 0.7)), hOut = eio(lin(t, HOOK_END - 0.45, HOOK_END));
   const hook = $("hook");
   hook.style.display = t > HOOK_END ? "none" : "block";
   hook.style.opacity = 1 - hOut;
   [...$("hookText").children].forEach((l, i) => {
     const k = eo(lin(t, 0.1 + 0.1 * i, 0.7 + 0.1 * i)); l.style.opacity = k; l.style.transform = `translateY(${(1 - k) * 50}px)`;
   });
-  const open = eio(lin(t, 0.9, 2.3));
+  const open = eio(lin(t, FOLD[0], FOLD[1]));
   $("pr").style.transform = `rotateY(${-180 * (1 - open)}deg)`;
-  $("hinge").style.opacity = lin(t, 2.2, 2.4);
+  $("hinge").style.opacity = lin(t, FOLD[1] - .1, FOLD[1] + .1);
   $("dev").style.transform = `translateX(${190 * (1 - open)}px) translateY(${(1 - hIn) * 120 - hOut * 80}px) rotateX(${10 - 4 * open}deg) rotateY(${-28 * (1 - open) + 5 * Math.sin(t * .8) * open}deg) scale(${1 - .2 * hOut})`;
-  const ring = eo(lin(t, 2.1, 3.2)), C = 2 * Math.PI * 190;
+  const ring = eo(lin(t, RING[0], RING[1])), C = 2 * Math.PI * 190;
   ["rl", "rr"].forEach((id) => {
     const pb = Math.min(ring, .64), po = Math.max(0, ring - .64);
     $(id + "b").setAttribute("stroke-dasharray", `${C * pb} ${C}`);
     $(id + "o").setAttribute("stroke-dasharray", `0 ${C * .64} ${C * po} ${C}`);
-    $(id + "t").textContent = Math.round(64 * eo(lin(t, 2.1, 3.0))) + "%";
+    $(id + "t").textContent = Math.round(64 * eo(lin(t, RING[0], RING[1] - .2))) + "%";
   });
   // ---- scenes ----
   scenes.forEach((s, k) => {
+    // Scene k owns [a, b]. It exits during [b - EXIT, b], before scene k + 1
+    // starts entering at b, so outgoing and incoming text never share a frame.
     const a = SCENE0 + SCENE_LEN * k, b = a + SCENE_LEN;
-    const visible = t >= a && t <= b + EXIT;
+    const visible = t >= a && t <= b;
     s.el.style.display = visible ? "block" : "none";
     if (!visible) return;
-    const out = eio(lin(t, b, b + EXIT));
-    s.el.style.opacity = 1 - out;
-    s.el.style.transform = `translateX(${-90 * out}px)`;
-    s.bar.style.transform = `scaleY(${eo(lin(t, a, a + .5))})`;
-    s.lines.forEach((l, i) => { const q = eo(lin(t, a + .05 + .08 * i, a + .6 + .08 * i)); l.style.opacity = q; l.style.transform = `translateX(${(1 - q) * 60}px)`; });
-    const q = eo(lin(t, a + .3, a + .85)); s.sub.style.opacity = q; s.sub.style.transform = `translateY(${(1 - q) * 24}px)`;
+    s.el.style.opacity = 1;
+    const out = eio(lin(t, b - EXIT, b));
+    const first = k === 0, last = k === scenes.length - 1;
+    // The accent bar stays put between scenes; it only grows in and shrinks out.
+    const barIn = first ? eo(lin(t, a, a + .5)) : 1, barOut = last ? out : 0;
+    s.bar.style.transform = `scaleY(${barIn * (1 - barOut)})`;
+    s.lines.forEach((l, i) => {
+      const q = eo(lin(t, a + .05 + .08 * i, a + .6 + .08 * i));
+      l.style.opacity = q * (1 - out);
+      l.style.transform = `translateX(${(1 - q) * 60 - out * 40}px)`;
+    });
+    const q = eo(lin(t, a + .3, a + .85));
+    s.sub.style.opacity = q * (1 - out);
+    s.sub.style.transform = `translate(${-out * 40}px, ${(1 - q) * 24}px)`;
     s.layers.forEach((l, i) => {
-      const st = a + .25 + .3 * i, e = eo(lin(t, st, st + .75));
-      const drift = 1 + .025 * eio(lin(t, st + .75, b + EXIT));
-      l.style.opacity = lin(t, st, st + .3);
-      l.style.transform = `translateY(${(1 - e) * 160}px) scale(${(.96 + .04 * e) * drift})`;
+      const st = a + .12 + .3 * i, e = eo(lin(t, st, st + .75));
+      const drift = 1 + .025 * eio(lin(t, st + .75, b));
+      l.style.opacity = lin(t, st, st + .3) * (1 - out);
+      l.style.transform = `translate(${-90 * out}px, ${(1 - e) * 160}px) scale(${(.96 + .04 * e) * drift})`;
     });
     // donut redraw on the summary scene
     const dk = eio(lin(t, a + .8, a + 2.0));
