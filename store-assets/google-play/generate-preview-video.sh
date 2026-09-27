@@ -11,12 +11,21 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 renderer="$script_dir/render-preview-video.py"
 
-for tool in ffmpeg magick; do
-    if ! command -v "$tool" >/dev/null 2>&1; then
-        echo "$tool was not found on PATH" >&2
-        exit 1
-    fi
+if ! command -v magick >/dev/null 2>&1; then
+    echo "magick was not found on PATH" >&2
+    exit 1
+fi
+
+frames_only=false
+for arg in "$@"; do
+    case "$arg" in
+        --frames|--frames=*) frames_only=true ;;
+    esac
 done
+if [[ "$frames_only" == false ]] && ! command -v ffmpeg >/dev/null 2>&1; then
+    echo "ffmpeg was not found on PATH" >&2
+    exit 1
+fi
 
 if python3 -c 'import playwright, numpy, scipy' >/dev/null 2>&1; then
     exec python3 "$renderer" "$@"

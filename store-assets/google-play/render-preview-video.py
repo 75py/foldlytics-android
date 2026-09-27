@@ -93,7 +93,11 @@ DONUT_INNER = (259 * 60 + 1) / ((259 * 60 + 1) + (145 * 60 + 26))
 
 
 def timeline_for(scene_count: int) -> dict:
-    return {**TIMELINE, "endStart": SCENE0 + SCENE_LENGTH * scene_count + 0.05}
+    end_start = SCENE0 + SCENE_LENGTH * scene_count + 0.05
+    # The last end-card chips finish entering 1.7 seconds after endStart.
+    if end_start + 1.7 > TIMELINE["duration"]:
+        sys.exit("Too many screenshot slots for the 30-second preview; shorten the scenes")
+    return {**TIMELINE, "endStart": end_start}
 
 
 def video_data(locale: str, magick: str) -> dict:
@@ -156,27 +160,35 @@ def main() -> None:
                 continue
             output = OUTPUT_DIR / f"foldlytics-preview-{locale}.mp4"
             partial = output.with_suffix(".video.mp4")
-            encoder = subprocess.Popen(
-                [ffmpeg, "-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", str(FPS),
-                 "-i", "-", "-c:v", "libx264", "-preset", "slow", "-crf", "16",
-                 "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(partial)],
-                stdin=subprocess.PIPE,
-            )
             try:
-                for frame in range(round(duration * FPS)):
-                    page.evaluate(f"render({frame / FPS})")
-                    encoder.stdin.write(page.screenshot(type="png"))
+                encoder = subprocess.Popen(
+                    [ffmpeg, "-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", str(FPS),
+                     "-i", "-", "-c:v", "libx264", "-preset", "slow", "-crf", "16",
+                     "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(partial)],
+                    stdin=subprocess.PIPE,
+                )
+                broken_pipe = False
+                try:
+                    for frame in range(round(duration * FPS)):
+                        page.evaluate(f"render({frame / FPS})")
+                        encoder.stdin.write(page.screenshot(type="png"))
+                except BrokenPipeError:
+                    broken_pipe = True
+                finally:
+                    try:
+                        encoder.stdin.close()
+                    except BrokenPipeError:
+                        broken_pipe = True
+                    encoder.wait()
+                if broken_pipe or encoder.returncode != 0:
+                    sys.exit(f"ffmpeg failed for {locale} (exit {encoder.returncode})")
+                if args.no_audio:
+                    partial.replace(output)
+                else:
+                    add_soundtrack(ffmpeg, partial, output, data["timeline"], len(data["slots"]))
+                print(output)
             finally:
-                encoder.stdin.close()
-                encoder.wait()
-            if encoder.returncode != 0:
-                sys.exit(f"ffmpeg failed for {locale}")
-            if args.no_audio:
-                partial.replace(output)
-            else:
-                add_soundtrack(ffmpeg, partial, output, data["timeline"], len(data["slots"]))
-                partial.unlink()
-            print(output)
+                partial.unlink(missing_ok=True)
         browser.close()
 
 
