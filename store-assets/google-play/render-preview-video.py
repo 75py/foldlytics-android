@@ -128,13 +128,19 @@ def main() -> None:
     )
     parser.add_argument("--no-audio", action="store_true", help="encode the video without the soundtrack")
     args = parser.parse_args()
+    frame_times = None
+    if args.frames is not None:
+        try:
+            frame_times = [float(value) for value in args.frames.split(",")]
+        except ValueError:
+            parser.error("--frames requires comma-separated times")
     unknown = [locale for locale in args.locales if locale not in TEXT]
     if unknown:
         parser.error(f"unknown locale: {', '.join(unknown)}")
     locales = args.locales or list(TEXT)
 
     ffmpeg = shutil.which("ffmpeg")
-    if ffmpeg is None and not args.frames:
+    if ffmpeg is None and frame_times is None:
         sys.exit("ffmpeg was not found on PATH")
     magick = shutil.which("magick")
     if magick is None:
@@ -151,8 +157,8 @@ def main() -> None:
             page.goto(TEMPLATE.as_uri())
             data = video_data(locale, magick)
             duration = page.evaluate("data => setup(data)", data)
-            if args.frames:
-                for seconds in (float(value) for value in args.frames.split(",")):
+            if frame_times is not None:
+                for seconds in frame_times:
                     page.evaluate(f"render({seconds})")
                     still = OUTPUT_DIR / f"{locale}-{seconds:05.2f}s.png"
                     page.screenshot(path=str(still))
