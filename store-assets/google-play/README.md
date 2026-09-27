@@ -166,6 +166,44 @@ details, and the drawer. It also renders the current small and wide widgets and 
 image from the same fixture. The app theme passes the active locale to Compose typography so
 `ja-JP` captures use Japanese CJK glyph forms.
 
+## Preview video
+
+`generate-preview-video.sh` renders a 30-second portrait preview video for each locale into
+`preview-video/output/foldlytics-preview-{ja,en}.mp4` (1080 x 1920, 30 fps, H.264, AAC stereo
+soundtrack normalized to about -16 LUFS).
+The output directory is ignored by Git; upload the file to YouTube and enter its URL in Play
+Console.
+
+- 0-4 s: a folding phone opens from the cover display to the inner display with the listing
+  question as the headline.
+- 4-26 s: the six phone screenshot slots, 3.7 s each, with the same headlines, subtitles and crop
+  regions as the upload-ready screenshots. The summary scene redraws its donut. Each scene fades
+  out before the next one enters, so consecutive headlines never overlap; the accent bar stays.
+- 26-30 s: the ribbon, app icon, name, tagline and on-device/no-ads chips.
+
+The scenes read `SLOTS` from `render-phone-screenshots.py`, so screenshot changes carry over to the
+video. The layout and animation live in `preview-video/template.html`; the timing lives in
+`TIMELINE` in `render-preview-video.py`, which drives both the animation and the soundtrack.
+
+The soundtrack (`preview-video/soundtrack.py`) is synthesized from oscillators and filtered noise
+with a fixed seed, so it contains no third-party music or samples and renders identically each
+time. One scene is two bars of a light, mid-tempo track; effects mark the unfolding phone, each
+scene change and the logo. Use `--no-audio` for a silent video. The donut redraw uses the
+donut position measured on the current `01-summary.png` captures (`DONUT` in
+`render-preview-video.py`); recheck it when the summary card moves.
+
+```shell
+./store-assets/google-play/generate-preview-video.sh          # both locales
+./store-assets/google-play/generate-preview-video.sh ja       # one locale
+./store-assets/google-play/generate-preview-video.sh ja --frames 2.5,5.2,28
+```
+
+`--frames` writes PNG stills for quick checks instead of encoding a video. Rendering takes a few
+minutes per locale. The script needs ffmpeg, numpy and scipy in addition to the screenshot
+generator's requirements (ImageMagick 7 and Python Playwright with Chromium); with `uv` on PATH it
+runs with its inline dependencies. Google Play may autoplay the preview muted, so every scene
+carries its message in on-screen text and the soundtrack is optional polish.
+
 ## Display-share review screenshots
 
 `StoreScreenshotCaptureTest` also has two independent review scenarios:
