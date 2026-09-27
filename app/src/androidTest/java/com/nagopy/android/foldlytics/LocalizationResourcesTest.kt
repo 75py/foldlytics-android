@@ -48,7 +48,17 @@ class LocalizationResourcesTest {
             context.getString(R.string.home_inner_sessions_link_title),
         )
         assertEquals("Inner share", context.getString(R.string.usage_trend_inner_ratio))
-        assertEquals("Open count", context.getString(R.string.usage_trend_open_count))
+        assertEquals("Opens", context.getString(R.string.usage_trend_open_count))
+        assertEquals("Opens", context.getString(R.string.legend_open_count))
+        assertEquals("Show opens over time", context.getString(R.string.content_desc_select_open_count_trend))
+        assertEquals(
+            "8/15: 1 open",
+            context.resources.getQuantityString(R.plurals.content_desc_chart_opened, 1, "8/15", 1),
+        )
+        assertEquals(
+            "8/15: 2 opens",
+            context.resources.getQuantityString(R.plurals.content_desc_chart_opened, 2, "8/15", 2),
+        )
         assertEquals(
             "How this is calculated",
             context.getString(R.string.inner_sessions_method_title),

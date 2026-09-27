@@ -50,7 +50,7 @@
     <string name="content_desc_live_state_unknown_access_required">Current device state: Unable to determine the active display. Usage access is needed to record.</string>
     <string name="content_desc_analysis_period_selector">Select analysis period. Current: %1$s</string>
     <string name="content_desc_select_inner_ratio_trend">Show inner share trend</string>
-    <string name="content_desc_select_open_count_trend">Show open count trend</string>
+    <string name="content_desc_select_open_count_trend">Show opens over time</string>
     <string name="content_desc_home_app_usage_link">Open app usage details.</string>
     <string name="content_desc_home_inner_sessions_link">Open inner-display use per opening details.</string>
     <string name="content_desc_inner_session_metrics">Median %1$s. Average %2$s. Longest %3$s.</string>
@@ -62,8 +62,8 @@
     <string name="content_desc_chart_no_data">%1$s: no data</string>
     <string name="content_desc_chart_inner_ratio">%1$s: inner %2$s</string>
     <plurals name="content_desc_chart_opened">
-        <item quantity="one">%1$s: opened %2$d time</item>
-        <item quantity="other">%1$s: opened %2$d times</item>
+        <item quantity="one">%1$s: %2$d open</item>
+        <item quantity="other">%1$s: %2$d opens</item>
     </plurals>
 
     <!-- Common labels and values -->
@@ -167,7 +167,7 @@
     <string name="home_inner_sessions_preview">Typical inner-display use per opening: median %1$s; longest %2$s.</string>
     <string name="home_inner_sessions_empty">No completed inner-display uses are available in this period.</string>
     <string name="usage_trend_inner_ratio">Inner share</string>
-    <string name="usage_trend_open_count">Open count</string>
+    <string name="usage_trend_open_count">Opens</string>
     <string name="app_usage_screen_title">App usage</string>
     <string name="inner_sessions_screen_title">Inner-display use per opening</string>
     <string name="inner_sessions_overview_title">Overview</string>
@@ -215,7 +215,7 @@
     <string name="label_inner_used_days">Days using inner display</string>
     <string name="label_change_from_first_30_days">Full-history change (first 30 vs latest 30)</string>
     <string name="legend_inner_ratio">Inner share</string>
-    <string name="legend_open_count">Open count</string>
+    <string name="legend_open_count">Opens</string>
     <string name="label_period_total">Period total</string>
 
     <!-- Inner-display sessions -->
