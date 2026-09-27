@@ -42,3 +42,6 @@ play-publisher-credentials.json
 
 # JVM diagnostics
 *.hprof
+
+# Rendered Play preview videos (uploaded to YouTube, not versioned)
+store-assets/google-play/preview-video/output/

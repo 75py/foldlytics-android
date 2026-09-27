@@ -1,0 +1,251 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<!--
+  Layout and timeline for the 30-second Google Play preview video.
+  render-preview-video.py calls setup(data) once per locale and then render(t)
+  for every frame. Scenes reuse the phone screenshot slots, so the crop layout
+  here mirrors phone-template/template.html.
+  Timeline: 0-4 s folding-phone hook, one 3.7 s scene per screenshot slot,
+  then the end card until 30 s.
+-->
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1080px; height: 1920px; overflow: hidden; }
+body { font-family: "Noto Sans CJK JP", "Noto Sans JP", "Hiragino Sans", sans-serif; color: #10213C; }
+#canvas { position: absolute; inset: 0; overflow: hidden;
+  background:
+    radial-gradient(900px 700px at 15% 8%, rgba(255,255,255,.85) 0%, rgba(255,255,255,0) 70%),
+    linear-gradient(180deg, #E6ECFF 0%, #D2DDFE 34%, #A9BCF6 72%, #869FEF 100%); }
+#ribbon { position: absolute; right: -380px; bottom: -200px; width: 1200px; height: 979px; opacity: .9;
+  background-repeat: no-repeat; background-size: 2004px 979px; background-position: -804px 0;
+  -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 55%, transparent 100%); }
+#orbit { position: absolute; left: 560px; top: -520px; width: 1100px; height: 1100px;
+  border: 2px dashed rgba(255,255,255,.45); border-radius: 50%; }
+.scene { position: absolute; inset: 0; opacity: 0; }
+.head { position: absolute; left: 84px; right: 60px; top: 132px; display: flex; gap: 30px; }
+.head .bar { width: 14px; border-radius: 7px; background: #C44E00; flex: none; transform-origin: top; }
+.head h1 { font-weight: 700; font-size: 96px; line-height: 1.16; letter-spacing: .005em; }
+.head h1 span { display: block; }
+.head.en h1 { font-size: 88px; line-height: 1.1; letter-spacing: -.01em; }
+.head p { font-weight: 500; font-size: 40px; line-height: 1.4; color: #33456A; margin-top: 26px; }
+.layer { position: absolute; transform-origin: 50% 0; }
+.frame { padding: 12px; background: #fff;
+  box-shadow: 0 34px 80px rgba(16,33,60,.26), 0 6px 18px rgba(16,33,60,.10); }
+.panel { overflow: hidden; }
+.region { position: relative; overflow: hidden; }
+.region img, .region svg { position: absolute; }
+.free { filter: drop-shadow(0 30px 40px rgba(16,33,60,.25)) drop-shadow(0 4px 10px rgba(16,33,60,.10)); }
+.free img { display: block; }
+/* hook: foldable */
+#hook { position: absolute; inset: 0; }
+#hookText { position: absolute; left: 0; right: 0; top: 230px; text-align: center; font-weight: 700; font-size: 92px; line-height: 1.22; }
+#hookText.en { font-size: 86px; line-height: 1.15; }
+#hookText span { display: block; }
+#fold { position: absolute; inset: 0; perspective: 2600px; perspective-origin: 540px 1150px; }
+#dev { position: absolute; left: 160px; top: 760px; width: 760px; height: 860px; transform-style: preserve-3d; }
+.panelf { position: absolute; top: 0; width: 380px; height: 860px; transform-style: preserve-3d; }
+#pl { left: 0; } #pr { left: 380px; transform-origin: 0 50%; }
+.face { position: absolute; inset: 0; background: #1a1e27; backface-visibility: hidden; overflow: hidden; }
+#pl .face { border-radius: 52px 0 0 52px; padding: 18px 0 18px 18px; }
+#pr .front { border-radius: 0 52px 52px 0; padding: 18px 18px 18px 0; }
+#pr .back { transform: rotateY(180deg); border-radius: 52px; padding: 18px; }
+.scr { width: 100%; height: 100%; overflow: hidden; position: relative; }
+#pl .scr { border-radius: 38px 0 0 38px; } #pr .front .scr { border-radius: 0 38px 38px 0; } #pr .back .scr { border-radius: 38px; }
+.inner { position: absolute; top: 0; width: 724px; height: 824px; background: radial-gradient(600px 500px at 50% 40%, #1f5fd6 0%, #0c2a74 60%, #081a47 100%); }
+#pl .inner { left: 0; } #pr .inner { left: -362px; }
+.cover { position: absolute; inset: 0; background: linear-gradient(170deg, #ffb36b 0%, #f07a2a 45%, #b8460a 100%); color: #fff; text-align: center; }
+.cover .clk { font-weight: 300; font-size: 120px; margin-top: 210px; }
+.cover .lbl { font-size: 36px; font-weight: 500; opacity: .9; margin-top: 10px; }
+/* end */
+#end { position: absolute; inset: 0; opacity: 0; }
+#bigRibbon { position: absolute; left: -40px; top: 150px; width: 1200px; height: 979px;
+  background-repeat: no-repeat; background-size: 2004px 979px; background-position: -804px 0;
+  -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 62%, transparent 100%); }
+#endtext { position: absolute; left: 0; right: 0; top: 1170px; text-align: center; }
+#endtext .logo { display: inline-flex; align-items: center; gap: 30px; }
+#endtext .logo img { width: 150px; height: 150px; border-radius: 34px; box-shadow: 0 14px 34px rgba(16,33,60,.25); }
+#endtext .logo span { font-size: 112px; font-weight: 700; letter-spacing: -.01em; }
+#endtext .tag { font-size: 46px; font-weight: 500; color: #23355a; margin-top: 44px; line-height: 1.45; }
+#endtext .chips { margin-top: 44px; display: flex; justify-content: center; gap: 22px; flex-wrap: wrap; padding: 0 60px; }
+#endtext .chip { font-size: 34px; font-weight: 500; padding: 14px 32px; border-radius: 40px; background: rgba(255,255,255,.75); }
+</style></head>
+<body>
+<div id="canvas">
+  <div id="orbit"></div>
+  <div id="ribbon"></div>
+  <div id="hook">
+    <div id="hookText"></div>
+    <div id="fold"><div id="dev">
+      <div class="panelf" id="pl"><div class="face"><div class="scr"><div class="inner" id="innerL"></div></div></div></div>
+      <div class="panelf" id="pr">
+        <div class="face front"><div class="scr"><div class="inner" id="innerR"></div></div></div>
+        <div class="face back"><div class="scr"><div class="cover"><div class="clk">9:41</div><div class="lbl" id="coverLbl"></div></div></div></div>
+      </div>
+      <div id="hinge" style="position:absolute;left:378px;top:18px;width:4px;height:824px;background:rgba(255,255,255,.10);transform:translateZ(1px)"></div>
+    </div></div>
+  </div>
+  <div id="scenes"></div>
+  <div id="end">
+    <div id="bigRibbon"></div>
+    <div id="endtext">
+      <div class="logo"><img id="icon"><span>Foldlytics</span></div>
+      <div class="tag" id="endTag"></div>
+      <div class="chips" id="endChips"></div>
+    </div>
+  </div>
+</div>
+<script>
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lin = (t, a, b) => clamp((t - a) / (b - a));
+const eo = (x) => 1 - Math.pow(1 - x, 3);
+const eio = (x) => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+// Timeline (seconds)
+const HOOK_END = 4.0, SCENE0 = 3.8, SCENE_LEN = 3.7, EXIT = 0.4;
+let D, scenes = [], DUR = 30, END0;
+
+function buildLayer(layer) {
+  const el = document.createElement("div");
+  el.className = "layer";
+  el.style.top = `${layer.top}px`;
+  if (layer.left !== undefined) el.style.left = `${layer.left}px`; else el.dataset.center = "1";
+  if (layer.type === "image") {
+    el.classList.add("free");
+    el.innerHTML = `<img src="${layer.src}" style="width:${layer.width}px">`;
+    return el;
+  }
+  const s = layer.scale, pad = layer.padding, ir = layer.radius * s, pr = ir + pad;
+  el.classList.add("frame");
+  el.style.borderRadius = `${pr + 12}px`;
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  Object.assign(panel.style, { padding: `${pad}px`, background: layer.background, borderRadius: `${pr}px` });
+  const body = document.createElement("div");
+  body.style.borderRadius = `${ir}px`; body.style.overflow = "hidden";
+  for (const [x, y, w, h] of layer.regions) {
+    const region = document.createElement("div");
+    region.className = "region";
+    region.style.width = `${w * s}px`; region.style.height = `${h * s}px`;
+    let svg = "";
+    const d = layer.donut;
+    if (d && d.cy >= y && d.cy < y + h) {
+      const C = 2 * Math.PI * d.r;
+      svg = `<svg width="${layer.srcWidth * s}" height="${1920 * s}" viewBox="0 0 ${layer.srcWidth} 1920" style="left:${-x * s}px;top:${-y * s}px">
+        <circle cx="${d.cx}" cy="${d.cy}" r="${d.r}" fill="none" stroke="rgb(230,224,233)" stroke-width="${d.w + 10}"/>
+        <circle class="dO" cx="${d.cx}" cy="${d.cy}" r="${d.r}" fill="none" stroke="#C44E00" stroke-width="${d.w}" transform="rotate(-90 ${d.cx} ${d.cy})" stroke-dasharray="0 ${C}"/>
+        <circle class="dB" cx="${d.cx}" cy="${d.cy}" r="${d.r}" fill="none" stroke="#0067A5" stroke-width="${d.w}" transform="rotate(-90 ${d.cx} ${d.cy})" stroke-dasharray="0 ${C}"/>
+      </svg>`;
+    }
+    region.innerHTML = `<img src="${layer.src}" style="width:${layer.srcWidth * s}px;left:${-x * s}px;top:${-y * s}px">${svg}`;
+    body.appendChild(region);
+  }
+  if (layer.cap) {
+    const cap = document.createElement("div");
+    Object.assign(cap.style, { height: `${34 * s}px`, margin: `0 ${3.5 * s}px`, background: "rgb(230,224,233)",
+      borderRadius: `0 0 ${44 * s}px ${44 * s}px` });
+    body.appendChild(cap);
+  }
+  panel.appendChild(body); el.appendChild(panel);
+  return el;
+}
+
+function ringSVG(id, label) {
+  return `<svg width="724" height="824" viewBox="0 0 724 824">
+   <circle cx="362" cy="400" r="190" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="56"/>
+   <circle id="${id}o" cx="362" cy="400" r="190" fill="none" stroke="#f07a2a" stroke-width="56" transform="rotate(-90 362 400)"/>
+   <circle id="${id}b" cx="362" cy="400" r="190" fill="none" stroke="#4d9bff" stroke-width="56" transform="rotate(-90 362 400)"/>
+   <text x="362" y="342" fill="#cfe0ff" font-size="40" font-weight="500" text-anchor="middle">${esc(label)}</text>
+   <text id="${id}t" x="362" y="460" fill="#fff" font-size="92" font-weight="700" text-anchor="middle">0%</text></svg>`;
+}
+
+window.setup = async (data) => {
+  D = data;
+  const ribbonUrl = `url("${data.ribbon}")`;
+  $("ribbon").style.backgroundImage = ribbonUrl;
+  $("bigRibbon").style.backgroundImage = ribbonUrl;
+  $("icon").src = data.icon;
+  $("hookText").className = data.locale;
+  $("hookText").innerHTML = data.hook.map((l) => `<span>${esc(l)}</span>`).join("");
+  $("innerL").innerHTML = ringSVG("rl", data.innerLabel);
+  $("innerR").innerHTML = ringSVG("rr", data.innerLabel);
+  $("coverLbl").textContent = data.coverLabel;
+  $("endTag").innerHTML = data.endTag.map(esc).join("<br>");
+  $("endChips").innerHTML = data.chips.map((c) => `<span class="chip">${esc(c)}</span>`).join("");
+  const root = $("scenes");
+  data.slots.forEach((slot) => {
+    const sc = document.createElement("div"); sc.className = "scene";
+    sc.innerHTML = `<div class="head ${data.locale}"><div class="bar"></div><div><h1>${slot.headline.map((l) => `<span>${esc(l)}</span>`).join("")}</h1><p>${esc(slot.sub)}</p></div></div>`;
+    const layers = slot.layers.map(buildLayer);
+    layers.forEach((l) => sc.appendChild(l));
+    root.appendChild(sc);
+    scenes.push({ el: sc, layers, lines: [...sc.querySelectorAll("h1 span")], sub: sc.querySelector("p"), bar: sc.querySelector(".bar") });
+  });
+  END0 = SCENE0 + SCENE_LEN * data.slots.length + EXIT - 0.1;
+  await Promise.all([...document.images].map((i) => i.decode()));
+  const pre = new Image(); pre.src = data.ribbon; await pre.decode();
+  await document.fonts.ready;
+  for (const s of scenes) for (const l of s.layers) if (l.dataset.center) l.style.left = `${(1080 - l.offsetWidth) / 2}px`;
+  return DUR;
+};
+
+window.render = (t) => {
+  $("orbit").style.transform = `rotate(${t * 3}deg)`;
+  // ---- hook ----
+  const hIn = eo(lin(t, 0, 0.7)), hOut = eio(lin(t, HOOK_END - 0.5, HOOK_END));
+  const hook = $("hook");
+  hook.style.display = t > HOOK_END ? "none" : "block";
+  hook.style.opacity = 1 - hOut;
+  [...$("hookText").children].forEach((l, i) => {
+    const k = eo(lin(t, 0.1 + 0.1 * i, 0.7 + 0.1 * i)); l.style.opacity = k; l.style.transform = `translateY(${(1 - k) * 50}px)`;
+  });
+  const open = eio(lin(t, 0.9, 2.3));
+  $("pr").style.transform = `rotateY(${-180 * (1 - open)}deg)`;
+  $("hinge").style.opacity = lin(t, 2.2, 2.4);
+  $("dev").style.transform = `translateX(${190 * (1 - open)}px) translateY(${(1 - hIn) * 120 - hOut * 80}px) rotateX(${10 - 4 * open}deg) rotateY(${-28 * (1 - open) + 5 * Math.sin(t * .8) * open}deg) scale(${1 - .2 * hOut})`;
+  const ring = eo(lin(t, 2.1, 3.2)), C = 2 * Math.PI * 190;
+  ["rl", "rr"].forEach((id) => {
+    const pb = Math.min(ring, .64), po = Math.max(0, ring - .64);
+    $(id + "b").setAttribute("stroke-dasharray", `${C * pb} ${C}`);
+    $(id + "o").setAttribute("stroke-dasharray", `0 ${C * .64} ${C * po} ${C}`);
+    $(id + "t").textContent = Math.round(64 * eo(lin(t, 2.1, 3.0))) + "%";
+  });
+  // ---- scenes ----
+  scenes.forEach((s, k) => {
+    const a = SCENE0 + SCENE_LEN * k, b = a + SCENE_LEN;
+    const visible = t >= a && t <= b + EXIT;
+    s.el.style.display = visible ? "block" : "none";
+    if (!visible) return;
+    const out = eio(lin(t, b, b + EXIT));
+    s.el.style.opacity = 1 - out;
+    s.el.style.transform = `translateX(${-90 * out}px)`;
+    s.bar.style.transform = `scaleY(${eo(lin(t, a, a + .5))})`;
+    s.lines.forEach((l, i) => { const q = eo(lin(t, a + .05 + .08 * i, a + .6 + .08 * i)); l.style.opacity = q; l.style.transform = `translateX(${(1 - q) * 60}px)`; });
+    const q = eo(lin(t, a + .3, a + .85)); s.sub.style.opacity = q; s.sub.style.transform = `translateY(${(1 - q) * 24}px)`;
+    s.layers.forEach((l, i) => {
+      const st = a + .25 + .3 * i, e = eo(lin(t, st, st + .75));
+      const drift = 1 + .025 * eio(lin(t, st + .75, b + EXIT));
+      l.style.opacity = lin(t, st, st + .3);
+      l.style.transform = `translateY(${(1 - e) * 160}px) scale(${(.96 + .04 * e) * drift})`;
+    });
+    // donut redraw on the summary scene
+    const dk = eio(lin(t, a + .8, a + 2.0));
+    s.el.querySelectorAll("svg").forEach((svg) => {
+      const b1 = svg.querySelector(".dB"), o1 = svg.querySelector(".dO"); if (!b1) return;
+      const C = 2 * Math.PI * +b1.getAttribute("r"), inner = D.donutInner;
+      b1.setAttribute("stroke-dasharray", `${C * Math.min(dk, inner)} ${C}`);
+      o1.setAttribute("stroke-dasharray", `0 ${C * inner} ${C * Math.max(0, dk - inner)} ${C}`);
+    });
+  });
+  // ---- end ----
+  const en = $("end"), ek = eo(lin(t, END0, END0 + .8));
+  en.style.opacity = lin(t, END0, END0 + .4);
+  $("ribbon").style.opacity = .9 * lin(t, HOOK_END - .3, HOOK_END + .4) * (1 - lin(t, END0 - .5, END0));
+  $("bigRibbon").style.transform = `translateX(${(1 - ek) * 200}px) scale(${1.02 + .03 * lin(t, END0, DUR)})`;
+  const lk = eo(lin(t, END0 + .3, END0 + .9));
+  const logo = document.querySelector("#endtext .logo"); logo.style.opacity = lin(t, END0 + .3, END0 + .5); logo.style.transform = `scale(${.85 + .15 * lk})`;
+  const tk = eo(lin(t, END0 + .7, END0 + 1.3)), tag = $("endTag"); tag.style.opacity = tk; tag.style.transform = `translateY(${(1 - tk) * 30}px)`;
+  const ck = eo(lin(t, END0 + 1.1, END0 + 1.7)), ch = $("endChips"); ch.style.opacity = ck; ch.style.transform = `translateY(${(1 - ck) * 30}px)`;
+};
+</script></body></html>
