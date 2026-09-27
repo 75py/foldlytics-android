@@ -18,16 +18,18 @@ import com.nagopy.android.foldlytics.R
 import java.text.DateFormat
 import java.text.NumberFormat
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Date
+import java.util.TimeZone
 import kotlin.math.roundToInt
 
 internal object SummaryWidgetRenderer {
     fun responsive(context: Context, id: Int, state: SummaryWidgetState): RemoteViews {
-        val small = render(context, id, state, wide = false)
-        val wide = render(context, id, state, wide = true)
+        val nowMillis = System.currentTimeMillis()
+        val zoneId = ZoneId.systemDefault()
+        val small = render(context, id, state, wide = false, nowMillis = nowMillis, zoneId = zoneId)
+        val wide = render(context, id, state, wide = true, nowMillis = nowMillis, zoneId = zoneId)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             return RemoteViews(mapOf(SizeF(140f, 140f) to small, SizeF(280f, 140f) to wide))
         }
@@ -37,7 +39,14 @@ internal object SummaryWidgetRenderer {
         return RemoteViews(landscape, portrait)
     }
 
-    fun render(context: Context, id: Int, state: SummaryWidgetState, wide: Boolean): RemoteViews {
+    fun render(
+        context: Context,
+        id: Int,
+        state: SummaryWidgetState,
+        wide: Boolean,
+        nowMillis: Long = System.currentTimeMillis(),
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): RemoteViews {
         val layout = if (wide) R.layout.summary_widget_wide else R.layout.summary_widget_small
         val views = RemoteViews(context.packageName, layout)
         val locale = context.resources.configuration.locales[0]
@@ -108,7 +117,9 @@ internal object SummaryWidgetRenderer {
         }
         views.setTextViewText(
             R.id.widget_sync,
-            state.lastSyncMillis?.let { context.getString(R.string.widget_updated, formatUpdatedAt(it, locale)) }
+            state.lastSyncMillis?.let {
+                context.getString(R.string.widget_updated, formatUpdatedAt(it, locale, nowMillis, zoneId))
+            }
                 ?: context.getString(R.string.widget_never_updated),
         )
         val open = Intent(context, MainActivity::class.java).apply {
@@ -156,16 +167,25 @@ internal object SummaryWidgetRenderer {
         )
     }
 
-    private fun formatUpdatedAt(timestamp: Long, locale: java.util.Locale): String {
+    private fun formatUpdatedAt(
+        timestamp: Long,
+        locale: java.util.Locale,
+        nowMillis: Long,
+        zoneId: ZoneId,
+    ): String {
         val date = Date(timestamp)
-        val zoneId = ZoneId.systemDefault()
         val updatedDate = Instant.ofEpochMilli(timestamp).atZone(zoneId).toLocalDate()
-        val today = LocalDate.now(zoneId)
-        val time = DateFormat.getTimeInstance(DateFormat.SHORT, locale).format(date)
+        val today = Instant.ofEpochMilli(nowMillis).atZone(zoneId).toLocalDate()
+        val timeZone = TimeZone.getTimeZone(zoneId)
+        val time = DateFormat.getTimeInstance(DateFormat.SHORT, locale).apply {
+            this.timeZone = timeZone
+        }.format(date)
         return when {
             updatedDate == today -> time
             updatedDate.year == today.year -> "${updatedDate.format(DateTimeFormatter.ofPattern("M/d", locale))} $time"
-            else -> DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, locale).format(date)
+            else -> DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, locale).apply {
+                this.timeZone = timeZone
+            }.format(date)
         }
     }
 

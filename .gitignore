@@ -3,6 +3,7 @@
 .kotlin/
 **/build/
 /dist/
+__pycache__/
 
 # Android local configuration and generated files
 local.properties

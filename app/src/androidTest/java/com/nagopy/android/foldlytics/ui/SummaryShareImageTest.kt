@@ -131,6 +131,23 @@ class SummaryShareImageTest {
     }
 
     @Test
+    fun storeImageOmitsTheDeviceNameWhileKeepingThePeriod() {
+        val resources = localizedContext(Locale.ENGLISH).resources
+        val result = SummaryShareImageRenderer.renderWithDiagnostics(
+            resources,
+            summary(period = AnalysisPeriod.DAYS_30),
+            includeDeviceName = false,
+        )
+
+        assertEquals("", result.content.deviceName)
+        assertEquals(result.content.visibleTexts, result.textMeasurements.map(SummaryShareTextMeasurement::text))
+        assertTrue(result.textMeasurements.any { it.text == result.content.period })
+        val deviceArea = IntArray(490 * 45)
+        result.bitmap.getPixels(deviceArea, 0, 490, 650, 43, 490, 45)
+        assertTrue(deviceArea.all { it == 0xFFF4F7FB.toInt() })
+    }
+
+    @Test
     fun keepsShareMetricsAndAccessibilityTextsInInnerThenCoverOrder() {
         val resources = localizedContext(Locale.ENGLISH).resources
         val summary = summary(

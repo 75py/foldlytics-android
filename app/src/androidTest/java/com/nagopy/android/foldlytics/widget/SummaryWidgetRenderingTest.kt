@@ -18,6 +18,7 @@ import java.text.DateFormat
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
+import java.util.TimeZone
 import kotlin.math.hypot
 import kotlin.math.min
 import org.junit.Assert.assertEquals
@@ -100,27 +101,36 @@ class SummaryWidgetRenderingTest {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         instrumentation.runOnMainSync {
             val context = localizedContext(instrumentation.targetContext, Locale.ENGLISH, fontScale = 1f)
-            val zone = ZoneId.systemDefault()
-            val todayMillis = LocalDate.now(zone).atTime(14, 32).atZone(zone).toInstant().toEpochMilli()
-            val olderMillis = LocalDate.now(zone).minusDays(1).atTime(23, 10).atZone(zone).toInstant().toEpochMilli()
-            fun footer(timestamp: Long): String {
-                val view = SummaryWidgetRenderer.render(context, 999_999, fixture().copy(lastSyncMillis = timestamp), wide = false)
-                    .apply(context, FrameLayout(context))
-                return view.findViewById<TextView>(R.id.widget_sync).text.toString()
-            }
+            val zone = ZoneId.of("Asia/Tokyo")
+            val nowMillis = LocalDate.of(2026, 9, 27).atTime(18, 0).atZone(zone).toInstant().toEpochMilli()
+            val todayMillis = LocalDate.of(2026, 9, 27).atTime(14, 32).atZone(zone).toInstant().toEpochMilli()
+            val olderMillis = LocalDate.of(2026, 8, 15).atTime(23, 58).atZone(zone).toInstant().toEpochMilli()
+            val originalZone = TimeZone.getDefault()
+            try {
+                TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+                fun footer(timestamp: Long): String {
+                    val view = SummaryWidgetRenderer.render(
+                        context,
+                        999_999,
+                        fixture().copy(lastSyncMillis = timestamp),
+                        wide = false,
+                        nowMillis = nowMillis,
+                        zoneId = zone,
+                    ).apply(context, FrameLayout(context))
+                    return view.findViewById<TextView>(R.id.widget_sync).text.toString()
+                }
 
-            assertEquals(
-                context.getString(R.string.widget_updated, DateFormat.getTimeInstance(DateFormat.SHORT, Locale.ENGLISH).format(todayMillis)),
-                footer(todayMillis),
-            )
-            val olderDate = LocalDate.now(zone).minusDays(1)
-            val olderLabel = if (olderDate.year == LocalDate.now(zone).year) {
-                "${olderDate.format(java.time.format.DateTimeFormatter.ofPattern("M/d", Locale.ENGLISH))} " +
-                    DateFormat.getTimeInstance(DateFormat.SHORT, Locale.ENGLISH).format(olderMillis)
-            } else {
-                DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, Locale.ENGLISH).format(olderMillis)
+                val timeFormat = DateFormat.getTimeInstance(DateFormat.SHORT, Locale.ENGLISH).apply {
+                    timeZone = TimeZone.getTimeZone(zone)
+                }
+                assertEquals(context.getString(R.string.widget_updated, timeFormat.format(todayMillis)), footer(todayMillis))
+                assertEquals(
+                    context.getString(R.string.widget_updated, "8/15 ${timeFormat.format(olderMillis)}"),
+                    footer(olderMillis),
+                )
+            } finally {
+                TimeZone.setDefault(originalZone)
             }
-            assertEquals(context.getString(R.string.widget_updated, olderLabel), footer(olderMillis))
         }
     }
 

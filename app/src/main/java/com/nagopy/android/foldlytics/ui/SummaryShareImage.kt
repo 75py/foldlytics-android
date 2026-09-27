@@ -43,7 +43,7 @@ internal data class SummaryShareContent(
         coverTime,
         openedCountLabel,
         openedCount,
-    )
+    ).filter(String::isNotBlank)
 
     val accessibilityDescription: String = visibleTexts.joinToString(separator = ", ")
 }
@@ -121,13 +121,19 @@ internal object SummaryShareImageRenderer {
     fun render(
         resources: Resources,
         summary: PeriodUsageSummary,
-    ): Bitmap = renderWithDiagnostics(resources, summary).bitmap
+        includeDeviceName: Boolean = true,
+    ): Bitmap = renderWithDiagnostics(resources, summary, includeDeviceName).bitmap
 
     fun renderWithDiagnostics(
         resources: Resources,
         summary: PeriodUsageSummary,
+        includeDeviceName: Boolean = true,
     ): SummaryShareRenderResult {
-        val content = createContent(resources, summary)
+        val content = createContent(
+            resources,
+            summary,
+            deviceName = if (includeDeviceName) formatDeviceName(Build.MANUFACTURER, Build.MODEL) else "",
+        )
         val locale = resources.configuration.locales[0]
         val bitmap = Bitmap.createBitmap(
             SUMMARY_SHARE_IMAGE_WIDTH,
@@ -159,16 +165,18 @@ internal object SummaryShareImageRenderer {
             typeface = BoldTypeface,
             locale = locale,
         )
-        measurements += canvas.drawFittedText(
-            text = content.deviceName,
-            bounds = RectF(650f, 43f, 1140f, 88f),
-            maxTextSize = 30f,
-            minTextSize = 18f,
-            color = SecondaryTextColor,
-            typeface = MediumTypeface,
-            locale = locale,
-            align = Paint.Align.RIGHT,
-        )
+        if (includeDeviceName) {
+            measurements += canvas.drawFittedText(
+                text = content.deviceName,
+                bounds = RectF(650f, 43f, 1140f, 88f),
+                maxTextSize = 30f,
+                minTextSize = 18f,
+                color = SecondaryTextColor,
+                typeface = MediumTypeface,
+                locale = locale,
+                align = Paint.Align.RIGHT,
+            )
+        }
         measurements += canvas.drawFittedText(
             text = content.period,
             bounds = RectF(164f, 92f, 1140f, 136f),
