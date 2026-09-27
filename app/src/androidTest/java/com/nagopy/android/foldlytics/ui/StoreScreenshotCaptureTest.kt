@@ -4,8 +4,11 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.os.Environment
 import android.provider.MediaStore
+import android.view.View
+import android.widget.FrameLayout
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,10 +42,14 @@ import com.nagopy.android.foldlytics.model.InnerSessionDetail
 import com.nagopy.android.foldlytics.model.InnerSessionSummary
 import com.nagopy.android.foldlytics.model.LongTermPeriod
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
+import com.nagopy.android.foldlytics.widget.SummaryWidgetRenderer
+import com.nagopy.android.foldlytics.widget.WidgetPeriod
+import com.nagopy.android.foldlytics.widget.buildSummaryWidgetState
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
+import kotlin.math.roundToInt
 import org.junit.Rule
 import org.junit.Test
 
@@ -194,6 +201,8 @@ class StoreScreenshotCaptureTest {
         scrollTo(HOME_APP_USAGE_LINK_TAG)
         composeRule.onNodeWithTag(HOME_APP_USAGE_LINK_TAG).performClick()
         composeRule.onNodeWithTag(APP_USAGE_SCREEN_TAG).assertExists()
+        composeRule.onNodeWithTag(APP_USAGE_INNER_SEGMENT_TAG).performClick()
+        composeRule.onNodeWithTag(APP_USAGE_INNER_SEGMENT_TAG).assertIsSelected()
         scrollTo("${APP_USAGE_CARD_TAG_PREFIX}demo.reader")
         capture("05-total-app-ranking", outputDirectory)
 
@@ -203,6 +212,47 @@ class StoreScreenshotCaptureTest {
             context.getString(R.string.content_desc_open_menu),
         ).performClick()
         capture("06-drawer", outputDirectory)
+
+        captureWidgets(context, outputDirectory)
+        saveBitmap(
+            "08-share-image",
+            outputDirectory,
+            SummaryShareImageRenderer.render(context.resources, requireNotNull(state.periodSummary)),
+        )
+    }
+
+    private fun captureWidgets(context: Context, outputDirectory: String) {
+        val zoneId = ZoneId.of("Asia/Tokyo")
+        val recordEndMillis = LocalDate.of(2026, 8, 16)
+            .atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val syncedMillis = recordEndMillis - minutes(2L)
+        val state = buildSummaryWidgetState(
+            period = WidgetPeriod.DAYS_30,
+            summaries = representativeDailySummaries(zoneId),
+            syncedThroughMillis = syncedMillis,
+            lastSyncMillis = syncedMillis,
+            hasPermission = true,
+            updateFailed = false,
+            nowMillis = syncedMillis,
+            zoneId = zoneId,
+        )
+        val density = context.resources.displayMetrics.density
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            listOf(true to "07-widget-wide", false to "07-widget-small").forEach { (wide, name) ->
+                val view = SummaryWidgetRenderer.render(context, 999_999, state, wide)
+                    .apply(context, FrameLayout(context))
+                val width = ((if (wide) 280 else 140) * density).roundToInt()
+                val height = (140 * density).roundToInt()
+                view.measure(
+                    View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY),
+                )
+                view.layout(0, 0, width, height)
+                val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                view.draw(Canvas(bitmap))
+                saveBitmap(name, outputDirectory, bitmap)
+            }
+        }
     }
 
     private fun setScreenshotContent(context: Context, state: MainUiState) {
@@ -255,39 +305,7 @@ class StoreScreenshotCaptureTest {
             .atStartOfDay(zoneId)
             .toInstant()
             .toEpochMilli()
-        val dailySummaries = (0L until RECORD_DAY_COUNT).map { dayOffset ->
-            val date = recordEndDate.minusDays(RECORD_DAY_COUNT - dayOffset)
-            val dayStart = date.atStartOfDay(zoneId).toInstant().toEpochMilli()
-            val dayEnd = date.plusDays(1L).atStartOfDay(zoneId).toInstant().toEpochMilli()
-            val weekendBoost = if (
-                date.dayOfWeek == DayOfWeek.SATURDAY || date.dayOfWeek == DayOfWeek.SUNDAY
-            ) {
-                18L
-            } else {
-                0L
-            }
-            val longTermInnerBoost = dayOffset / 18L
-            val recentDayOffset = dayOffset - (RECORD_DAY_COUNT - TREND_DAY_COUNT)
-            val recentInnerTrendAdjustment = if (recentDayOffset >= 0L) {
-                recentDayOffset - TREND_DAY_COUNT / 2L
-            } else {
-                0L
-            }
-            DailyPostureSummary(
-                dayStartMillis = dayStart,
-                dayEndMillis = dayEnd,
-                zoneId = zoneId.id,
-                coverMillis = minutes(72L + (dayOffset * 17L % 41L) + weekendBoost),
-                innerMillis = minutes(
-                    118L + (dayOffset * 29L % 67L) + weekendBoost + longTermInnerBoost +
-                        recentInnerTrendAdjustment,
-                ),
-                excludedMillis = minutes(3L + (dayOffset * 7L % 8L)),
-                openedCount = 8 + (dayOffset * 5L % 10L).toInt(),
-                closedCount = 8 + (dayOffset * 5L % 10L).toInt(),
-                evidenceGapCount = if (dayOffset % 29L == 0L) 1 else 0,
-            )
-        }
+        val dailySummaries = representativeDailySummaries(zoneId)
         val insights = LongTermAnalyzer().analyze(
             summaries = dailySummaries,
             period = LongTermPeriod.DAYS_90,
@@ -324,6 +342,43 @@ class StoreScreenshotCaptureTest {
             longTermInsights = insights,
             lastSuccessfulSyncMillis = recordEndMillis - minutes(2L),
         )
+    }
+
+    private fun representativeDailySummaries(zoneId: ZoneId): List<DailyPostureSummary> {
+        val recordEndDate = LocalDate.of(2026, 8, 16)
+        return (0L until RECORD_DAY_COUNT).map { dayOffset ->
+            val date = recordEndDate.minusDays(RECORD_DAY_COUNT - dayOffset)
+            val dayStart = date.atStartOfDay(zoneId).toInstant().toEpochMilli()
+            val dayEnd = date.plusDays(1L).atStartOfDay(zoneId).toInstant().toEpochMilli()
+            val weekendBoost = if (
+                date.dayOfWeek == DayOfWeek.SATURDAY || date.dayOfWeek == DayOfWeek.SUNDAY
+            ) {
+                18L
+            } else {
+                0L
+            }
+            val longTermInnerBoost = dayOffset / 18L
+            val recentDayOffset = dayOffset - (RECORD_DAY_COUNT - TREND_DAY_COUNT)
+            val recentInnerTrendAdjustment = if (recentDayOffset >= 0L) {
+                recentDayOffset - TREND_DAY_COUNT / 2L
+            } else {
+                0L
+            }
+            DailyPostureSummary(
+                dayStartMillis = dayStart,
+                dayEndMillis = dayEnd,
+                zoneId = zoneId.id,
+                coverMillis = minutes(72L + (dayOffset * 17L % 41L) + weekendBoost),
+                innerMillis = minutes(
+                    118L + (dayOffset * 29L % 67L) + weekendBoost + longTermInnerBoost +
+                        recentInnerTrendAdjustment,
+                ),
+                excludedMillis = minutes(3L + (dayOffset * 7L % 8L)),
+                openedCount = 8 + (dayOffset * 5L % 10L).toInt(),
+                closedCount = 8 + (dayOffset * 5L % 10L).toInt(),
+                evidenceGapCount = if (dayOffset % 29L == 0L) 1 else 0,
+            )
+        }
     }
 
     private fun representativeApps(
@@ -433,6 +488,10 @@ class StoreScreenshotCaptureTest {
 
     private fun capture(name: String, outputDirectory: String) {
         composeRule.waitForIdle()
+        saveBitmap(name, outputDirectory, composeRule.onRoot().captureToImage().asAndroidBitmap())
+    }
+
+    private fun saveBitmap(name: String, outputDirectory: String, bitmap: Bitmap) {
         val resolver = targetContext.contentResolver
         val relativePath = relativeOutputPath(outputDirectory)
         val values = ContentValues().apply {
@@ -452,10 +511,7 @@ class StoreScreenshotCaptureTest {
             }
             stream.use { output ->
                 check(
-                    composeRule.onRoot()
-                        .captureToImage()
-                        .asAndroidBitmap()
-                        .compress(Bitmap.CompressFormat.PNG, 100, output),
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, output),
                 ) { "Could not write screenshot: $relativePath/$name.png" }
             }
             check(

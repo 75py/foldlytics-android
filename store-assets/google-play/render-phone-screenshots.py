@@ -86,7 +86,9 @@ def share_image(src: str, top: int):
         "radius": 36,
         "padding": 0,
         "background": "#F4F7FB",
-        "masks": [[720, 40, 440, 60, "#F4F7FB"]],
+        # The device text can start at x=650 and is clipped at y=88. Stop before
+        # the period text, which begins at y=92.
+        "masks": [[640, 40, 520, 50, "#F4F7FB"]],
     }
 
 
@@ -122,10 +124,6 @@ SLOTS = {
     ],
 }
 
-# Slots whose raw inputs are not captured yet are skipped with a notice instead
-# of failing, so the other screenshots can still be regenerated.
-OPTIONAL_SLOTS = {("en", "06-share-image.png")}
-
 
 def resolve_layers(locale: str, layers):
     resolved = []
@@ -137,13 +135,11 @@ def resolve_layers(locale: str, layers):
     return resolved
 
 
-def has_inputs(locale: str, slot) -> bool:
+def validate_inputs(locale: str, slot) -> None:
     name, _headline, _sub, layers = slot
     missing = [layer["src"] for layer in layers if not (RAW[locale] / layer["src"]).is_file()]
-    if missing and (locale, name) in OPTIONAL_SLOTS:
-        print(f"Skipping {locale} {name}: missing raw {', '.join(missing)}", file=sys.stderr)
-        return False
-    return True
+    if missing:
+        sys.exit(f"Missing raw inputs for {locale} {name}: {', '.join(missing)}")
 
 
 def run(*args: str) -> None:
@@ -154,6 +150,12 @@ def main() -> None:
     magick = shutil.which("magick")
     if magick is None:
         sys.exit("ImageMagick magick was not found on PATH")
+    for path in (TEMPLATE, RIBBON):
+        if not path.is_file():
+            sys.exit(f"Rendering input not found: {path}")
+    for locale, slots in SLOTS.items():
+        for slot in slots:
+            validate_inputs(locale, slot)
     tmp_root = os.environ.get("TMPDIR", "/tmp")
     with tempfile.TemporaryDirectory(prefix="foldlytics-store-screenshots.", dir=tmp_root) as work, \
             sync_playwright() as playwright:
@@ -161,13 +163,9 @@ def main() -> None:
         browser = playwright.chromium.launch()
         page = browser.new_page(viewport={"width": 1080, "height": 1920}, device_scale_factor=1)
         for locale, slots in SLOTS.items():
-            output_dir = OUTPUT[locale]
-            output_dir.mkdir(parents=True, exist_ok=True)
-            slots = [slot for slot in slots if has_inputs(locale, slot)]
+            staged_dir = work_dir / locale
+            staged_dir.mkdir()
             names = [name for name, *_ in slots]
-            for stale in output_dir.glob("*.png"):
-                if stale.name not in names:
-                    stale.unlink()
             for name, headline, sub, layers in slots:
                 page.goto(TEMPLATE.as_uri())
                 page.evaluate(
@@ -183,14 +181,29 @@ def main() -> None:
                 captured = work_dir / f"{locale}-{name}"
                 page.screenshot(path=str(captured))
                 run(magick, str(captured), "-background", APP_BACKGROUND, "-alpha", "remove",
-                    "-alpha", "off", "-strip", f"PNG24:{output_dir / name}")
-                print(f"{output_dir / name}")
-            PREVIEW[locale].parent.mkdir(parents=True, exist_ok=True)
-            run(magick, "montage", "-tile", f"{len(names)}x1", "-geometry", "216x384+0+0",
-                "-strip", "-depth", "8", *[str(output_dir / n) for n in names],
-                f"PNG24:{PREVIEW[locale]}")
-            print(f"{PREVIEW[locale]}")
+                    "-alpha", "off", "-strip", f"PNG24:{staged_dir / name}")
+            sheet_path = work_dir / f"{locale}-contact-sheet.png"
+            sheet_args = [magick]
+            for name in names:
+                sheet_args.extend(("(", str(staged_dir / name), "-resize", "216x384!", ")"))
+            sheet_args.extend(("+append", "-strip", "-depth", "8",
+                               f"PNG24:{sheet_path}"))
+            run(*sheet_args)
         browser.close()
+        # Do not change upload assets until every locale and its preview rendered.
+        for locale, slots in SLOTS.items():
+            output_dir = OUTPUT[locale]
+            output_dir.mkdir(parents=True, exist_ok=True)
+            names = [name for name, *_ in slots]
+            for name in names:
+                shutil.copy2(work_dir / locale / name, output_dir / name)
+                print(output_dir / name)
+            for stale in output_dir.glob("*.png"):
+                if stale.name not in names:
+                    stale.unlink()
+            PREVIEW[locale].parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(work_dir / f"{locale}-contact-sheet.png", PREVIEW[locale])
+            print(PREVIEW[locale])
 
 
 if __name__ == "__main__":

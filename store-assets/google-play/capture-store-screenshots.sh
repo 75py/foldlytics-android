@@ -90,6 +90,9 @@ capture_names=(
     04-open-count-trend
     05-total-app-ranking
     06-drawer
+    07-widget-wide
+    07-widget-small
+    08-share-image
 )
 preferred_raw_names=(
     01-home-summary
@@ -106,6 +109,9 @@ raw_names=(
     04-open-count
     05-app-ranking
     06-on-device
+    07-widget-wide
+    07-widget-small
+    08-share-image
 )
 
 mkdir -p "$work_dir/raw-ja" "$work_dir/raw-en"
@@ -140,7 +146,18 @@ pull_and_validate() {
         format="$($magick_bin identify -format '%m' "$staging_file")"
         width="$($magick_bin identify -format '%w' "$staging_file")"
         height="$($magick_bin identify -format '%h' "$staging_file")"
-        if [[ "$format" != "PNG" || "$width" != "1080" || "$height" != "1920" ]]; then
+        case "$raw_name" in
+            07-widget-*)
+                valid_size=$((width > 0 && width <= 1080 && height > 0 && height <= 1920))
+                ;;
+            08-share-image)
+                valid_size=$((width == 1200 && height == 675))
+                ;;
+            *)
+                valid_size=$((width == 1080 && height == 1920))
+                ;;
+        esac
+        if [[ "$format" != "PNG" || "$valid_size" != "1" ]]; then
             echo "Invalid screenshot metadata for $remote_file: $format ${width}x${height}" >&2
             exit 1
         fi

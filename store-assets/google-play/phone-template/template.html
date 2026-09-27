@@ -70,6 +70,9 @@ window.render = async (slot) => {
   document.getElementById("head").className = slot.locale;
   document.getElementById("headline").innerHTML = slot.headline.map(escapeHtml).join("<br>");
   document.getElementById("sub").textContent = slot.sub;
+  const ribbon = new Image();
+  ribbon.src = slot.ribbon;
+  await ribbon.decode();
   document.getElementById("ribbon").style.backgroundImage = `url("${slot.ribbon}")`;
   const root = document.getElementById("layers");
   root.innerHTML = "";
