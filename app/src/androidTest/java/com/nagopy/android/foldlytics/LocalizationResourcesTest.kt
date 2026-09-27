@@ -17,7 +17,11 @@ class LocalizationResourcesTest {
 
         assertEquals("Home", context.getString(R.string.nav_home))
         assertEquals("Usage summary", context.getString(R.string.summary_title))
-        assertEquals("Outer", context.getString(R.string.posture_cover))
+        assertEquals("Cover", context.getString(R.string.posture_cover))
+        assertEquals("Cover", context.getString(R.string.widget_cover))
+        assertEquals("Opens", context.getString(R.string.label_opened))
+        assertEquals("Closes", context.getString(R.string.label_closed))
+        assertEquals("Opens", context.getString(R.string.widget_opens))
         assertEquals("Most-used apps", context.getString(R.string.home_app_usage_link_title))
         assertEquals("App usage", context.getString(R.string.app_usage_screen_title))
         assertEquals("Total", context.getString(R.string.app_ranking_total))
@@ -44,7 +48,17 @@ class LocalizationResourcesTest {
             context.getString(R.string.home_inner_sessions_link_title),
         )
         assertEquals("Inner share", context.getString(R.string.usage_trend_inner_ratio))
-        assertEquals("Open count", context.getString(R.string.usage_trend_open_count))
+        assertEquals("Opens", context.getString(R.string.usage_trend_open_count))
+        assertEquals("Opens", context.getString(R.string.legend_open_count))
+        assertEquals("Show opens over time", context.getString(R.string.content_desc_select_open_count_trend))
+        assertEquals(
+            "8/15: 1 open",
+            context.resources.getQuantityString(R.plurals.content_desc_chart_opened, 1, "8/15", 1),
+        )
+        assertEquals(
+            "8/15: 2 opens",
+            context.resources.getQuantityString(R.plurals.content_desc_chart_opened, 2, "8/15", 2),
+        )
         assertEquals(
             "How this is calculated",
             context.getString(R.string.inner_sessions_method_title),

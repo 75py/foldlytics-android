@@ -46,7 +46,8 @@ class SummaryShareImageTest {
         assertEquals("Google Pixel Fold", english.deviceName)
         assertTrue(english.period.startsWith("30 days"))
         assertEquals("Inner display", english.innerRatioLabel)
-        assertEquals("Opened", english.openedCountLabel)
+        assertEquals("Cover display", english.coverTimeLabel)
+        assertEquals("Opens", english.openedCountLabel)
     }
 
     @Test
