@@ -38,6 +38,17 @@ PREVIEW = {
     "ja": SCRIPT_DIR / "previews" / "ja-JP-phone-contact-sheet.png",
     "en": SCRIPT_DIR / "previews" / "en-US-phone-contact-sheet.png",
 }
+EXPECTED_RAW_SIZES = {
+    "01-summary.png": (1080, 1920),
+    "02-inner-sessions.png": (1080, 1920),
+    "03-trends.png": (1080, 1920),
+    "04-open-count.png": (1080, 1920),
+    "05-app-ranking.png": (1080, 1920),
+    "06-on-device.png": (1080, 1920),
+    "07-widget-wide.png": (956, 478),
+    "07-widget-small.png": (478, 478),
+    "08-share-image.png": (1200, 675),
+}
 
 # Cropped panels: 1008 px source regions (4 px wider than the 1000 px app cards
 # on each side), 44 px of app-background padding, and a 12 px white frame,
@@ -130,11 +141,26 @@ def resolve_layers(locale: str, layers):
     return resolved
 
 
-def validate_inputs(locale: str, slot) -> None:
+def validate_inputs(locale: str, slot, magick: str) -> None:
     name, _headline, _sub, layers = slot
     missing = [layer["src"] for layer in layers if not (RAW[locale] / layer["src"]).is_file()]
     if missing:
         sys.exit(f"Missing raw inputs for {locale} {name}: {', '.join(missing)}")
+    for layer in layers:
+        source = RAW[locale] / layer["src"]
+        expected = EXPECTED_RAW_SIZES.get(layer["src"])
+        if expected is None:
+            sys.exit(f"No expected raw size for {locale} {name}: {layer['src']}")
+        inspection = subprocess.run(
+            (magick, "identify", "-ping", "-format", "%m %wx%h\n", str(source)),
+            capture_output=True,
+            text=True,
+        )
+        actual = inspection.stdout.strip()
+        expected_label = f"PNG {expected[0]}x{expected[1]}"
+        if inspection.returncode != 0 or actual != expected_label:
+            detail = actual or inspection.stderr.strip() or "unreadable"
+            sys.exit(f"Invalid raw input for {locale} {name}: {source} ({detail}; expected {expected_label})")
 
 
 def run(*args: str) -> None:
@@ -150,7 +176,7 @@ def main() -> None:
             sys.exit(f"Rendering input not found: {path}")
     for locale, slots in SLOTS.items():
         for slot in slots:
-            validate_inputs(locale, slot)
+            validate_inputs(locale, slot, magick)
     tmp_root = os.environ.get("TMPDIR", "/tmp")
     with tempfile.TemporaryDirectory(prefix="foldlytics-store-screenshots.", dir=tmp_root) as work, \
             sync_playwright() as playwright:

@@ -146,7 +146,8 @@ trend buckets, open counts, and rankings agree with one another.
 4. To change headlines, slot order or crop regions, edit `SLOTS` in
    `render-phone-screenshots.py`; the layout and styling live in `phone-template/template.html`.
    Crop regions are in raw-capture pixels, so recheck them after UI changes that move the cards.
-   Then run `./store-assets/google-play/generate-phone-screenshots.sh` on its own.
+   Then run `./store-assets/google-play/generate-phone-screenshots.sh` on its own. The generator
+   checks each referenced raw PNG's dimensions before replacing any upload-ready image.
 
 The app-screen capture names describe the rendered screen (`01-home-summary.png` through
 `06-drawer.png`), while the helper stores them under the stable raw filenames. In particular,
