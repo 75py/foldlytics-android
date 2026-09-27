@@ -17,7 +17,11 @@ class LocalizationResourcesTest {
 
         assertEquals("Home", context.getString(R.string.nav_home))
         assertEquals("Usage summary", context.getString(R.string.summary_title))
-        assertEquals("Outer", context.getString(R.string.posture_cover))
+        assertEquals("Cover", context.getString(R.string.posture_cover))
+        assertEquals("Cover", context.getString(R.string.widget_cover))
+        assertEquals("Opens", context.getString(R.string.label_opened))
+        assertEquals("Closes", context.getString(R.string.label_closed))
+        assertEquals("Opens", context.getString(R.string.widget_opens))
         assertEquals("Most-used apps", context.getString(R.string.home_app_usage_link_title))
         assertEquals("App usage", context.getString(R.string.app_usage_screen_title))
         assertEquals("Total", context.getString(R.string.app_ranking_total))

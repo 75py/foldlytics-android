@@ -13,10 +13,11 @@ question headline with a one-line subtitle, and crops only the relevant app card
 its captured size instead of showing the full screen. Explanatory notes, the status bar and the
 drawer are left out. The background and the folded ribbon come from the feature graphic.
 
-The inputs in `raw-ja/` and `raw-en/` were captured for 1.3.0 on 2026-09-27 with
+The inputs in `raw-ja/` and `raw-en/` were captured for 1.3.1 on 2026-09-27 with
 `StoreScreenshotCaptureTest`: Pixel 9 Pro Fold AVD, Android 16 / API 36, opened at
 1080 × 1920, 390 dpi, font scale 1.0. The same fixture supplies the app screens,
-current widgets, and share images in both languages.
+current widgets, and share images in both languages. English captures use "Cover" and
+"Opens" consistently; the refreshed Japanese PNGs are byte-identical to the previous set.
 
 ## Upload-ready files
 

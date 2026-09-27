@@ -16,7 +16,7 @@
     <string name="action_agree_and_open_settings">Agree and continue</string>
     <string name="action_not_now">Not now</string>
     <string name="action_review_details">Review details</string>
-    <string name="action_record_cover">Record outer</string>
+    <string name="action_record_cover">Record cover</string>
     <string name="action_record_inner">Record inner</string>
     <string name="action_clear_calibration">Clear saved values</string>
     <string name="action_refresh">Refresh</string>
@@ -32,18 +32,18 @@
     <string name="content_desc_open_menu">Open menu</string>
     <string name="content_desc_go_back">Go back</string>
     <string name="content_desc_share_summary">Share usage summary as an image</string>
-    <string name="content_desc_cover_app_ranking">Outer-display app ranking</string>
+    <string name="content_desc_cover_app_ranking">Cover-display app ranking</string>
     <string name="content_desc_inner_app_ranking">Inner-display app ranking</string>
     <string name="content_desc_total_app_ranking">Sort apps by total usage time</string>
     <string name="content_desc_usage_time_app_ranking">Usage-time ranking</string>
     <string name="content_desc_display_share_app_ranking">Filter apps by their most-used display</string>
-    <string name="content_desc_cover_majority_app_ranking">Apps used longer on the outer display than on the inner display</string>
-    <string name="content_desc_inner_majority_app_ranking">Apps used longer on the inner display than on the outer display</string>
+    <string name="content_desc_cover_majority_app_ranking">Apps used longer on the cover display than on the inner display</string>
+    <string name="content_desc_inner_majority_app_ranking">Apps used longer on the inner display than on the cover display</string>
     <string name="content_desc_app_usage_card">%1$s, %2$s. %3$s. %4$s.</string>
     <string name="content_desc_app_usage_card_with_undetermined">%1$s, %2$s. %3$s. %4$s. %5$s.</string>
-    <string name="content_desc_summary">%1$s: outer %2$s, inner %3$s, inner share %4$s</string>
-    <string name="content_desc_live_state_cover_recording">Current device state: Using the outer display. Usage recording is available.</string>
-    <string name="content_desc_live_state_cover_access_required">Current device state: Using the outer display. Usage access is needed to record.</string>
+    <string name="content_desc_summary">%1$s: cover %2$s, inner %3$s, inner share %4$s</string>
+    <string name="content_desc_live_state_cover_recording">Current device state: Using the cover display. Usage recording is available.</string>
+    <string name="content_desc_live_state_cover_access_required">Current device state: Using the cover display. Usage access is needed to record.</string>
     <string name="content_desc_live_state_inner_recording">Current device state: Using the inner display. Usage recording is available.</string>
     <string name="content_desc_live_state_inner_access_required">Current device state: Using the inner display. Usage access is needed to record.</string>
     <string name="content_desc_live_state_unknown_recording">Current device state: Unable to determine the active display. Usage recording is available.</string>
@@ -67,7 +67,7 @@
     </plurals>
 
     <!-- Common labels and values -->
-    <string name="posture_cover">Outer</string>
+    <string name="posture_cover">Cover</string>
     <string name="posture_inner">Inner</string>
     <string name="posture_unknown">Unknown</string>
     <string name="label_no_data">No data</string>
@@ -132,7 +132,7 @@
     <string name="checkpoint_source_app_launch">App launch</string>
     <string name="checkpoint_source_app_foreground">App foreground</string>
     <string name="checkpoint_source_app_background">App background</string>
-    <string name="checkpoint_source_calibration_cover">Outer calibration</string>
+    <string name="checkpoint_source_calibration_cover">Cover calibration</string>
     <string name="checkpoint_source_calibration_inner">Inner calibration</string>
     <string name="checkpoint_source_manual_refresh">Manual refresh</string>
     <string name="checkpoint_source_measurement_start">Measurement start</string>
@@ -174,20 +174,20 @@
     <string name="app_usage_detail_empty">No app-usage data is available for this period.</string>
     <string name="inner_sessions_detail_empty">No inner-display session data is available for this period.</string>
     <string name="calibration_intro_title">Usually no setup is needed</string>
-    <string name="calibration_intro_body">Foldlytics automatically identifies the outer and inner displays from screen width. Save device-specific values only if the current state on Home is incorrect.</string>
+    <string name="calibration_intro_body">Foldlytics automatically identifies the cover and inner displays from screen width. Save device-specific values only if the current state on Home is incorrect.</string>
     <string name="label_current_posture">Current posture</string>
     <string name="label_classification_method">Detection method</string>
     <string name="classification_saved_values">Device-specific saved values</string>
     <string name="classification_automatic">Automatic detection</string>
     <string name="calibration_edge_case_note">Calibration can help on vertically folding devices whose inner display is under 600 dp, after display-size changes, or when a manufacturer reports unusual configuration values.</string>
     <string name="usage_access_disclosure_title">How usage data is handled</string>
-    <string name="usage_access_disclosure_body">To calculate outer- and inner-display usage, Foldlytics reads displayed app names, screen on and lock state, screen configuration, and their timestamps. It also reads this data about every six hours while the app is closed and stores it in an on-device database until you uninstall the app.\n\nThe data is used only for statistics and for CSV export or sharing that you initiate. It is not used for advertising or third-party analytics and is not transmitted automatically. Only when you choose to export or share is the data passed to the destination or app you select.</string>
+    <string name="usage_access_disclosure_body">To calculate cover- and inner-display usage, Foldlytics reads displayed app names, screen on and lock state, screen configuration, and their timestamps. It also reads this data about every six hours while the app is closed and stores it in an on-device database until you uninstall the app.\n\nThe data is used only for statistics and for CSV export or sharing that you initiate. It is not used for advertising or third-party analytics and is not transmitted automatically. Only when you choose to export or share is the data passed to the destination or app you select.</string>
     <string name="usage_access_required_title">Usage access is required</string>
     <string name="usage_access_required_body">App display time and fold state are calculated only on this device.</string>
     <string name="calibration_values_title">Device-specific detection values</string>
-    <string name="calibration_instructions">Close the device and record the outer display, then open it and record the inner display. Automatic detection remains active until both values are saved.</string>
+    <string name="calibration_instructions">Close the device and record the cover display, then open it and record the inner display. Automatic detection remains active until both values are saved.</string>
     <string name="calibration_configuration_unavailable">Open Foldlytics full screen, wait for the display to settle, then try recording again.</string>
-    <string name="calibration_anchors_too_close">The outer and inner measurements are too similar to tell apart. Fully close or open the device, then record the correct display again.</string>
+    <string name="calibration_anchors_too_close">The cover and inner measurements are too similar to tell apart. Fully close or open the device, then record the correct display again.</string>
 
     <!-- Period selection and summary -->
     <string name="section_analysis_period">Analysis period</string>
@@ -207,10 +207,10 @@
     <string name="label_analysis_range">Analyzed range</string>
     <string name="label_classified_time">Classified time</string>
     <string name="label_data_coverage">Display classification rate</string>
-    <string name="display_classification_rate_note">The share of recorded usage time identified as outer or inner display use. This does not mean the usage history is complete.</string>
-    <string name="label_opened">Opened</string>
-    <string name="label_closed">Closed</string>
-    <string name="label_opened_per_observed_day">Opened per observed day</string>
+    <string name="display_classification_rate_note">The share of recorded usage time identified as cover or inner display use. This does not mean the usage history is complete.</string>
+    <string name="label_opened">Opens</string>
+    <string name="label_closed">Closes</string>
+    <string name="label_opened_per_observed_day">Opens per observed day</string>
     <string name="label_observed_days">Days with data</string>
     <string name="label_inner_used_days">Days using inner display</string>
     <string name="label_change_from_first_30_days">Full-history change (first 30 vs latest 30)</string>
@@ -244,9 +244,9 @@
     <string name="share_summary_brand" translatable="false">Foldlytics</string>
     <string name="share_summary_period">%1$s · %2$s</string>
     <string name="share_summary_inner_ratio">Inner display</string>
-    <string name="share_summary_cover_time">Outer display</string>
+    <string name="share_summary_cover_time">Cover display</string>
     <string name="share_summary_inner_time">Inner display</string>
-    <string name="share_summary_opened_count">Opened</string>
+    <string name="share_summary_opened_count">Opens</string>
     <string name="share_summary_preview_title">Share usage summary</string>
     <string name="share_summary_generating">Creating share image…</string>
     <string name="share_summary_generation_failed">Couldn’t create the share image. Cancel and try again.</string>
@@ -261,20 +261,20 @@
     <string name="app_ranking_view_display_share">By display</string>
     <string name="app_ranking_basis">Sort by</string>
     <string name="app_ranking_higher_share">Show apps</string>
-    <string name="app_ranking_cover_majority">Mostly outer</string>
+    <string name="app_ranking_cover_majority">Mostly cover</string>
     <string name="app_ranking_inner_majority">Mostly inner</string>
     <string name="app_ranking_total">Total</string>
     <!-- Display names used within sentences, rather than the capitalized button labels. -->
-    <string name="app_usage_outer_display">outer display</string>
+    <string name="app_usage_outer_display">cover display</string>
     <string name="app_usage_inner_display">inner display</string>
     <string name="app_ranking_order">Sorted by time on the %1$s, longest first.</string>
     <string name="app_ranking_total_order">Sorted by total usage time, longest first.</string>
     <string name="app_ranking_majority_order">Apps used longer on the %1$s than on the %2$s. Sorted by time on the %1$s, longest first.</string>
-    <string name="app_ranking_measurement_note">Percentages are based on each app’s time on the outer and inner displays. Time when the display is unknown is listed separately and left out of totals and percentages.</string>
+    <string name="app_ranking_measurement_note">Percentages are based on each app’s time on the cover and inner displays. Time when the display is unknown is listed separately and left out of totals and percentages.</string>
     <string name="app_ranking_even_split_note">Apps with equal time on both displays are not shown in either list.</string>
     <string name="app_usage_selected">%1$s: %2$s</string>
     <string name="app_usage_total">Total: %1$s</string>
-    <string name="app_usage_display_split">Outer %1$s (%2$s) · Inner %3$s (%4$s)</string>
+    <string name="app_usage_display_split">Cover %1$s (%2$s) · Inner %3$s (%4$s)</string>
     <string name="app_usage_undetermined">Unknown display: %1$s</string>
 
     <!-- Diagnostics -->
@@ -288,7 +288,7 @@
     <string name="posture_events_empty">No posture events are available for this period.</string>
     <string name="current_detection_title">Current detection data</string>
     <string name="label_current_configuration">Current configuration</string>
-    <string name="label_cover_calibration">Outer calibration</string>
+    <string name="label_cover_calibration">Cover calibration</string>
     <string name="label_inner_calibration">Inner calibration</string>
     <string name="label_hinge_orientation_occlusion">Hinge orientation / occlusion</string>
     <string name="label_bounds">Bounds</string>
@@ -312,7 +312,7 @@
     <string name="event_source_with_checkpoint">%1$s / %2$s</string>
     <string name="event_summary">%1$s · %2$s</string>
     <string name="excluded_reason">Excluded reason: %1$s</string>
-    <string name="classification_distance">Detection distance: outer=%1$s / inner=%2$s</string>
+    <string name="classification_distance">Detection distance: cover=%1$s / inner=%2$s</string>
 
     <!-- Activity messages -->
     <string name="error_open_output">Unable to open the destination</string>
@@ -347,7 +347,7 @@
     <string name="label_diagnostic_period">Diagnostic analysis period</string>
     <string name="label_excluded_time">Excluded time</string>
     <string name="label_event_count">Event count</string>
-    <string name="report_apps_heading">Apps (outer / inner / excluded)</string>
+    <string name="report_apps_heading">Apps (cover / inner / excluded)</string>
     <plurals name="report_apps_omitted">
         <item quantity="one">%1$d more app omitted</item>
         <item quantity="other">%1$d more apps omitted</item>
@@ -357,7 +357,7 @@
     <string name="report_raw_type_suffix"> / raw=%1$d</string>
     <string name="report_event_line">%1$s [%2$s] %3$s / posture=%4$s%5$s%6$s</string>
     <string name="report_configuration_line">  Configuration: %1$s</string>
-    <string name="report_distance_line">  Distance: outer=%1$s / inner=%2$s</string>
+    <string name="report_distance_line">  Distance: cover=%1$s / inner=%2$s</string>
     <string name="report_usage_trends_heading">Usage trends (%1$s)</string>
     <string name="label_inner_ratio">Inner share</string>
     <string name="report_observed_days">Days with data: %1$d/%2$d / days using inner display: %3$d</string>

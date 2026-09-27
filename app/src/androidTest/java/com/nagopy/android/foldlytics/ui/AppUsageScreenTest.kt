@@ -230,8 +230,8 @@ class AppUsageScreenTest {
         composeRule.onNodeWithTag(APP_USAGE_COVER_MAJORITY_TAG).assertIsSelected()
         composeRule.onNodeWithTag(APP_USAGE_INNER_MAJORITY_TAG).assertIsNotSelected()
         composeRule.onNodeWithText(
-            "Apps used longer on the outer display than on the inner display. " +
-                "Sorted by time on the outer display, longest first.",
+            "Apps used longer on the cover display than on the inner display. " +
+                "Sorted by time on the cover display, longest first.",
         ).assertIsDisplayed()
         assertRankedFirst(context, "outer-long")
         composeRule.onNode(hasScrollAction()).performScrollToNode(
