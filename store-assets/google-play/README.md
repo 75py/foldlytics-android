@@ -7,66 +7,90 @@ dimensions follow the
 [Google Play preview asset requirements](https://support.google.com/googleplay/android-developer/answer/9866151)
 checked on 2026-08-30.
 
-All twelve phone screenshots and their contact sheets were refreshed for 1.3.0
-on 2026-09-06 using the existing capture helper: Pixel 9 Pro Fold AVD,
-Android 16 / API 36, opened at 1080 × 1920, 390 dpi, font scale 1.0.
-The summary now draws the inner display first clockwise from 12 o'clock and
-uses inner-before-cover legends and metrics. The captures also retain the current
-classification note, app-ranking selectors and session explanations.
-The representative session examples show single-app entries.
+The phone screenshots were redesigned on 2026-09-27: six Japanese and five English images
+(six once an English share image is captured), built by `generate-phone-screenshots.sh` from the raw captures. Each image has a two-line
+question headline with a one-line subtitle, and crops only the relevant app card at close to
+its captured size instead of showing the full screen. Explanatory notes, the status bar and the
+drawer are left out. The background and the folded ribbon come from the feature graphic.
+
+The app screens in `raw-ja/` and `raw-en/` (01-06) were captured for 1.3.0 on 2026-09-06 using
+the existing capture helper: Pixel 9 Pro Fold AVD, Android 16 / API 36, opened at
+1080 × 1920, 390 dpi, font scale 1.0. See [Provisional inputs](#provisional-inputs) for the
+widget and share-image inputs.
 
 ## Upload-ready files
 
 ### Japanese (`ja-JP`)
 
 - `ja-JP/feature-graphic.png`: 1024 x 500, 24-bit PNG without alpha.
-- `ja-JP/phone/01-display-time.png`: 1080 x 1920 phone screenshot.
-- `ja-JP/phone/02-inner-sessions.png`: 1080 x 1920 phone screenshot.
-- `ja-JP/phone/03-long-term-trends.png`: 1080 x 1920 phone screenshot.
-- `ja-JP/phone/04-open-count.png`: 1080 x 1920 phone screenshot.
-- `ja-JP/phone/05-app-ranking.png`: 1080 x 1920 phone screenshot.
-- `ja-JP/phone/06-on-device.png`: 1080 x 1920 phone screenshot.
+- `ja-JP/phone/01-display-time.png`: 外側と内側、どっちが多い？ (period and usage summary)
+- `ja-JP/phone/02-inner-apps.png`: 内側で使うアプリは？ (app usage selectors and top two apps)
+- `ja-JP/phone/03-per-opening.png`: 開いたら、何分使う？ (two longest inner-display uses)
+- `ja-JP/phone/04-detected-opens.png`: 1日に何回開いてる？ (detected-open trend)
+- `ja-JP/phone/05-widget.png`: ホーム画面でさっと確認 (wide and small widgets)
+- `ja-JP/phone/06-share-image.png`: 結果を画像でシェア (the generated share image)
 
 ### English (`en-US`)
 
 - `en-US/feature-graphic.png`: 1024 x 500, 24-bit PNG without alpha.
-- `en-US/phone/01-display-time.png`: 1080 x 1920 phone screenshot.
-- `en-US/phone/02-inner-sessions.png`: 1080 x 1920 phone screenshot.
-- `en-US/phone/03-long-term-trends.png`: 1080 x 1920 phone screenshot.
-- `en-US/phone/04-open-count.png`: 1080 x 1920 phone screenshot.
-- `en-US/phone/05-app-ranking.png`: 1080 x 1920 phone screenshot.
-- `en-US/phone/06-on-device.png`: 1080 x 1920 phone screenshot.
+- `en-US/phone/01-display-time.png`: Cover or inner display?
+- `en-US/phone/02-inner-apps.png`: Which apps get the inner display?
+- `en-US/phone/03-per-opening.png`: How long do you stay unfolded?
+- `en-US/phone/04-detected-opens.png`: How often do you unfold?
+- `en-US/phone/05-widget.png`: Check it from your home screen
 
-`generate-phone-screenshots.sh` also rebuilds `previews/ja-JP-phone-contact-sheet.png` and
-`previews/en-US-phone-contact-sheet.png` after producing the six upload-ready images. Each
-review-only contact sheet uses ImageMagick `montage` with a 6x1 tile, `216x384+0+0` geometry,
-and 8-bit stripped `PNG24` output. Do not upload the contact sheets to Play Console.
+- `en-US/phone/06-share-image.png`: Share your summary image (generated once `raw-en/08-share-image.png` exists)
+
+The English share-image slot is defined but skipped until an English share image is captured,
+because no English capture of the share image exists yet.
+
+All phone screenshots are 1080 x 1920, 24-bit PNG without alpha. `generate-phone-screenshots.sh`
+also rebuilds `previews/ja-JP-phone-contact-sheet.png` and `previews/en-US-phone-contact-sheet.png`
+with ImageMagick `montage` (one row, `216x384+0+0`, 8-bit `PNG24`). Check headline and key-number
+legibility on these sheets; do not upload them to Play Console.
 
 For each locale, the first four phone screenshots satisfy Google's recommendation to provide at
-least four portrait app screenshots at 1080 px or higher. The added headline area is less than
-20% of each image, and the captured app UI remains the main content.
+least four portrait app screenshots at 1080 px or higher. The headline area is less than 20% of
+each image, and the captured app UI remains the main content.
+
+## Provisional inputs
+
+The generator reads these extra raw files, which the capture helper does not produce yet:
+
+| Raw file | Copied from | Note |
+| --- | --- | --- |
+| `raw-ja/07-widget-wide.png`, `raw-ja/07-widget-small.png` | `docs/screenshots/widget-periods/after-*.png` | Review data: 7 days, 25% inner |
+| `raw-en/07-widget-wide.png`, `raw-en/07-widget-small.png` | `docs/screenshots/summary-widget/en-light-*-1.0-ready.png` | Captured before the 1.3.0 period fix ("Synced" label) |
+| `raw-ja/08-share-image.png` | `docs/screenshots/summary-widget/after-share-ja.png` | Review data: 30 days, 63% inner; the device name is covered by the generator |
+| `raw-en/08-share-image.png` | Not available yet | Add it to enable the English share-image slot |
+
+Their values differ from the 90-day representative data in the other screenshots. Before the
+next upload, capture the widgets and the share image from `StoreScreenshotCaptureTest` with the
+representative data (and an English share image), save them under the same raw names, and
+rerun the generator. Screenshot 02 currently shows the total sort; the inner sort would match
+its headline better once it is captured.
 
 ## Suggested alt text
 
 ### Japanese (`ja-JP`)
 
 - Feature graphic: `橙色の外側と青色の内側が折り重なる抽象図と、Foldlyticsの利用目的を示すコピー。`
-- 01: `90日間の外側・内側の利用時間、内側割合、データ充足率、検出した「開いた」回数を表示した利用サマリー。`
-- 02: `開いてから閉じるまでの内側画面利用について、中央値・平均値・最長時間と長く使った回のアプリ内訳を表示した画面。`
-- 03: `90日間の内側利用割合の推移を折れ線グラフで表示した利用傾向。`
-- 04: `検出した開いた回数の推移と期間合計を表示した利用傾向。`
-- 05: `外側と内側を合わせた表示時間を基準に、読書やブラウザなどを並べたアプリ利用詳細。`
-- 06: `CSV保存、診断共有、利用状況設定、プライバシーポリシーと端末内保存の説明を表示したドロワー。`
+- 01: `90日間の外側・内側の利用時間、内側64%の円グラフ、検出した「開いた」回数を表示した利用サマリー。`
+- 02: `よく使ったアプリの上位2件と、それぞれの外側・内側の利用時間と割合。`
+- 03: `開いてから閉じるまでに内側画面を長く使った回と、そのアプリ別の内訳。`
+- 04: `検出した「開いた」回数の推移グラフと、期間合計・観測日あたりの回数。`
+- 05: `内側の割合と利用時間を表示するホーム画面ウィジェット（横長と正方形）。`
+- 06: `内側・外側の利用時間と開いた回数をまとめた、共有用のサマリー画像。`
 
 ### English (`en-US`)
 
 - Feature graphic: `An abstract orange outer surface folds over a blue inner surface beside the Foldlytics name and tagline.`
-- 01: `A 90-day Foldlytics usage summary showing cover and inner display time, a 64% inner share, 98% data coverage, and 945 detected opens.`
-- 02: `The opening-to-closing inner-display use card showing median, average, longest time, and app breakdowns for the three longest uses.`
-- 03: `A Foldlytics line chart showing inner-display share across a 90-day period.`
-- 04: `The detected-open trend chart with a total of 945 and no app ranking on the home screen.`
-- 05: `The total display-time app usage detail led by Reading, Browser, and Photos, with outer and inner time shown for each app.`
-- 06: `The Foldlytics drawer with CSV export, diagnostic sharing, Usage Access settings, privacy policy, and an on-device data notice.`
+- 01: `A 90-day Foldlytics usage summary showing cover and inner display time, a 64% inner share, and 945 detected opens.`
+- 02: `The top two most-used apps with cover and inner display time and percentages for each.`
+- 03: `The longest inner-display uses between opening and closing, with app breakdowns.`
+- 04: `The detected-open trend chart with the period total and opens per observed day.`
+- 05: `Home-screen widgets in wide and square sizes showing the inner display share and time.`
+- 06: `A shareable summary image with inner and cover display time and detected opens.`
 
 ## Representative data
 
@@ -120,14 +144,27 @@ trend buckets, open counts, and rankings agree with one another.
    Keep the emulator screen awake and unlocked during capture. Direct `am instrument` can also
    run the installed fixture; captures were verified after waking and unlocking the emulator.
 
-3. Set `FOLDLYTICS_STORE_FONT` when the default macOS Hiragino font is unavailable.
+3. The generator needs ImageMagick 7 (`magick`) and Python Playwright with Chromium:
+
+   ```shell
+   python3 -m pip install playwright
+   python3 -m playwright install chromium
+   ```
+
+   With `uv` on PATH, the script runs with its inline dependencies instead. Headlines use
+   Noto Sans CJK JP when installed and fall back to Hiragino Sans on macOS.
+
+4. To change headlines, slot order or crop regions, edit `SLOTS` in
+   `render-phone-screenshots.py`; the layout and styling live in `phone-template/template.html`.
+   Crop regions are in raw-capture pixels, so recheck them after UI changes that move the cards.
+   Then run `./store-assets/google-play/generate-phone-screenshots.sh` on its own.
 
 The capture names describe the rendered screen (`01-home-summary.png` through `06-drawer.png`),
 while the helper stores them under the stable raw filenames. In particular,
-`05-total-app-ranking.png` is saved as `05-app-ranking.png`. The generator prefers that stable
-app-ranking raw file and accepts the former `05-total-app-ranking.png` and
-`05-inner-app-ranking.png` aliases only as migration fallbacks; the capture helper removes both
-aliases so new captures do not accumulate extra raw PNGs.
+`05-total-app-ranking.png` is saved as `05-app-ranking.png`. The generator reads only the stable
+raw filenames (`03-trends.png` and `06-on-device.png` are kept but no longer used); the capture
+helper removes the former `05-total-app-ranking.png` and `05-inner-app-ranking.png` aliases so
+new captures do not accumulate extra raw PNGs.
 
 `FoldlyticsScreen` accepts an optional `appName` only so the screenshot fixture can render the
 public title `Foldlytics` instead of the debug application label. Normal application calls keep

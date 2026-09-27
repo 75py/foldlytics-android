@@ -84,14 +84,14 @@ Android 10以降の対応する折りたたみ端末と、Androidの「利用状
 折りたたみスマホ、どのくらい開いて使っていますか？
 ```
 
-スクリーンショット見出し候補:
+スクリーンショット見出し（見出し / サブ行）:
 
-1. `外側と内側、それぞれの利用時間が分かる`
-2. `1回の内側画面利用時間が分かる`
-3. `使い方の変化を週・月・年単位で確認`
-4. `検出した「開いた」回数を期間ごとに振り返る`
-5. `画面ごとによく使うアプリを比較`
-6. `利用履歴は端末内だけに保存`
+1. `外側と内側、どっちが多い？` / `折りたたみスマホの使い方を記録`
+2. `内側で使うアプリは？` / `アプリごとに外側・内側の時間を比較`
+3. `開いたら、何分使う？` / `長く使った回は、アプリの内訳まで`
+4. `1日に何回開いてる？` / `検出した「開いた」回数の推移`
+5. `ホーム画面でさっと確認` / `ウィジェットで内側の割合をチェック`
+6. `結果を画像でシェア` / `共有は自分で操作したときだけ`
 
 ## English (en-US)
 
@@ -154,14 +154,14 @@ Feature graphic candidate:
 How much do you use the inner display?
 ```
 
-Screenshot headline candidates:
+Screenshot headlines (headline / subtitle):
 
-1. `See your cover and inner display time`
-2. `See inner-display use for each opening`
-3. `Follow your usage trends over weeks and months`
-4. `Track detected opens over time`
-5. `See which apps you use on each display`
-6. `Your usage history stays on your device`
+1. `Cover or inner display?` / `See how you really use your foldable`
+2. `Which apps get the inner display?` / `Compare cover and inner time by app`
+3. `How long do you stay unfolded?` / `App breakdowns for your longest sessions`
+4. `How often do you unfold?` / `Detected opens over time`
+5. `Check it from your home screen` / `See your inner display share in a widget`
+6. `Share your summary image` / `Only when you choose to share`
 
 ## 表現上の統一ルール
 

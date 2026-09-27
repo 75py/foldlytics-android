@@ -1,0 +1,145 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<!--
+  Layout template for the Google Play phone screenshots.
+  render-phone-screenshots.py loads this page, calls render(slot) with one slot
+  definition, and captures the 1080 x 1920 viewport.
+-->
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1080px; height: 1920px; overflow: hidden; }
+body {
+  font-family: "Noto Sans CJK JP", "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", sans-serif;
+  color: #10213C;
+}
+#canvas {
+  position: absolute; inset: 0; overflow: hidden;
+  background:
+    radial-gradient(900px 700px at 15% 8%, rgba(255, 255, 255, .85) 0%, rgba(255, 255, 255, 0) 70%),
+    linear-gradient(180deg, #E6ECFF 0%, #D2DDFE 34%, #A9BCF6 72%, #869FEF 100%);
+}
+/* Folded ribbon from the feature graphic background, shown bottom-right. */
+#ribbon {
+  position: absolute; right: -380px; bottom: -200px; width: 1200px; height: 979px; opacity: .9;
+  background-repeat: no-repeat; background-size: 2004px 979px; background-position: -804px 0;
+  -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 50%, #000 55%, transparent 100%);
+}
+#orbit {
+  position: absolute; left: 560px; top: -520px; width: 1100px; height: 1100px;
+  border: 2px dashed rgba(255, 255, 255, .45); border-radius: 50%;
+}
+#head { position: absolute; left: 84px; right: 60px; top: 132px; display: flex; gap: 30px; }
+#head .bar { width: 14px; border-radius: 7px; background: #C44E00; flex: none; }
+#head h1 { font-weight: 700; font-size: 96px; line-height: 1.16; letter-spacing: .005em; }
+#head.en h1 { font-size: 88px; line-height: 1.1; letter-spacing: -.01em; }
+#head p { font-weight: 500; font-size: 40px; line-height: 1.4; color: #33456A; margin-top: 26px; }
+.layer { position: absolute; }
+/* White frame around a cropped app region. */
+.frame {
+  padding: 12px; background: #FFFFFF;
+  box-shadow: 0 34px 80px rgba(16, 33, 60, .26), 0 6px 18px rgba(16, 33, 60, .10);
+}
+.panel { overflow: hidden; }
+.region { position: relative; overflow: hidden; }
+.region img, .region .mask { position: absolute; }
+.free { filter: drop-shadow(0 30px 40px rgba(16, 33, 60, .25)) drop-shadow(0 4px 10px rgba(16, 33, 60, .10)); }
+.free img { display: block; }
+</style>
+</head>
+<body>
+<div id="canvas">
+  <div id="orbit"></div>
+  <div id="ribbon"></div>
+  <div id="head"><div class="bar"></div><div><h1 id="headline"></h1><p id="sub"></p></div></div>
+  <div id="layers"></div>
+</div>
+<script>
+// slot = {
+//   locale: "ja" | "en", headline: [line, ...], sub: string, ribbon: url,
+//   layers: [
+//     { type: "crop", src, srcWidth, regions: [[x, y, w, h], ...], scale, top, left?,
+//       radius, padding, background, cap?, masks?: [[x, y, w, h, color], ...] },
+//     { type: "image", src, width, top, left? },
+//   ],
+// }
+// Crop regions use source-image pixels. "cap" closes a card that a region cuts
+// through with the card's own rounded bottom edge (the card edge sits 3.5 px inside a 1008 px region).
+window.render = async (slot) => {
+  document.getElementById("head").className = slot.locale;
+  document.getElementById("headline").innerHTML = slot.headline.map(escapeHtml).join("<br>");
+  document.getElementById("sub").textContent = slot.sub;
+  document.getElementById("ribbon").style.backgroundImage = `url("${slot.ribbon}")`;
+  const root = document.getElementById("layers");
+  root.innerHTML = "";
+  for (const layer of slot.layers) root.appendChild(buildLayer(layer));
+  await Promise.all([...document.images].map((img) => img.decode()));
+  await document.fonts.ready;
+  for (const el of root.children) {
+    if (el.dataset.center === "true") el.style.left = `${(1080 - el.offsetWidth) / 2}px`;
+  }
+};
+
+function buildLayer(layer) {
+  const el = document.createElement("div");
+  el.className = "layer";
+  el.style.top = `${layer.top}px`;
+  if (layer.left === undefined) el.dataset.center = "true";
+  else el.style.left = `${layer.left}px`;
+
+  if (layer.type === "image") {
+    el.classList.add("free");
+    el.innerHTML = `<img src="${layer.src}" style="width:${layer.width}px">`;
+    return el;
+  }
+
+  const s = layer.scale;
+  const pad = layer.padding;
+  const innerRadius = layer.radius * s;
+  const panelRadius = innerRadius + pad;
+  el.classList.add("frame");
+  el.style.borderRadius = `${panelRadius + 12}px`;
+  const panel = document.createElement("div");
+  panel.className = "panel";
+  Object.assign(panel.style, {
+    padding: `${pad}px`,
+    background: layer.background,
+    borderRadius: `${panelRadius}px`,
+  });
+  const body = document.createElement("div");
+  body.style.borderRadius = `${innerRadius}px`;
+  body.style.overflow = "hidden";
+  for (const [x, y, w, h] of layer.regions) {
+    const region = document.createElement("div");
+    region.className = "region";
+    region.style.width = `${w * s}px`;
+    region.style.height = `${h * s}px`;
+    const masks = (layer.masks || []).map(([mx, my, mw, mh, color]) =>
+      `<div class="mask" style="left:${(mx - x) * s}px;top:${(my - y) * s}px;width:${mw * s}px;height:${mh * s}px;background:${color}"></div>`
+    ).join("");
+    region.innerHTML =
+      `<img src="${layer.src}" style="width:${layer.srcWidth * s}px;left:${-x * s}px;top:${-y * s}px">${masks}`;
+    body.appendChild(region);
+  }
+  if (layer.cap) {
+    const cap = document.createElement("div");
+    Object.assign(cap.style, {
+      height: `${34 * s}px`,
+      margin: `0 ${3.5 * s}px`,
+      background: "rgb(230, 224, 233)",
+      borderRadius: `0 0 ${44 * s}px ${44 * s}px`,
+    });
+    body.appendChild(cap);
+  }
+  panel.appendChild(body);
+  el.appendChild(panel);
+  return el;
+}
+
+function escapeHtml(text) {
+  return text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+}
+</script>
+</body>
+</html>
