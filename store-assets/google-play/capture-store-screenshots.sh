@@ -147,8 +147,11 @@ pull_and_validate() {
         width="$($magick_bin identify -format '%w' "$staging_file")"
         height="$($magick_bin identify -format '%h' "$staging_file")"
         case "$raw_name" in
-            07-widget-*)
-                valid_size=$((width > 0 && width <= 1080 && height > 0 && height <= 1920))
+            07-widget-wide)
+                valid_size=$((width == 956 && height == 478))
+                ;;
+            07-widget-small)
+                valid_size=$((width == 478 && height == 478))
                 ;;
             08-share-image)
                 valid_size=$((width == 1200 && height == 675))

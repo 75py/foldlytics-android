@@ -53,9 +53,10 @@ each image, and the captured app UI remains the main content.
 
 The app screenshots use the 90-day representative period. Screenshot 02 selects the inner-time
 sort. The two widgets use the latest 30 days from the same deterministic daily data (67% inner),
-so their visible period differs from the app's 90-day summary (64% inner). Both share images use
-the 90-day summary. The generator covers the emulator device name on each share image before it
-reaches the upload-ready output.
+so their visible period differs from the app's 90-day summary (64% inner). Their update label
+uses a fixed Asia/Tokyo reference date, and they are captured at the exact size used by the
+template so text is not enlarged. Both share images use the 90-day summary. The generator covers
+the emulator device name on each share image before it reaches the upload-ready output.
 
 ## Suggested alt text
 
@@ -123,7 +124,7 @@ trend buckets, open counts, and rankings agree with one another.
    `ro.kernel.qemu=1`, sets `OPENED` and 1080 x 1920, then runs the Gradle connected test. The
    fixture writes PNGs to its dedicated shared Downloads directories so the host can pull all
    eighteen files after the test and before any unrelated cleanup. Each file is checked as a PNG
-   with the expected dimensions: 1080 x 1920 for app screens, 683 x 341 or 341 x 341 for widgets,
+   with the expected dimensions: 1080 x 1920 for app screens, 956 x 478 or 478 x 478 for widgets,
    and 1200 x 675 for share images. They are copied into `raw-ja/` or `raw-en/` and passed to
    `generate-phone-screenshots.sh` for the upload-ready images and contact sheets. The helper
    removes only its fixture directories from the test emulator when it exits.

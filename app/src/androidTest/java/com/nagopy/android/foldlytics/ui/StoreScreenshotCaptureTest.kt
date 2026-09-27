@@ -226,6 +226,8 @@ class StoreScreenshotCaptureTest {
         val recordEndMillis = LocalDate.of(2026, 8, 16)
             .atStartOfDay(zoneId).toInstant().toEpochMilli()
         val syncedMillis = recordEndMillis - minutes(2L)
+        val renderNowMillis = LocalDate.of(2026, 9, 27)
+            .atStartOfDay(zoneId).toInstant().toEpochMilli()
         val state = buildSummaryWidgetState(
             period = WidgetPeriod.DAYS_30,
             summaries = representativeDailySummaries(zoneId),
@@ -236,13 +238,28 @@ class StoreScreenshotCaptureTest {
             nowMillis = syncedMillis,
             zoneId = zoneId,
         )
-        val density = context.resources.displayMetrics.density
+        // 546 dpi makes the 280 x 140 dp and 140 x 140 dp widgets exactly
+        // 956 x 478 px and 478 x 478 px, matching the final template widths.
+        val widgetContext = context.createConfigurationContext(
+            Configuration(context.resources.configuration).apply {
+                densityDpi = 546
+            },
+        )
+        val density = widgetContext.resources.displayMetrics.density
         InstrumentationRegistry.getInstrumentation().runOnMainSync {
             listOf(true to "07-widget-wide", false to "07-widget-small").forEach { (wide, name) ->
-                val view = SummaryWidgetRenderer.render(context, 999_999, state, wide)
-                    .apply(context, FrameLayout(context))
+                val view = SummaryWidgetRenderer.render(
+                    widgetContext,
+                    999_999,
+                    state,
+                    wide,
+                    nowMillis = renderNowMillis,
+                    zoneId = zoneId,
+                ).apply(widgetContext, FrameLayout(widgetContext))
                 val width = ((if (wide) 280 else 140) * density).roundToInt()
                 val height = (140 * density).roundToInt()
+                check(width == (if (wide) 956 else 478))
+                check(height == 478)
                 view.measure(
                     View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
                     View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY),
