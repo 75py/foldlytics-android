@@ -47,8 +47,14 @@ When exactly one app is definitely resumed, its session time is
 attributed even if older activity events leave another app only possibly resumed;
 this can approximate genuinely split use when Android's evidence is ambiguous.
 The same usage events already stored on the device are used,
-with no new permission or automatic data transfer; the derived cache can be
+with no new permission or automatic usage-history transfer; the derived cache can be
 regenerated from the saved source events.
+
+This branch adds automatic Home explanations with ML Kit Prompt API when Gemini Nano
+is already available. Usage inputs and generated text are processed on-device; ML Kit
+sends API performance and utilization metrics to Google. No model download is initiated
+by Foldlytics. Device validation and publication of updated privacy/Data safety
+disclosures are pending. See [ML Kit implementation and release gates](docs/MLKIT-INSIGHTS.md).
 
 App usage starts with apps sorted by total usage time. You can also sort by time
 on the outer or inner display. In the By display view, each app appears under the

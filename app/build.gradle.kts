@@ -73,6 +73,7 @@ dependencies {
     implementation("androidx.room:room-ktx:$roomVersion")
     implementation("androidx.work:work-runtime-ktx:$workVersion")
     implementation("com.google.android.gms:play-services-oss-licenses:17.5.1")
+    implementation("com.google.mlkit:genai-prompt:1.0.0-beta4")
     ksp("androidx.room:room-compiler:$roomVersion")
 
     debugImplementation("androidx.compose.ui:ui-tooling")

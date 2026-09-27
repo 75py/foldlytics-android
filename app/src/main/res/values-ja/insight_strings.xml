@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="insight_title">あなたの使い方</string>
+    <string name="insight_period">昨日までの30日間：%1$s ～ %2$s</string>
+    <string name="insight_generated_note">Gemini Nanoで端末内生成した説明です。AIは誤ることがあるため、根拠も確認してください。</string>
+    <string name="insight_privacy_note">利用記録と生成文は端末内で処理します。ML Kitの性能・利用状況の指標はGoogleに送信されます。</string>
+    <string name="insight_generating">使い方の特徴をまとめています…</string>
+    <string name="insight_insufficient">十分な利用記録が集まると、使い方の特徴が自動で表示されます。</string>
+    <string name="insight_unavailable">説明を生成できませんでした。利用状況のグラフは引き続き確認できます。</string>
+    <string name="insight_evidence">根拠を見る</string>
+</resources>

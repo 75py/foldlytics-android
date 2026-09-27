@@ -25,7 +25,7 @@
     <string name="action_cancel">Cancel</string>
     <string name="action_dismiss">Dismiss</string>
     <string name="action_share_summary_image">Share image</string>
-    <string name="drawer_privacy_note">Data stays on this device and is never sent elsewhere unless you choose an export or share action.</string>
+    <string name="drawer_privacy_note">Usage history and AI explanations stay on this device unless you export or share them. ML Kit sends API performance and utilization metrics to Google.</string>
 
     <!-- Accessibility -->
     <string name="content_desc_analysis_progress">Analyzing saved data</string>
@@ -181,7 +181,7 @@
     <string name="classification_automatic">Automatic detection</string>
     <string name="calibration_edge_case_note">Calibration can help on vertically folding devices whose inner display is under 600 dp, after display-size changes, or when a manufacturer reports unusual configuration values.</string>
     <string name="usage_access_disclosure_title">How usage data is handled</string>
-    <string name="usage_access_disclosure_body">To calculate outer- and inner-display usage, Foldlytics reads displayed app names, screen on and lock state, screen configuration, and their timestamps. It also reads this data about every six hours while the app is closed and stores it in an on-device database until you uninstall the app.\n\nThe data is used only for statistics and for CSV export or sharing that you initiate. It is not used for advertising or third-party analytics and is not transmitted automatically. Only when you choose to export or share is the data passed to the destination or app you select.</string>
+    <string name="usage_access_disclosure_body">To calculate outer- and inner-display usage, Foldlytics reads displayed app names, screen on and lock state, screen configuration, and their timestamps. It also reads this data about every six hours while the app is closed and stores it in an on-device database until you clear app data or uninstall the app.\n\nUsage data is used for statistics, automatic on-device AI explanations on Home, and exports or sharing you initiate. ML Kit processes explanation inputs and outputs on-device and does not send their contents to Google. Usage history is passed to another destination only when you export or share it.\n\nSeparately, ML Kit sends API performance and utilization metrics to Google, including device and app information, identifiers, input/output sizes, and configured languages, for diagnostics and usage analytics. See the privacy policy for details.</string>
     <string name="usage_access_required_title">Usage access is required</string>
     <string name="usage_access_required_body">App display time and fold state are calculated only on this device.</string>
     <string name="calibration_values_title">Device-specific detection values</string>

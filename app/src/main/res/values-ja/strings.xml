@@ -23,7 +23,7 @@
     <string name="action_cancel">キャンセル</string>
     <string name="action_dismiss">閉じる</string>
     <string name="action_share_summary_image">画像を共有</string>
-    <string name="drawer_privacy_note">データは端末内に保存され、操作しない限り外部へ送信されません。</string>
+    <string name="drawer_privacy_note">利用履歴とAIの説明文は、保存・共有を選ばない限り端末内で扱います。ML KitはAPIの性能・利用状況の指標をGoogleへ送信します。</string>
 
     <!-- Accessibility -->
     <string name="content_desc_analysis_progress">保存データを集計中</string>
@@ -176,7 +176,7 @@
     <string name="classification_automatic">自動判定</string>
     <string name="calibration_edge_case_note">縦折り端末など内側も600dp未満になる端末、表示サイズを変更した端末、メーカー独自の画面構成値で誤判定する場合に有効です。</string>
     <string name="usage_access_disclosure_title">利用状況データの取り扱い</string>
-    <string name="usage_access_disclosure_body">外側・内側の利用統計を作るため、表示したアプリ名、画面の点灯・ロック状態、画面構成とその時刻を読み取ります。アプリを閉じている間も約6時間ごとに読み取り、アンインストールまで端末内DBへ保存します。\n\nデータは統計表示と、あなたが操作したCSV保存・共有だけに使います。広告や第三者の分析サービスには利用せず、外部へ自動送信しません。CSV保存・共有を選んだ場合に限り、選択した保存先または共有先へデータが渡ります。</string>
+    <string name="usage_access_disclosure_body">外側・内側の利用統計を作るため、表示したアプリ名、画面の点灯・ロック状態、画面構成とその時刻を読み取ります。アプリを閉じている間も約6時間ごとに読み取り、アプリデータの消去またはアンインストールまで端末内DBへ保存します。\n\n利用状況データは統計表示、ホームでのAI説明文の自動生成、あなたが操作した保存・共有に使います。ML Kitは説明文の入力と出力を端末内で処理し、その内容をGoogleへ送信しません。利用履歴は、保存・共有を選んだ場合に限り、選択した保存先や共有先へ渡ります。\n\nこれとは別に、ML Kitは診断と利用状況分析のため、端末・アプリ情報、識別子、入出力のサイズ、設定言語など、APIの性能・利用状況の指標をGoogleへ送信します。詳細はプライバシーポリシーをご確認ください。</string>
     <string name="usage_access_required_title">利用状況へのアクセスが必要です</string>
     <string name="usage_access_required_body">アプリの表示時間と開閉状態を、端末内だけで集計します。</string>
     <string name="calibration_values_title">端末ごとの判定値</string>
