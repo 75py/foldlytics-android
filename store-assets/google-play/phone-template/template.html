@@ -43,7 +43,7 @@ body {
 }
 .panel { overflow: hidden; }
 .region { position: relative; overflow: hidden; }
-.region img, .region .mask { position: absolute; }
+.region img { position: absolute; }
 .free { filter: drop-shadow(0 30px 40px rgba(16, 33, 60, .25)) drop-shadow(0 4px 10px rgba(16, 33, 60, .10)); }
 .free img { display: block; }
 </style>
@@ -60,7 +60,7 @@ body {
 //   locale: "ja" | "en", headline: [line, ...], sub: string, ribbon: url,
 //   layers: [
 //     { type: "crop", src, srcWidth, regions: [[x, y, w, h], ...], scale, top, left?,
-//       radius, padding, background, cap?, masks?: [[x, y, w, h, color], ...] },
+//       radius, padding, background, cap? },
 //     { type: "image", src, width, top, left? },
 //   ],
 // }
@@ -118,11 +118,8 @@ function buildLayer(layer) {
     region.className = "region";
     region.style.width = `${w * s}px`;
     region.style.height = `${h * s}px`;
-    const masks = (layer.masks || []).map(([mx, my, mw, mh, color]) =>
-      `<div class="mask" style="left:${(mx - x) * s}px;top:${(my - y) * s}px;width:${mw * s}px;height:${mh * s}px;background:${color}"></div>`
-    ).join("");
     region.innerHTML =
-      `<img src="${layer.src}" style="width:${layer.srcWidth * s}px;left:${-x * s}px;top:${-y * s}px">${masks}`;
+      `<img src="${layer.src}" style="width:${layer.srcWidth * s}px;left:${-x * s}px;top:${-y * s}px">`;
     body.appendChild(region);
   }
   if (layer.cap) {

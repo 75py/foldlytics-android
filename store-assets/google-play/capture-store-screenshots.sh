@@ -88,7 +88,7 @@ capture_names=(
     02-session-details
     03-inner-ratio-trend
     04-open-count-trend
-    05-total-app-ranking
+    05-inner-app-ranking
     06-drawer
     07-widget-wide
     07-widget-small
@@ -99,7 +99,7 @@ preferred_raw_names=(
     02-session-details
     03-inner-ratio-trend
     04-open-count-trend
-    05-total-app-ranking
+    05-inner-app-ranking
     06-drawer
 )
 raw_names=(

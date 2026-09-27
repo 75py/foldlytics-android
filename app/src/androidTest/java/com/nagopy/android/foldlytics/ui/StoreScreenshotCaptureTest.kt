@@ -204,7 +204,7 @@ class StoreScreenshotCaptureTest {
         composeRule.onNodeWithTag(APP_USAGE_INNER_SEGMENT_TAG).performClick()
         composeRule.onNodeWithTag(APP_USAGE_INNER_SEGMENT_TAG).assertIsSelected()
         scrollTo("${APP_USAGE_CARD_TAG_PREFIX}demo.reader")
-        capture("05-total-app-ranking", outputDirectory)
+        capture("05-inner-app-ranking", outputDirectory)
 
         composeRule.onNodeWithTag(DETAIL_BACK_BUTTON_TAG).performClick()
 
@@ -217,7 +217,11 @@ class StoreScreenshotCaptureTest {
         saveBitmap(
             "08-share-image",
             outputDirectory,
-            SummaryShareImageRenderer.render(context.resources, requireNotNull(state.periodSummary)),
+            SummaryShareImageRenderer.render(
+                context.resources,
+                requireNotNull(state.periodSummary),
+                includeDeviceName = false,
+            ),
         )
     }
 

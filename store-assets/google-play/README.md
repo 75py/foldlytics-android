@@ -55,8 +55,8 @@ The app screenshots use the 90-day representative period. Screenshot 02 selects 
 sort. The two widgets use the latest 30 days from the same deterministic daily data (67% inner),
 so their visible period differs from the app's 90-day summary (64% inner). Their update label
 uses a fixed Asia/Tokyo reference date, and they are captured at the exact size used by the
-template so text is not enlarged. Both share images use the 90-day summary. The generator covers
-the emulator device name on each share image before it reaches the upload-ready output.
+template so text is not enlarged. Both share images use the 90-day summary. The store capture
+omits the emulator device name when drawing the share image.
 
 ## Suggested alt text
 
@@ -150,11 +150,10 @@ trend buckets, open counts, and rankings agree with one another.
 
 The app-screen capture names describe the rendered screen (`01-home-summary.png` through
 `06-drawer.png`), while the helper stores them under the stable raw filenames. In particular,
-`05-total-app-ranking.png` (captured with inner-time sorting) is saved as `05-app-ranking.png`.
+`05-inner-app-ranking.png` (captured with inner-time sorting) is saved as `05-app-ranking.png`.
 The generator reads only the stable raw filenames (`03-trends.png` and `06-on-device.png` are
-kept but no longer used). The capture helper removes the former `05-total-app-ranking.png` and
-`05-inner-app-ranking.png` aliases so
-new captures do not accumulate extra raw PNGs.
+kept but no longer used). The capture helper removes stale `05-total-app-ranking.png` and
+`05-inner-app-ranking.png` raw aliases so new captures do not accumulate extra PNGs.
 
 `FoldlyticsScreen` accepts an optional `appName` only so the screenshot fixture can render the
 public title `Foldlytics` instead of the debug application label. Normal application calls keep

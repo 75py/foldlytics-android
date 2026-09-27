@@ -74,8 +74,6 @@ def image(src: str, width: int, top: int, left: int | None = None):
 
 
 def share_image(src: str, top: int):
-    # The share image prints the capture device's manufacturer and model at the
-    # top right. Cover it so no device or manufacturer name reaches the listing.
     return {
         "type": "crop",
         "src": src,
@@ -86,9 +84,6 @@ def share_image(src: str, top: int):
         "radius": 36,
         "padding": 0,
         "background": "#F4F7FB",
-        # The device text can start at x=650 and is clipped at y=88. Stop before
-        # the period text, which begins at y=92.
-        "masks": [[640, 40, 520, 50, "#F4F7FB"]],
     }
 
 
