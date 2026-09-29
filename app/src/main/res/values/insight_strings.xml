@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="insight_title">Your display habits</string>
+    <string name="insight_period">Past 30 complete days: %1$s – %2$s</string>
+    <string name="insight_generated_note">Generated on this device from recorded usage. Check the evidence for details.</string>
+    <string name="insight_preparing">Preparing the on-device explanation for the first time…</string>
+    <string name="insight_generating">Preparing your display habits…</string>
+    <string name="insight_insufficient">An explanation will appear automatically once there is enough reliable recorded usage.</string>
+    <string name="insight_unavailable">An explanation could not be prepared on this device. Your usage charts are still available.</string>
+    <string name="insight_evidence">See evidence</string>
+    <string name="insight_licenses">Model and licenses</string>
+</resources>

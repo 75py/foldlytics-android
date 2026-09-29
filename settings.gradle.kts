@@ -23,3 +23,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Foldlytics"
 include(":app")
+include(":insight_model")

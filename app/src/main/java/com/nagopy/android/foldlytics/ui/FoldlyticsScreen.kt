@@ -36,11 +36,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -67,6 +69,10 @@ import com.nagopy.android.foldlytics.model.CalibrationValidationFailure
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.nagopy.android.foldlytics.insight.UsageInsightUiState
 
 internal const val ANALYSIS_PROGRESS_DELAY_MILLIS = 400L
 internal const val MAIN_ERROR_BANNER_TAG = "main_error_banner"
@@ -104,12 +110,29 @@ fun FoldlyticsScreen(
     screenshotSectionEndSpacing: Dp = 0.dp,
     screenshotHomeItemIndex: Int? = null,
     homeNavigationRequest: Int = 0,
+    insightState: UsageInsightUiState = UsageInsightUiState(),
+    onInsightVisibilityChanged: (Boolean) -> Unit = {},
 ) {
     val analysisProgressDescription = stringResource(R.string.content_desc_analysis_progress)
     val resolvedAppName = appName ?: stringResource(R.string.app_name)
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var destination by rememberSaveable { mutableStateOf(ScreenDestination.HOME) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val updateInsightVisibility by rememberUpdatedState(onInsightVisibilityChanged)
+    DisposableEffect(lifecycleOwner, destination) {
+        fun updateVisibility() = updateInsightVisibility(
+            destination == ScreenDestination.HOME &&
+                lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED),
+        )
+        val observer = LifecycleEventObserver { _, _ -> updateVisibility() }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        updateVisibility()
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            updateInsightVisibility(false)
+        }
+    }
     var showUsageAccessDisclosure by rememberSaveable { mutableStateOf(false) }
     var showAnalysisProgress by remember { mutableStateOf(false) }
     var summaryShareSnapshot by remember { mutableStateOf<PeriodUsageSummary?>(null) }
@@ -239,6 +262,7 @@ fun FoldlyticsScreen(
                     onOpenAppUsage = { destination = ScreenDestination.APP_USAGE },
                     onOpenInnerSessions = { destination = ScreenDestination.INNER_SESSIONS },
                     screenshotSectionEndSpacing = screenshotSectionEndSpacing,
+                    insightState = insightState,
                 )
 
                 ScreenDestination.APP_USAGE -> AppUsageScreen(

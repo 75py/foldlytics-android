@@ -57,6 +57,14 @@ longest first. Apps with equal time on both displays appear in neither list.
 Time when the display is unknown is shown separately and excluded from totals
 and percentages.
 
+## On-device usage explanations
+
+Home automatically describes the previous 30 complete days from saved usage
+evidence. The fixed model runs inside the app with no runtime networking or
+telemetry. Evidence is available alongside the text. The install-time asset and
+extracted model require about 1.3 GB. See the [implementation and validation
+guide](docs/LOCAL-INSIGHTS.md) for packaging, build commands and release checks.
+
 ## Home-screen widget
 
 Add Foldlytics from your launcher's widget picker. The donut shows your inner display share
