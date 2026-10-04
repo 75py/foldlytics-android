@@ -5,18 +5,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,7 +28,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nagopy.android.foldlytics.MainUiState
@@ -237,41 +235,29 @@ private fun AppRankingSelector(
     selectedMajority: AppDisplayMajority,
     onMajoritySelected: (AppDisplayMajority) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            stringResource(R.string.app_ranking_title),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            stringResource(R.string.app_ranking_view),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        SingleChoiceSegmentedButtonRow(
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag(APP_USAGE_VIEW_SELECTOR_TAG),
-        ) {
-            AppRankingView.entries.forEachIndexed { index, view ->
+    LabCard(title = stringResource(R.string.app_ranking_title)) {
+        Overline(stringResource(R.string.app_ranking_view))
+        Spacer(Modifier.height(4.dp))
+        SegmentedToggle(
+            options = AppRankingView.entries,
+            selected = selectedView,
+            onSelected = onViewSelected,
+            label = { view -> stringResource(view.labelRes) },
+            optionModifier = { view ->
                 val selectorDescription = stringResource(view.selectorDescriptionRes)
-                SegmentedButton(
-                    selected = selectedView == view,
-                    onClick = { onViewSelected(view) },
-                    shape = SegmentedButtonDefaults.itemShape(index, AppRankingView.entries.size),
-                    label = { Text(stringResource(view.labelRes)) },
-                    modifier = Modifier
-                        .testTag(
-                            when (view) {
-                                AppRankingView.USAGE_TIME -> APP_USAGE_TIME_VIEW_TAG
-                                AppRankingView.DISPLAY_SHARE -> APP_USAGE_DISPLAY_SHARE_VIEW_TAG
-                            },
-                        )
-                        .semantics { contentDescription = selectorDescription },
-                )
-            }
-        }
-        Text(
+                Modifier
+                    .testTag(
+                        when (view) {
+                            AppRankingView.USAGE_TIME -> APP_USAGE_TIME_VIEW_TAG
+                            AppRankingView.DISPLAY_SHARE -> APP_USAGE_DISPLAY_SHARE_VIEW_TAG
+                        },
+                    )
+                    .semantics { contentDescription = selectorDescription }
+            },
+            modifier = Modifier.testTag(APP_USAGE_VIEW_SELECTOR_TAG),
+        )
+        Spacer(Modifier.height(10.dp))
+        Overline(
             stringResource(
                 if (selectedView == AppRankingView.USAGE_TIME) {
                     R.string.app_ranking_basis
@@ -279,9 +265,8 @@ private fun AppRankingSelector(
                     R.string.app_ranking_higher_share
                 },
             ),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Spacer(Modifier.height(4.dp))
         if (selectedView == AppRankingView.USAGE_TIME) {
             UsageTimeBasisSelector(
                 selectedBasis = selectedBasis,
@@ -293,6 +278,7 @@ private fun AppRankingSelector(
                 onMajoritySelected = onMajoritySelected,
             )
         }
+        Spacer(Modifier.height(10.dp))
         Text(
             if (selectedView == AppRankingView.DISPLAY_SHARE) {
                 stringResource(
@@ -335,30 +321,25 @@ private fun UsageTimeBasisSelector(
     selectedBasis: AppRankingBasis,
     onBasisSelected: (AppRankingBasis) -> Unit,
 ) {
-    SingleChoiceSegmentedButtonRow(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag(APP_USAGE_RANKING_SELECTOR_TAG),
-    ) {
-        AppRankingBasis.entries.forEachIndexed { index, basis ->
+    SegmentedToggle(
+        options = AppRankingBasis.entries,
+        selected = selectedBasis,
+        onSelected = onBasisSelected,
+        label = { basis -> stringResource(basis.labelRes) },
+        optionModifier = { basis ->
             val selectorDescription = stringResource(basis.selectorDescriptionRes)
-            SegmentedButton(
-                selected = selectedBasis == basis,
-                onClick = { onBasisSelected(basis) },
-                shape = SegmentedButtonDefaults.itemShape(index, AppRankingBasis.entries.size),
-                label = { Text(stringResource(basis.labelRes)) },
-                modifier = Modifier
-                    .testTag(
-                        when (basis) {
-                            AppRankingBasis.TOTAL -> APP_USAGE_TOTAL_SEGMENT_TAG
-                            AppRankingBasis.COVER -> APP_USAGE_COVER_SEGMENT_TAG
-                            AppRankingBasis.INNER -> APP_USAGE_INNER_SEGMENT_TAG
-                        },
-                    )
-                    .semantics { contentDescription = selectorDescription },
-            )
-        }
-    }
+            Modifier
+                .testTag(
+                    when (basis) {
+                        AppRankingBasis.TOTAL -> APP_USAGE_TOTAL_SEGMENT_TAG
+                        AppRankingBasis.COVER -> APP_USAGE_COVER_SEGMENT_TAG
+                        AppRankingBasis.INNER -> APP_USAGE_INNER_SEGMENT_TAG
+                    },
+                )
+                .semantics { contentDescription = selectorDescription }
+        },
+        modifier = Modifier.testTag(APP_USAGE_RANKING_SELECTOR_TAG),
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -367,31 +348,25 @@ private fun DisplayMajoritySelector(
     selectedMajority: AppDisplayMajority,
     onMajoritySelected: (AppDisplayMajority) -> Unit,
 ) {
-    val options = listOf(AppDisplayMajority.COVER, AppDisplayMajority.INNER)
-    SingleChoiceSegmentedButtonRow(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag(APP_USAGE_MAJORITY_SELECTOR_TAG),
-    ) {
-        options.forEachIndexed { index, majority ->
+    SegmentedToggle(
+        options = listOf(AppDisplayMajority.COVER, AppDisplayMajority.INNER),
+        selected = selectedMajority,
+        onSelected = onMajoritySelected,
+        label = { majority -> stringResource(majority.labelRes) },
+        optionModifier = { majority ->
             val selectorDescription = stringResource(majority.selectorDescriptionRes)
-            SegmentedButton(
-                selected = selectedMajority == majority,
-                onClick = { onMajoritySelected(majority) },
-                shape = SegmentedButtonDefaults.itemShape(index, options.size),
-                label = { Text(stringResource(majority.labelRes)) },
-                modifier = Modifier
-                    .testTag(
-                        if (majority == AppDisplayMajority.COVER) {
-                            APP_USAGE_COVER_MAJORITY_TAG
-                        } else {
-                            APP_USAGE_INNER_MAJORITY_TAG
-                        },
-                    )
-                    .semantics { contentDescription = selectorDescription },
-            )
-        }
-    }
+            Modifier
+                .testTag(
+                    if (majority == AppDisplayMajority.COVER) {
+                        APP_USAGE_COVER_MAJORITY_TAG
+                    } else {
+                        APP_USAGE_INNER_MAJORITY_TAG
+                    },
+                )
+                .semantics { contentDescription = selectorDescription }
+        },
+        modifier = Modifier.testTag(APP_USAGE_MAJORITY_SELECTOR_TAG),
+    )
 }
 
 @Composable
@@ -459,41 +434,43 @@ internal fun AppUsageCard(
         AppRankingBasis.COVER -> colors.cover
         AppRankingBasis.INNER -> colors.inner
     }
-    Card(
+    Surface(
         modifier = Modifier
             .testTag("$APP_USAGE_CARD_TAG_PREFIX${app.packageName}")
             .clearAndSetSemantics { contentDescription = cardDescription },
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        ),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, top = 16.dp, end = CardPadding, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(
+                FigureText(
                     rankText,
-                    modifier = Modifier.width(32.dp),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = selectedColor,
+                    modifier = Modifier.widthIn(min = 40.dp),
+                    figureStyle = MaterialTheme.typography.headlineLarge,
+                    unitStyle = MaterialTheme.typography.labelMedium,
+                    color = if (rank <= 3) selectedColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    textAlign = TextAlign.Center,
                 )
                 ApplicationIcon(app.packageName, app.label)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         app.label,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         primaryText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.labelLarge,
                         color = selectedColor,
                     )
                 }

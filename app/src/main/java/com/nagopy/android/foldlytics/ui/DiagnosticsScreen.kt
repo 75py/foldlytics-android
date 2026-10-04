@@ -4,19 +4,20 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nagopy.android.foldlytics.MainUiState
 import com.nagopy.android.foldlytics.R
@@ -47,7 +48,9 @@ internal fun DiagnosticsContent(
                         state.displayedAnalysisPeriod.diagnosticHours,
                     ),
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Spacer(Modifier.height(8.dp))
                 InfoLine(
                     stringResource(R.string.label_in_range_posture_events),
                     resources.getString(R.string.value_item_count, inRangeCount),
@@ -100,18 +103,23 @@ private fun CurrentConfigurationCard(state: MainUiState) {
             DisplayPosture.INNER -> colors.inner
             DisplayPosture.UNKNOWN -> colors.unknown
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FoldGlyph(state.currentPosture, postureColor)
             Text(
                 stringResource(R.string.label_current_posture),
                 style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
                 stringResource(state.currentPosture.labelRes),
                 color = postureColor,
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.titleSmall,
             )
         }
+        Spacer(Modifier.height(8.dp))
         InfoLine(
             stringResource(R.string.label_current_configuration),
             state.currentConfiguration?.toDisplayText(resources)
@@ -137,7 +145,10 @@ private fun CurrentConfigurationCard(state: MainUiState) {
                 },
             ),
         )
-        HorizontalDivider(Modifier.padding(vertical = 8.dp))
+        HorizontalDivider(
+            modifier = Modifier.padding(top = 6.dp, bottom = 12.dp),
+            color = MaterialTheme.colorScheme.outlineVariant,
+        )
         InfoLine(
             stringResource(R.string.label_folding_feature),
             if (state.foldFeature.present) {
@@ -275,27 +286,29 @@ private fun PostureEventRow(event: PostureEvent) {
         DisplayPosture.INNER -> colors.inner
         DisplayPosture.UNKNOWN -> colors.unknown
     }
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        ),
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(3.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                FoldGlyph(event.posture, postureColor)
                 Text(
                     event.timestampMillis.toTimeText(resources),
-                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleSmall,
                 )
                 Text(
                     stringResource(event.posture.labelRes),
                     color = postureColor,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelLarge,
                 )
             }
             val rangeLabel = stringResource(

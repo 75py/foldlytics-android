@@ -1,41 +1,53 @@
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+
 package com.nagopy.android.foldlytics.ui
 
 import android.content.res.Resources
 import android.icu.text.ListFormatter
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nagopy.android.foldlytics.R
 import com.nagopy.android.foldlytics.model.LongTermBucket
@@ -45,12 +57,6 @@ internal data class PostureColors(
     val inner: Color,
     val cover: Color,
     val unknown: Color,
-)
-
-internal data class DonutSegment(
-    val label: String,
-    val value: Long,
-    val color: Color,
 )
 
 internal data class OpenCountChartScale(
@@ -81,75 +87,6 @@ internal fun postureColors(): PostureColors = if (isSystemInDarkTheme()) {
         cover = Color(DisplayChartPalette.LIGHT_COVER),
         unknown = Color(0xFF6B7280),
     )
-}
-
-@Composable
-internal fun DonutChart(
-    segments: List<DonutSegment>,
-    centerLabel: String,
-    centerValue: String,
-    description: String,
-    modifier: Modifier = Modifier,
-    size: Dp = 164.dp,
-    centerValueTextStyle: TextStyle? = null,
-) {
-    val visibleSegments = segments.filter { it.value > 0L }
-    val total = visibleSegments.sumOf(DonutSegment::value).coerceAtLeast(1L).toFloat()
-    val emptyColor = MaterialTheme.colorScheme.surfaceVariant
-    Box(
-        modifier = modifier
-            .size(size)
-            .semantics { contentDescription = description },
-        contentAlignment = Alignment.Center,
-    ) {
-        Canvas(Modifier.fillMaxSize()) {
-            val strokeWidth = this.size.minDimension * 0.14f
-            val inset = strokeWidth / 2f
-            val arcTopLeft = Offset(inset, inset)
-            val arcSize = Size(
-                width = this.size.width - strokeWidth,
-                height = this.size.height - strokeWidth,
-            )
-            drawArc(
-                color = emptyColor,
-                startAngle = -90f,
-                sweepAngle = 360f,
-                useCenter = false,
-                topLeft = arcTopLeft,
-                size = arcSize,
-                style = Stroke(width = strokeWidth),
-            )
-            var startAngle = -90f
-            visibleSegments.forEach { segment ->
-                val sweepAngle = segment.value.toFloat() / total * 360f
-                drawArc(
-                    color = segment.color,
-                    startAngle = startAngle,
-                    sweepAngle = sweepAngle,
-                    useCenter = false,
-                    topLeft = arcTopLeft,
-                    size = arcSize,
-                    style = Stroke(width = strokeWidth, cap = StrokeCap.Butt),
-                )
-                startAngle += sweepAngle
-            }
-        }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                centerLabel,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                centerValue,
-                modifier = Modifier.width(size * 0.64f),
-                style = centerValueTextStyle ?: MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-            )
-        }
-    }
 }
 
 @Composable
@@ -188,37 +125,11 @@ internal fun InnerRatioTrendChart(
         description = description,
         modifier = modifier,
     ) {
-        val gridColor = colors.unknown.copy(alpha = 0.28f)
-        listOf(0f, size.height / 2f, size.height).forEach { y ->
-            drawLine(gridColor, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
-        }
-        val positions = buckets.mapIndexed { index, bucket ->
-            val x = chartX(index, buckets.size, size.width)
-            val y = size.height * (1f - bucket.innerRatio.coerceIn(0f, 1f))
-            Offset(x, y)
-        }
-        buckets.zipWithNext().forEachIndexed { index, (first, second) ->
-            if (first.classifiedMillis > 0L && second.classifiedMillis > 0L) {
-                drawLine(
-                    color = colors.inner,
-                    start = positions[index],
-                    end = positions[index + 1],
-                    strokeWidth = 3.dp.toPx(),
-                    cap = StrokeCap.Round,
-                )
-            }
-        }
-        buckets.forEachIndexed { index, bucket ->
-            if (bucket.classifiedMillis > 0L) {
-                drawCircle(colors.inner, radius = 3.5.dp.toPx(), center = positions[index])
-            } else {
-                drawCircle(
-                    colors.unknown.copy(alpha = 0.7f),
-                    radius = 2.5.dp.toPx(),
-                    center = Offset(positions[index].x, size.height),
-                )
-            }
-        }
+        drawTrend(
+            colors = colors,
+            hasData = buckets.map { it.classifiedMillis > 0L },
+            fractions = buckets.map { it.innerRatio.coerceIn(0f, 1f) },
+        )
     }
 }
 
@@ -259,42 +170,86 @@ internal fun OpenCountTrendChart(
         description = description,
         modifier = modifier,
     ) {
-        val gridColor = colors.unknown.copy(alpha = 0.28f)
-        listOf(0f, size.height / 2f, size.height).forEach { y ->
-            drawLine(gridColor, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
+        drawTrend(
+            colors = colors,
+            hasData = buckets.map { it.observedDayCount > 0 },
+            fractions = buckets.map { bucket ->
+                bucket.openedCount.toLong().coerceIn(0L, scale.maximum).toFloat() /
+                    scale.maximum.toFloat()
+            },
+        )
+    }
+}
+
+/**
+ * Draws one trend series: dashed guides, a soft fill under each unbroken run, and the line itself.
+ * Buckets without data break the line and leave a quiet marker on the baseline.
+ */
+private fun DrawScope.drawTrend(
+    colors: PostureColors,
+    hasData: List<Boolean>,
+    fractions: List<Float>,
+) {
+    val gridColor = colors.unknown.copy(alpha = 0.3f)
+    val dash = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 5.dp.toPx()))
+    listOf(0f, size.height / 2f).forEach { y ->
+        drawLine(gridColor, Offset(0f, y), Offset(size.width, y), 1.dp.toPx(), pathEffect = dash)
+    }
+    drawLine(gridColor, Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx())
+    val positions = fractions.mapIndexed { index, fraction ->
+        Offset(chartX(index, fractions.size, size.width), size.height * (1f - fraction))
+    }
+    val fill = Brush.verticalGradient(
+        listOf(colors.inner.copy(alpha = 0.26f), colors.inner.copy(alpha = 0f)),
+        startY = 0f,
+        endY = size.height,
+    )
+    var runStart = -1
+    for (index in 0..positions.size) {
+        val present = index < positions.size && hasData[index]
+        if (present && runStart < 0) runStart = index
+        if (!present && runStart >= 0) {
+            val run = positions.subList(runStart, index)
+            if (run.size > 1) {
+                val area = Path().apply {
+                    moveTo(run.first().x, size.height)
+                    run.forEach { lineTo(it.x, it.y) }
+                    lineTo(run.last().x, size.height)
+                    close()
+                }
+                drawPath(area, fill)
+                val line = Path().apply {
+                    moveTo(run.first().x, run.first().y)
+                    run.drop(1).forEach { lineTo(it.x, it.y) }
+                }
+                drawPath(
+                    line,
+                    colors.inner,
+                    style = Stroke(
+                        width = 3.dp.toPx(),
+                        cap = StrokeCap.Round,
+                        join = StrokeJoin.Round,
+                    ),
+                )
+            } else {
+                drawCircle(colors.inner, radius = 3.5.dp.toPx(), center = run.first())
+            }
+            runStart = -1
         }
-        val positions = buckets.mapIndexed { index, bucket ->
-            val openedCount = bucket.openedCount
-                .toLong()
-                .coerceIn(0L, scale.maximum)
-            Offset(
-                x = chartX(index, buckets.size, size.width),
-                y = size.height *
-                    (1f - openedCount.toFloat() / scale.maximum.toFloat()),
+    }
+    positions.forEachIndexed { index, position ->
+        if (!hasData[index]) {
+            drawCircle(
+                colors.unknown.copy(alpha = 0.7f),
+                radius = 2.5.dp.toPx(),
+                center = Offset(position.x, size.height),
             )
         }
-        buckets.zipWithNext().forEachIndexed { index, (firstBucket, secondBucket) ->
-            if (firstBucket.observedDayCount > 0 && secondBucket.observedDayCount > 0) {
-                drawLine(
-                    color = colors.inner,
-                    start = positions[index],
-                    end = positions[index + 1],
-                    strokeWidth = 3.dp.toPx(),
-                    cap = StrokeCap.Round,
-                )
-            }
-        }
-        buckets.forEachIndexed { index, bucket ->
-            if (bucket.observedDayCount > 0) {
-                drawCircle(colors.inner, radius = 3.5.dp.toPx(), center = positions[index])
-            } else {
-                drawCircle(
-                    colors.unknown.copy(alpha = 0.7f),
-                    radius = 2.5.dp.toPx(),
-                    center = Offset(positions[index].x, size.height),
-                )
-            }
-        }
+    }
+    val lastIndex = hasData.lastIndexOf(true)
+    if (lastIndex >= 0) {
+        drawCircle(colors.inner.copy(alpha = 0.22f), 9.dp.toPx(), positions[lastIndex])
+        drawCircle(colors.inner, 4.5.dp.toPx(), positions[lastIndex])
     }
 }
 
@@ -311,13 +266,18 @@ private fun ChartWithYAxis(
     buckets: List<LongTermBucket>,
     description: String,
     modifier: Modifier,
-    drawChart: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit,
+    drawChart: DrawScope.() -> Unit,
 ) {
     val resources = LocalResources.current
+    val axisWidth = AxisLabelWidth * LocalDensity.current.fontScale.coerceAtLeast(1f)
     Column(modifier) {
         Row(Modifier.fillMaxWidth()) {
+            // The labels are as tall as the plot plus half a line at each end, which centers the
+            // first and last label on their guides.
             Column(
-                modifier = Modifier.height(136.dp),
+                modifier = Modifier
+                    .width(axisWidth)
+                    .height(ChartHeight + AxisLabelOverhang * 2),
                 verticalArrangement = Arrangement.SpaceBetween,
                 horizontalAlignment = Alignment.End,
             ) {
@@ -330,29 +290,59 @@ private fun ChartWithYAxis(
                 }
             }
             Spacer(Modifier.width(8.dp))
+            val reveal = remember { Animatable(0f) }
+            val revealSpec = MaterialTheme.motionScheme.slowSpatialSpec<Float>()
+            LaunchedEffect(Unit) { reveal.animateTo(1f, revealSpec) }
             Canvas(
                 Modifier
                     .weight(1f)
-                    .height(136.dp)
+                    .padding(vertical = AxisLabelOverhang)
+                    .height(ChartHeight)
                     .semantics { contentDescription = description },
-                onDraw = drawChart,
-            )
+            ) {
+                // The line draws itself in from the oldest bucket; overshoot must not un-clip it.
+                clipRect(
+                    left = -12.dp.toPx(),
+                    top = -12.dp.toPx(),
+                    right = (size.width + 12.dp.toPx()) * reveal.value.coerceIn(0f, 1f),
+                    bottom = size.height + 12.dp.toPx(),
+                ) {
+                    drawChart()
+                }
+            }
         }
         if (buckets.isNotEmpty()) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Spacer(Modifier.width(42.dp))
-                Text(
-                    buckets.first().startMillis.toShortDateText(resources),
-                    style = MaterialTheme.typography.labelSmall,
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    buckets.last().startMillis.toShortDateText(resources),
-                    style = MaterialTheme.typography.labelSmall,
-                )
+            val firstDate = buckets.first().startMillis.toShortDateText(resources)
+            val lastDate = buckets.last().startMillis.toShortDateText(resources)
+            BoxWithConstraints(Modifier.fillMaxWidth().padding(start = axisWidth + 8.dp)) {
+                if (maxWidth / LocalDensity.current.fontScale < 220.dp) {
+                    Column(Modifier.fillMaxWidth()) {
+                        Text(
+                            firstDate,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            lastDate,
+                            modifier = Modifier.align(Alignment.End),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(
+                            firstDate,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            lastDate,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
         }
     }
@@ -365,51 +355,79 @@ internal fun AppRankingBar(
     color: Color,
     modifier: Modifier = Modifier,
 ) {
-    val fraction = if (maximum <= 0L) {
+    val target = if (maximum <= 0L) {
         0f
     } else {
         (value.toFloat() / maximum.toFloat()).coerceIn(0f, 1f)
     }
-    val trackColor = MaterialTheme.colorScheme.surfaceVariant
+    val fraction by animateFloatAsState(
+        targetValue = target,
+        animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
+        label = "appRankingBar",
+    )
+    val trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
     Canvas(
         modifier
             .fillMaxWidth()
-            .height(8.dp),
+            .height(BarHeight),
     ) {
         val cornerRadius = CornerRadius(size.height / 2f, size.height / 2f)
         drawRoundRect(
             color = trackColor,
             cornerRadius = cornerRadius,
         )
-        drawRoundRect(
-            color = color,
-            size = Size(size.width * fraction, size.height),
-            cornerRadius = cornerRadius,
-        )
+        val width = size.width * fraction.coerceIn(0f, 1f)
+        if (width > 0f) {
+            drawRoundRect(
+                color = color,
+                size = Size(width.coerceAtLeast(size.height), size.height),
+                cornerRadius = cornerRadius,
+            )
+        }
     }
 }
 
+/** The outer and inner shares as two panels that meet at a hinge gap. */
 @Composable
 internal fun AppDisplayShareBar(
     coverFraction: Float,
     colors: PostureColors,
     modifier: Modifier = Modifier,
 ) {
-    val visibleCoverFraction = coverFraction
+    val target = coverFraction
         .takeIf { it.isFinite() }
         ?.coerceIn(0f, 1f)
         ?: 0f
+    val visibleCoverFraction by animateFloatAsState(
+        targetValue = target,
+        animationSpec = MaterialTheme.motionScheme.defaultSpatialSpec(),
+        label = "appDisplayShareBar",
+    )
     Canvas(
         modifier
             .fillMaxWidth()
-            .height(8.dp)
+            .height(BarHeight)
             .clip(RoundedCornerShape(50)),
     ) {
-        drawRect(color = colors.inner)
-        drawRect(
-            color = colors.cover,
-            size = Size(size.width * visibleCoverFraction, size.height),
-        )
+        val split = size.width * visibleCoverFraction.coerceIn(0f, 1f)
+        // Never erase a small but nonzero share with the decorative hinge gap.
+        val gap = minOf(3.dp.toPx(), split, size.width - split)
+        val hinge = CornerRadius(1.5.dp.toPx())
+        if (split > 0f) {
+            drawRoundRect(
+                color = colors.cover,
+                size = Size((split - gap / 2f).coerceAtLeast(0f), size.height),
+                cornerRadius = hinge,
+            )
+        }
+        if (split < size.width) {
+            drawRoundRect(
+                color = colors.inner,
+                topLeft = Offset(split + gap / 2f, 0f),
+                size = Size((size.width - split - gap / 2f).coerceAtLeast(0f), size.height),
+                cornerRadius = hinge,
+            )
+        }
     }
 }
 
@@ -421,10 +439,19 @@ internal fun LegendDot(color: Color, label: String) {
                 .size(9.dp)
                 .background(color, RoundedCornerShape(50)),
         )
-        Spacer(Modifier.width(5.dp))
-        Text(label, style = MaterialTheme.typography.labelSmall)
+        Spacer(Modifier.width(6.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
+
+private val ChartHeight = 148.dp
+private val AxisLabelWidth = 38.dp
+private val AxisLabelOverhang = 8.dp
+private val BarHeight = 10.dp
 
 private fun chartX(index: Int, count: Int, width: Float): Float = when {
     count <= 0 -> 0f

@@ -1,38 +1,45 @@
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+
 package com.nagopy.android.foldlytics.ui
 
 import android.content.res.Resources
 import android.icu.text.ListFormatter
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.material3.AssistChip
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.Surface
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SelectableDates
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,6 +51,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
@@ -52,11 +62,13 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.nagopy.android.foldlytics.MainUiState
 import com.nagopy.android.foldlytics.R
 import com.nagopy.android.foldlytics.labelRes
@@ -100,74 +112,102 @@ internal fun HomeScreen(
     onOpenInnerSessions: () -> Unit,
     screenshotSectionEndSpacing: Dp,
 ) {
-    FoldlyticsLazyColumn(
-        scaffoldPadding = scaffoldPadding,
-        listState = listState,
-    ) {
-        if (!state.hasUsageAccess) {
-            item {
-                PermissionCard(
-                    hasSavedData = state.periodSummary != null,
-                    onOpenSettings = onRequestUsageAccess,
-                )
-            }
-        }
-        item { LiveStateCard(state) }
-        item {
-            ResultHeader(
-                state = state,
-                onPeriodChanged = onPeriodChanged,
-                onCustomPeriodChanged = onCustomPeriodChanged,
-                onRefresh = onRefresh,
-            )
-        }
-        state.periodSummary?.let { summary ->
-            item {
-                Column {
-                    SummaryCard(
-                        summary = summary,
-                        canShare =
-                            summary.classifiedMillis > 0L &&
-                                !state.isLoading &&
-                                !state.isAnalysisLoading,
-                        onShare = { onShareSummaryRequested(summary) },
+    // An unfolded device has room for the summary and its trend side by side.
+    BoxWithConstraints {
+        val twoPane = maxWidth >= TwoPaneMinWidth
+        FoldlyticsLazyColumn(
+            scaffoldPadding = scaffoldPadding,
+            listState = listState,
+            maxContentWidth = if (twoPane) TwoPaneContentWidth else MaxContentWidth,
+        ) {
+            if (!state.hasUsageAccess) {
+                item {
+                    PermissionCard(
+                        hasSavedData = state.periodSummary != null,
+                        onOpenSettings = onRequestUsageAccess,
                     )
-                    if (screenshotSectionEndSpacing > 0.dp) {
-                        Spacer(Modifier.height(screenshotSectionEndSpacing))
-                    }
                 }
             }
-            if (summary.period.showsTrends) {
-                state.longTermInsights?.let { insights ->
+            item { LiveStateCard(state) }
+            item {
+                ResultHeader(
+                    state = state,
+                    onPeriodChanged = onPeriodChanged,
+                    onCustomPeriodChanged = onCustomPeriodChanged,
+                    onRefresh = onRefresh,
+                )
+            }
+            state.periodSummary?.let { summary ->
+                val trendInsights = state.longTermInsights.takeIf { summary.period.showsTrends }
+                if (twoPane && trendInsights != null) {
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Box(Modifier.weight(1f)) {
+                                SummaryCard(
+                                    summary = summary,
+                                    canShare =
+                                        summary.classifiedMillis > 0L &&
+                                            !state.isLoading &&
+                                            !state.isAnalysisLoading,
+                                    onShare = { onShareSummaryRequested(summary) },
+                                )
+                            }
+                            Box(Modifier.weight(1f)) {
+                                UsageTrendCard(trendInsights)
+                            }
+                        }
+                    }
+                } else {
                     item {
                         Column {
-                            UsageTrendCard(insights)
+                            SummaryCard(
+                                summary = summary,
+                                canShare =
+                                    summary.classifiedMillis > 0L &&
+                                        !state.isLoading &&
+                                        !state.isAnalysisLoading,
+                                onShare = { onShareSummaryRequested(summary) },
+                            )
                             if (screenshotSectionEndSpacing > 0.dp) {
                                 Spacer(Modifier.height(screenshotSectionEndSpacing))
                             }
                         }
                     }
+                    if (summary.period.showsTrends) {
+                        state.longTermInsights?.let { insights ->
+                            item {
+                                Column {
+                                    UsageTrendCard(insights)
+                                    if (screenshotSectionEndSpacing > 0.dp) {
+                                        Spacer(Modifier.height(screenshotSectionEndSpacing))
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
-            }
-            item {
-                HomeDetailLink(
-                    title = stringResource(R.string.home_app_usage_link_title),
-                    preview = appUsagePreview(summary.apps),
-                    enabled = !state.isAnalysisLoading,
-                    tag = HOME_APP_USAGE_LINK_TAG,
-                    description = stringResource(R.string.content_desc_home_app_usage_link),
-                    onClick = onOpenAppUsage,
-                )
-            }
-            item {
-                HomeDetailLink(
-                    title = stringResource(R.string.home_inner_sessions_link_title),
-                    preview = innerSessionsPreview(state.innerSessionSummary),
-                    enabled = !state.isAnalysisLoading,
-                    tag = HOME_INNER_SESSIONS_LINK_TAG,
-                    description = stringResource(R.string.content_desc_home_inner_sessions_link),
-                    onClick = onOpenInnerSessions,
-                )
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        HomeDetailLink(
+                            title = stringResource(R.string.home_app_usage_link_title),
+                            preview = appUsagePreview(summary.apps),
+                            enabled = !state.isAnalysisLoading,
+                            tag = HOME_APP_USAGE_LINK_TAG,
+                            description = stringResource(R.string.content_desc_home_app_usage_link),
+                            shape = groupedShape(0, 2),
+                            onClick = onOpenAppUsage,
+                        )
+                        HomeDetailLink(
+                            title = stringResource(R.string.home_inner_sessions_link_title),
+                            preview = innerSessionsPreview(state.innerSessionSummary),
+                            enabled = !state.isAnalysisLoading,
+                            tag = HOME_INNER_SESSIONS_LINK_TAG,
+                            description = stringResource(R.string.content_desc_home_inner_sessions_link),
+                            shape = groupedShape(1, 2),
+                            onClick = onOpenInnerSessions,
+                        )
+                    }
+                }
             }
         }
     }
@@ -178,32 +218,39 @@ private fun PermissionCard(
     hasSavedData: Boolean,
     onOpenSettings: () -> Unit,
 ) {
-    Card(
+    Surface(
         modifier = Modifier.testTag(HOME_PERMISSION_CARD_TAG),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-        ),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(CardPadding),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
                 stringResource(R.string.usage_access_required_title),
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleMedium,
             )
             Text(
                 stringResource(R.string.usage_access_required_body),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
             )
             if (hasSavedData) {
                 Text(
                     stringResource(R.string.saved_data_usage_access_note),
                     style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Medium,
+                    fontWeight = FontWeight.SemiBold,
                 )
             }
-            Button(onClick = onOpenSettings, modifier = Modifier.align(Alignment.End)) {
+            Button(
+                onClick = onOpenSettings,
+                modifier = Modifier.align(Alignment.End),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.secondary,
+                    contentColor = MaterialTheme.colorScheme.onSecondary,
+                ),
+            ) {
                 Text(stringResource(R.string.action_review_details))
             }
         }
@@ -229,36 +276,45 @@ private fun LiveStateCard(state: MainUiState) {
     val stateDescription = stringResource(
         state.currentPosture.liveStateDescriptionRes(state.hasUsageAccess),
     )
-    Card(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .testTag(LIVE_STATE_CARD_TAG)
             .clearAndSetSemantics { contentDescription = stateDescription },
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        FlowRow(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Box(
-                Modifier
-                    .size(11.dp)
-                    .background(postureColor, androidx.compose.foundation.shape.CircleShape),
-            )
-            Text(
-                postureLabel,
-                fontWeight = FontWeight.Bold,
-            )
-            Spacer(Modifier.weight(1f))
-            Text(
-                recordingStatus,
-                modifier = Modifier
-                    .padding(start = 8.dp)
-                    .alpha(0.78f),
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.padding(end = 12.dp),
+            ) {
+                FoldGlyph(state.currentPosture, postureColor)
+                Text(postureLabel, style = MaterialTheme.typography.titleSmall)
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Box(
+                    Modifier
+                        .size(7.dp)
+                        .background(
+                            if (state.hasUsageAccess) postureColor else MaterialTheme.colorScheme.outline,
+                            CircleShape,
+                        ),
+                )
+                Text(
+                    recordingStatus,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -274,57 +330,91 @@ private fun ResultHeader(
     val resources = LocalResources.current
     var expanded by rememberSaveable { mutableStateOf(false) }
     var showCustomPeriodDialog by rememberSaveable { mutableStateOf(false) }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(
+        modifier = Modifier.padding(top = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(start = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.weight(1f)) {
                 SectionTitle(stringResource(R.string.section_analysis_period))
             }
-            AssistChip(
+            val refreshEnabled = state.hasUsageAccess && !state.isLoading
+            FilledTonalButton(
                 onClick = onRefresh,
-                label = {
-                    Text(
-                        stringResource(
-                            if (state.isLoading) R.string.action_syncing else R.string.action_refresh,
-                        ),
-                    )
-                },
-                enabled = state.hasUsageAccess && !state.isLoading,
-            )
+                enabled = refreshEnabled,
+                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                ),
+            ) {
+                val iconColor = LocalContentColor.current
+                Canvas(Modifier.size(18.dp).clearAndSetSemantics {}) {
+                    drawRefreshIcon(iconColor)
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    stringResource(
+                        if (state.isLoading) R.string.action_syncing else R.string.action_refresh,
+                    ),
+                )
+            }
         }
+        Spacer(Modifier.height(2.dp))
         Box(Modifier.fillMaxWidth()) {
             val currentPeriodLabel = stringResource(state.selectedPeriod.labelRes)
             val periodSelectorDescription = stringResource(
                 R.string.content_desc_analysis_period_selector,
                 currentPeriodLabel,
             )
-            OutlinedButton(
+            val selectorEnabled = state.availablePeriods.isNotEmpty()
+            Surface(
                 onClick = { expanded = true },
-                enabled = state.availablePeriods.isNotEmpty(),
+                enabled = selectorEnabled,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .alpha(if (selectorEnabled) 1f else 0.5f)
                     .testTag(ANALYSIS_PERIOD_SELECTOR_TAG)
-                    .semantics { contentDescription = periodSelectorDescription },
+                    .semantics {
+                        contentDescription = periodSelectorDescription
+                        role = Role.Button
+                    },
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 60.dp)
+                        .padding(start = 24.dp, end = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
+                    FigureText(
                         currentPeriodLabel,
                         modifier = Modifier.weight(1f),
+                        figureStyle = MaterialTheme.typography.headlineMedium,
+                        unitStyle = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
-                    Text("⌄", style = MaterialTheme.typography.titleMedium)
+                    Box(
+                        Modifier
+                            .size(36.dp)
+                            .background(MaterialTheme.colorScheme.surfaceContainerLowest, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Chevron(MaterialTheme.colorScheme.onSurface, down = true)
+                    }
                 }
             }
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
+                shape = MaterialTheme.shapes.medium,
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
             ) {
                 AnalysisPeriod.entries.forEach { period ->
                     DropdownMenuItem(
@@ -345,16 +435,13 @@ private fun ResultHeader(
                 }
             }
         }
-        Text(
-            state.recordRangeText(resources),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Spacer(Modifier.height(2.dp))
         state.periodSummary?.let { summary ->
             Text(
                 summary.analysisRangeText(resources),
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(horizontal = 4.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
             )
             summary.calendarRange?.let { range ->
                 val days = range.recordedDayCount(ZoneId.systemDefault())
@@ -364,6 +451,7 @@ private fun ResultHeader(
                             R.string.analysis_partial_recording,
                             resources.getQuantityString(R.plurals.days_count, days, days),
                         ),
+                        modifier = Modifier.padding(horizontal = 4.dp),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -371,9 +459,16 @@ private fun ResultHeader(
             }
         }
         Text(
+            state.recordRangeText(resources),
+            modifier = Modifier.padding(horizontal = 4.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
             state.lastSuccessfulSyncMillis?.let {
                 stringResource(R.string.last_updated, it.toTimeText(resources))
             } ?: stringResource(R.string.never_synced),
+            modifier = Modifier.padding(horizontal = 4.dp),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -411,6 +506,7 @@ private fun HomeDetailLink(
     enabled: Boolean,
     tag: String,
     description: String,
+    shape: Shape,
     onClick: () -> Unit,
 ) {
     val fullDescription = if (enabled) {
@@ -418,11 +514,12 @@ private fun HomeDetailLink(
     } else {
         "$description $preview ${stringResource(R.string.detail_unavailable_while_analyzing)}"
     }
-    Card(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .alpha(if (enabled) 1f else 0.6f)
             .testTag(tag)
+            .clip(shape)
             .clickable(
                 enabled = enabled,
                 role = Role.Button,
@@ -432,12 +529,13 @@ private fun HomeDetailLink(
                 contentDescription = fullDescription
                 if (!enabled) disabled()
             },
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        ),
+        shape = shape,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = CardPadding, top = 18.dp, end = 16.dp, bottom = 18.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -445,18 +543,21 @@ private fun HomeDetailLink(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Text(title, fontWeight = FontWeight.Bold)
+                Text(title, style = MaterialTheme.typography.titleMedium)
                 Text(
                     preview,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Text(
-                "›",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
+            Box(
+                Modifier
+                    .size(40.dp)
+                    .background(MaterialTheme.colorScheme.primary, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Chevron(MaterialTheme.colorScheme.onPrimary)
+            }
         }
     }
 }
@@ -512,7 +613,7 @@ private fun SummaryCard(
     onShare: () -> Unit,
 ) {
     val resources = LocalResources.current
-    val colors = postureColors()
+    val palette = foldlyticsPalette
     val percent = resources.getString(R.string.value_percent_0, summary.innerRatio * 100)
     val noData = stringResource(R.string.label_no_data)
     val innerRatioText = if (summary.classifiedMillis > 0L) percent else noData
@@ -521,84 +622,228 @@ private fun SummaryCard(
     } else {
         noData
     }
-    LabCard(
-        title = stringResource(R.string.summary_title),
+    val description = stringResource(
+        R.string.content_desc_summary,
+        stringResource(summary.period.labelRes),
+        summary.coverMillis.toDurationText(resources),
+        summary.innerMillis.toDurationText(resources),
+        innerRatioText,
+    )
+    // Two joined surfaces: the ink panel carries the result, the paper panel how far to trust it.
+    Column(
         modifier = Modifier.testTag(SUMMARY_CARD_TAG),
-        titleAction = {
-            SummaryShareButton(
-                enabled = canShare,
-                onClick = onShare,
-            )
-        },
+        verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        PostureDonutWithLegend(
-            segments = listOf(
-                DonutSegment(
-                    stringResource(R.string.posture_inner),
-                    summary.innerMillis,
-                    colors.inner,
-                ),
-                DonutSegment(
-                    stringResource(R.string.posture_cover),
-                    summary.coverMillis,
-                    colors.cover,
-                ),
-            ),
-            centerLabel = stringResource(R.string.posture_inner),
-            centerValue = if (summary.classifiedMillis > 0L) percent else "—",
-            description = stringResource(
-                R.string.content_desc_summary,
-                stringResource(summary.period.labelRes),
-                summary.coverMillis.toDurationText(resources),
-                summary.innerMillis.toDurationText(resources),
-                innerRatioText,
-            ),
-            colors = colors,
-            size = 164.dp,
-        )
-        Spacer(Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        Surface(
+            shape = groupedShape(0, 2),
+            color = palette.hero,
+            contentColor = palette.onHero,
         ) {
-            Metric(
-                stringResource(R.string.posture_inner),
-                summary.innerMillis.toDurationText(resources),
-                colors.inner,
-                Modifier.weight(1f),
-            )
-            Metric(
-                stringResource(R.string.posture_cover),
-                summary.coverMillis.toDurationText(resources),
-                colors.cover,
-                Modifier.weight(1f),
-            )
-            Metric(
-                stringResource(R.string.label_opened),
-                resources.getString(R.string.value_open_count, summary.openedCount),
-                colors.inner,
-                Modifier.weight(1f),
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = CardPadding, top = 10.dp, end = CardPadding, bottom = CardPadding),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(R.string.summary_title),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = palette.onHeroMuted,
+                    )
+                    Box(Modifier.offset(x = 12.dp)) {
+                        SummaryShareButton(
+                            enabled = canShare,
+                            onClick = onShare,
+                            tint = palette.onHero,
+                        )
+                    }
+                }
+                val figure = if (summary.classifiedMillis > 0L) percent else "—"
+                val openedText = resources.getString(R.string.value_open_count, summary.openedCount)
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    if (maxWidth >= 520.dp) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(28.dp),
+                            verticalAlignment = Alignment.Bottom,
+                        ) {
+                            SummaryHeadline(figure, description, openedText, Modifier.weight(0.46f))
+                            FoldSplit(summary, Modifier.weight(0.54f))
+                        }
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                            SummaryHeadline(figure, description, openedText)
+                            FoldSplit(summary)
+                        }
+                    }
+                }
+            }
+        }
+        Surface(
+            shape = groupedShape(1, 2),
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = CardPadding, top = 16.dp, end = CardPadding, bottom = 18.dp),
+            ) {
+                InfoLine(
+                    stringResource(R.string.label_classified_time),
+                    summary.classifiedMillis.toDurationText(resources),
+                )
+                InfoLine(
+                    stringResource(R.string.label_data_coverage),
+                    dataCoverageText,
+                )
+                Text(
+                    stringResource(R.string.display_classification_rate_note),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/** The inner share as the headline figure, with the open count set against it. */
+@Composable
+private fun SummaryHeadline(
+    figure: String,
+    description: String,
+    openedText: String,
+    modifier: Modifier = Modifier,
+) {
+    val palette = foldlyticsPalette
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(
+            Modifier
+                .weight(1f)
+                .semantics { contentDescription = description },
+        ) {
+            Overline(stringResource(R.string.posture_inner), color = palette.heroInner)
+            FigureText(
+                figure,
+                figureStyle = MaterialTheme.typography.displayLarge.copy(
+                    fontSize = 88.sp,
+                    lineHeight = 92.sp,
+                    letterSpacing = (-2.5).sp,
+                ),
+                unitStyle = MaterialTheme.typography.headlineSmall.copy(fontSize = 34.sp),
+                color = palette.onHero,
+                shrinkToFit = true,
             )
         }
-        Spacer(Modifier.height(8.dp))
         Column(
-            modifier = Modifier.alpha(0.74f),
+            modifier = Modifier.padding(bottom = 14.dp),
+            horizontalAlignment = Alignment.End,
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            HorizontalDivider(Modifier.padding(vertical = 4.dp))
-            InfoLine(
-                stringResource(R.string.label_classified_time),
-                summary.classifiedMillis.toDurationText(resources),
-            )
-            InfoLine(
-                stringResource(R.string.label_data_coverage),
-                dataCoverageText,
-            )
-            Text(
-                stringResource(R.string.display_classification_rate_note),
-                style = MaterialTheme.typography.bodySmall,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FoldGlyph(
+                    DisplayPosture.INNER,
+                    palette.onHeroMuted,
+                    Modifier.size(width = 18.dp, height = 14.dp),
+                )
+                Overline(stringResource(R.string.label_opened), color = palette.onHeroMuted)
+            }
+            FigureText(
+                openedText,
+                figureStyle = MaterialTheme.typography.displaySmall,
+                unitStyle = MaterialTheme.typography.labelLarge,
+                color = palette.onHero,
+                maxLines = 1,
             )
         }
+    }
+}
+
+/** Equal-sized labels stay readable; the separate hinge bar encodes the exact display shares. */
+@Composable
+private fun FoldSplit(summary: PeriodUsageSummary, modifier: Modifier = Modifier) {
+    val resources = LocalResources.current
+    val palette = foldlyticsPalette
+    Column(
+        modifier = modifier.fillMaxWidth().clearAndSetSemantics {},
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        if (summary.classifiedMillis > 0L) {
+            AppDisplayShareBar(
+                coverFraction = summary.coverMillis.toFloat() / summary.classifiedMillis,
+                colors = PostureColors(
+                    inner = palette.heroInner,
+                    cover = palette.heroCover,
+                    unknown = palette.onHeroMuted,
+                ),
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            FoldPanel(
+                label = stringResource(R.string.posture_cover),
+                value = summary.coverMillis.toDurationText(resources),
+                color = palette.heroCover,
+                contentColor = palette.onHeroCover,
+                shape = RoundedCornerShape(
+                    topStart = 22.dp,
+                    bottomStart = 22.dp,
+                    topEnd = HingeCorner,
+                    bottomEnd = HingeCorner,
+                ),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+            )
+            FoldPanel(
+                label = stringResource(R.string.posture_inner),
+                value = summary.innerMillis.toDurationText(resources),
+                color = palette.heroInner,
+                contentColor = palette.onHeroInner,
+                shape = RoundedCornerShape(
+                    topStart = HingeCorner,
+                    bottomStart = HingeCorner,
+                    topEnd = 22.dp,
+                    bottomEnd = 22.dp,
+                ),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun FoldPanel(
+    label: String,
+    value: String,
+    color: Color,
+    contentColor: Color,
+    shape: Shape,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .background(color, shape)
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Text(label, style = MaterialTheme.typography.labelLarge, color = contentColor)
+        FigureText(
+            value,
+            figureStyle = MaterialTheme.typography.headlineMedium.copy(
+                fontSize = 24.sp,
+                lineHeight = 28.sp,
+            ),
+            unitStyle = MaterialTheme.typography.labelMedium,
+            color = contentColor,
+            shrinkToFit = true,
+        )
     }
 }
 
@@ -617,10 +862,20 @@ private fun UsageTrendCard(insights: LongTermInsights) {
         title = stringResource(R.string.section_usage_trends),
         modifier = Modifier.testTag(USAGE_TREND_CARD_TAG),
     ) {
-        SingleChoiceSegmentedButtonRow(
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            TrendMetric.entries.forEachIndexed { index, metric ->
+        SegmentedToggle(
+            options = TrendMetric.entries,
+            selected = selectedMetric,
+            onSelected = { selectedMetric = it },
+            label = { metric ->
+                stringResource(
+                    if (metric == TrendMetric.INNER_RATIO) {
+                        R.string.usage_trend_inner_ratio
+                    } else {
+                        R.string.usage_trend_open_count
+                    },
+                )
+            },
+            optionModifier = { metric ->
                 val isInnerRatio = metric == TrendMetric.INNER_RATIO
                 val description = stringResource(
                     if (isInnerRatio) {
@@ -629,36 +884,14 @@ private fun UsageTrendCard(insights: LongTermInsights) {
                         R.string.content_desc_select_open_count_trend
                     },
                 )
-                SegmentedButton(
-                    selected = selectedMetric == metric,
-                    onClick = { selectedMetric = metric },
-                    shape = SegmentedButtonDefaults.itemShape(index, TrendMetric.entries.size),
-                    label = {
-                        Text(
-                            stringResource(
-                                if (isInnerRatio) {
-                                    R.string.usage_trend_inner_ratio
-                                } else {
-                                    R.string.usage_trend_open_count
-                                },
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    },
-                    modifier = Modifier
-                        .testTag(
-                            if (isInnerRatio) {
-                                USAGE_TREND_INNER_RATIO_TAG
-                            } else {
-                                USAGE_TREND_OPEN_COUNT_TAG
-                            },
-                        )
-                        .semantics { contentDescription = description },
-                )
-            }
-        }
-        Spacer(Modifier.height(8.dp))
+                Modifier
+                    .testTag(
+                        if (isInnerRatio) USAGE_TREND_INNER_RATIO_TAG else USAGE_TREND_OPEN_COUNT_TAG,
+                    )
+                    .semantics { contentDescription = description }
+            },
+        )
+        Spacer(Modifier.height(14.dp))
         if (selectedMetric == TrendMetric.INNER_RATIO) {
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 LegendDot(colors.inner, stringResource(R.string.legend_inner_ratio))
@@ -666,7 +899,7 @@ private fun UsageTrendCard(insights: LongTermInsights) {
             }
             Spacer(Modifier.height(8.dp))
             InnerRatioTrendChart(insights.buckets, colors)
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(14.dp))
             InfoLine(
                 stringResource(R.string.label_observed_days),
                 resources.getString(
@@ -696,7 +929,7 @@ private fun UsageTrendCard(insights: LongTermInsights) {
             }
             Spacer(Modifier.height(8.dp))
             OpenCountTrendChart(insights.buckets, colors)
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(14.dp))
             InfoLine(
                 stringResource(R.string.label_period_total),
                 resources.getString(R.string.value_open_count, insights.openedCount),
@@ -708,55 +941,6 @@ private fun UsageTrendCard(insights: LongTermInsights) {
                     insights.averageOpenedPerObservedDay,
                 ),
             )
-        }
-    }
-}
-
-@Composable
-private fun PostureDonutWithLegend(
-    segments: List<DonutSegment>,
-    centerLabel: String,
-    centerValue: String,
-    description: String,
-    colors: PostureColors,
-    size: Dp,
-) {
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        if (maxWidth >= 520.dp) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                DonutChart(
-                    segments = segments,
-                    centerLabel = centerLabel,
-                    centerValue = centerValue,
-                    description = description,
-                    size = size,
-                )
-                Spacer(Modifier.width(32.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    LegendDot(colors.inner, stringResource(R.string.posture_inner))
-                    LegendDot(colors.cover, stringResource(R.string.posture_cover))
-                    LegendDot(colors.unknown, stringResource(R.string.label_no_data))
-                }
-            }
-        } else {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                DonutChart(
-                    segments = segments,
-                    centerLabel = centerLabel,
-                    centerValue = centerValue,
-                    description = description,
-                    size = size,
-                )
-                Spacer(Modifier.height(20.dp))
-                PostureLegend(colors)
-            }
         }
     }
 }

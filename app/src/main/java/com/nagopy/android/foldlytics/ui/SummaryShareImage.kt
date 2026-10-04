@@ -71,17 +71,20 @@ internal fun interface SummaryShareImageGenerator {
 }
 
 internal object SummaryShareImageRenderer {
-    private const val BackgroundColor = 0xFFF4F7FB.toInt()
-    private const val SurfaceColor = 0xFFFFFFFF.toInt()
-    private const val PrimaryTextColor = 0xFF10233A.toInt()
-    private const val SecondaryTextColor = 0xFF526273.toInt()
-    private const val DividerColor = 0xFFDCE3EB.toInt()
+    // The paper-and-ink palette of the app theme, fixed to its light values for a shared image.
+    private const val BackgroundColor = 0xFFFAF5EC.toInt()
+    private const val SurfaceColor = 0xFFFFFDF9.toInt()
+    private const val PrimaryTextColor = 0xFF12233F.toInt()
+    private const val SecondaryTextColor = 0xFF575B66.toInt()
+    private const val DividerColor = 0xFFD9D0BE.toInt()
     private const val CoverColor = DisplayChartPalette.LIGHT_COVER
     private const val InnerColor = DisplayChartPalette.LIGHT_INNER
 
     private val RegularTypeface = Typeface.create("sans-serif", Typeface.NORMAL)
     private val MediumTypeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
     private val BoldTypeface = Typeface.create("sans-serif", Typeface.BOLD)
+    // The figure face of the app: used where the text is known to be Latin letters or digits.
+    private val FigureTypeface = Typeface.create("serif", Typeface.BOLD)
 
     fun createContent(
         resources: Resources,
@@ -162,7 +165,7 @@ internal object SummaryShareImageRenderer {
             maxTextSize = 48f,
             minTextSize = 30f,
             color = PrimaryTextColor,
-            typeface = BoldTypeface,
+            typeface = FigureTypeface,
             locale = locale,
         )
         if (includeDeviceName) {
@@ -283,7 +286,7 @@ internal object SummaryShareImageRenderer {
             maxTextSize = 76f,
             minTextSize = 44f,
             color = InnerColor,
-            typeface = BoldTypeface,
+            typeface = FigureTypeface,
             locale = locale,
             align = Paint.Align.CENTER,
         )

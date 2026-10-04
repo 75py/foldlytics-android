@@ -1,6 +1,7 @@
 package com.nagopy.android.foldlytics.ui
 
 import android.content.res.Resources
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -8,17 +9,22 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
@@ -103,8 +109,9 @@ private fun InnerSessionOverviewCard(summary: InnerSessionSummary) {
             countText,
             modifier = Modifier.testTag(INNER_SESSION_COUNT_TAG),
             style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.SemiBold,
         )
+        Spacer(Modifier.size(10.dp))
         if (summary.completeSessionCount == 0) {
             Text(
                 text = if (summary.detectedOpenCount == 0) {
@@ -144,53 +151,79 @@ private fun InnerSessionOverviewCard(summary: InnerSessionSummary) {
                     .fillMaxWidth()
                     .clearAndSetSemantics { contentDescription = metricsDescription },
             ) {
+                val metrics = listOf(
+                    stringResource(R.string.label_median_inner_session_time) to medianText,
+                    stringResource(R.string.label_average_inner_session_time) to averageText,
+                    stringResource(R.string.label_longest_inner_session_time) to longestText,
+                )
                 BoxWithConstraints(Modifier.fillMaxWidth()) {
                     if (maxWidth >= 420.dp) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+                            horizontalArrangement = Arrangement.spacedBy(3.dp),
                         ) {
-                            Metric(
-                                stringResource(R.string.label_median_inner_session_time),
-                                medianText,
-                                innerColor,
-                                Modifier.weight(1f),
-                            )
-                            Metric(
-                                stringResource(R.string.label_average_inner_session_time),
-                                averageText,
-                                innerColor,
-                                Modifier.weight(1f),
-                            )
-                            Metric(
-                                stringResource(R.string.label_longest_inner_session_time),
-                                longestText,
-                                innerColor,
-                                Modifier.weight(1f),
-                            )
+                            metrics.forEachIndexed { index, (label, value) ->
+                                SessionMetricTile(
+                                    label = label,
+                                    value = value,
+                                    shape = RoundedCornerShape(
+                                        topStart = if (index == 0) 20.dp else HingeCorner,
+                                        bottomStart = if (index == 0) 20.dp else HingeCorner,
+                                        topEnd = if (index == metrics.lastIndex) 20.dp else HingeCorner,
+                                        bottomEnd = if (index == metrics.lastIndex) 20.dp else HingeCorner,
+                                    ),
+                                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                                )
+                            }
                         }
                     } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Metric(
-                                stringResource(R.string.label_median_inner_session_time),
-                                medianText,
-                                innerColor,
-                            )
-                            Metric(
-                                stringResource(R.string.label_average_inner_session_time),
-                                averageText,
-                                innerColor,
-                            )
-                            Metric(
-                                stringResource(R.string.label_longest_inner_session_time),
-                                longestText,
-                                innerColor,
-                            )
+                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            metrics.forEachIndexed { index, (label, value) ->
+                                SessionMetricTile(
+                                    label = label,
+                                    value = value,
+                                    shape = RoundedCornerShape(
+                                        topStart = if (index == 0) 20.dp else HingeCorner,
+                                        topEnd = if (index == 0) 20.dp else HingeCorner,
+                                        bottomStart = if (index == metrics.lastIndex) 20.dp else HingeCorner,
+                                        bottomEnd = if (index == metrics.lastIndex) 20.dp else HingeCorner,
+                                    ),
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SessionMetricTile(
+    label: String,
+    value: String,
+    shape: Shape,
+    modifier: Modifier = Modifier,
+) {
+    val palette = foldlyticsPalette
+    Column(
+        modifier = modifier
+            .background(palette.innerContainer, shape)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            color = palette.onInnerContainer,
+        )
+        FigureText(
+            value,
+            figureStyle = MaterialTheme.typography.headlineLarge,
+            unitStyle = MaterialTheme.typography.labelLarge,
+            color = palette.onInnerContainer,
+        )
     }
 }
 
@@ -217,11 +250,19 @@ internal fun InnerSessionLongSessionsCard(summary: InnerSessionSummary) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            longSessions.forEach { session ->
-                InnerSessionDetailContent(
-                    session = session,
-                    color = innerColor,
-                )
+            Spacer(Modifier.size(6.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                longSessions.forEachIndexed { index, session ->
+                    Surface(
+                        shape = groupedShape(index, longSessions.size, corner = 20.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                    ) {
+                        InnerSessionDetailContent(
+                            session = session,
+                            color = innerColor,
+                        )
+                    }
+                }
             }
         }
     }
@@ -280,26 +321,25 @@ private fun InnerSessionDetailContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
             .testTag(
                 "$INNER_SESSION_DETAIL_TAG_PREFIX" +
                     "${session.openedAtMillis}_${session.openedSequenceAtTimestamp}",
             )
             .clearAndSetSemantics { contentDescription = detailDescription },
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
-            if (maxWidth < 360.dp) {
+            if (maxWidth < 320.dp) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         openedAtText,
                         modifier = Modifier.fillMaxWidth(),
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleSmall,
                     )
                     Text(
                         stringResource(R.string.inner_session_duration, durationText),
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.labelLarge,
                         color = color,
                     )
                 }
@@ -307,16 +347,16 @@ private fun InnerSessionDetailContent(
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
                         openedAtText,
                         modifier = Modifier.weight(1f),
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleSmall,
                     )
                     Text(
                         stringResource(R.string.inner_session_duration, durationText),
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.labelLarge,
                         color = color,
                     )
                 }
@@ -356,6 +396,7 @@ private fun InnerSessionAppRow(app: InnerSessionAppUsage) {
                         resources.getString(R.string.inner_session_app_joiner),
                     ),
                     modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.bodyMedium,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -370,6 +411,7 @@ private fun InnerSessionAppRow(app: InnerSessionAppUsage) {
             Text(
                 app.displayLabel(resources),
                 modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium,
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -416,8 +458,8 @@ private fun InnerSessionAppDuration(app: InnerSessionAppUsage, resources: Resour
     Text(
         app.innerActiveMillis.toDurationText(resources),
         modifier = Modifier.testTag("$INNER_SESSION_APP_DURATION_TAG_PREFIX${app.packageName}"),
-        style = MaterialTheme.typography.bodySmall,
-        fontWeight = FontWeight.Medium,
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = FontWeight.SemiBold,
     )
 }
 
