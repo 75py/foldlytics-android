@@ -5,9 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyListState
@@ -210,6 +208,14 @@ internal fun AppUsageScreen(
                 }
             }
         }
+        item(key = "app-reading-note") {
+            DetailDisclosure(stringResource(R.string.chart_reading_note)) {
+                Text(stringResource(R.string.app_ranking_measurement_note), style = MaterialTheme.typography.bodySmall)
+                if (selectedView == AppRankingView.DISPLAY_SHARE) {
+                    Text(stringResource(R.string.app_ranking_even_split_note), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
     }
 }
 
@@ -235,9 +241,7 @@ private fun AppRankingSelector(
     selectedMajority: AppDisplayMajority,
     onMajoritySelected: (AppDisplayMajority) -> Unit,
 ) {
-    LabCard(title = stringResource(R.string.app_ranking_title)) {
-        Overline(stringResource(R.string.app_ranking_view))
-        Spacer(Modifier.height(4.dp))
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SegmentedToggle(
             options = AppRankingView.entries,
             selected = selectedView,
@@ -256,7 +260,6 @@ private fun AppRankingSelector(
             },
             modifier = Modifier.testTag(APP_USAGE_VIEW_SELECTOR_TAG),
         )
-        Spacer(Modifier.height(10.dp))
         Overline(
             stringResource(
                 if (selectedView == AppRankingView.USAGE_TIME) {
@@ -266,7 +269,6 @@ private fun AppRankingSelector(
                 },
             ),
         )
-        Spacer(Modifier.height(4.dp))
         if (selectedView == AppRankingView.USAGE_TIME) {
             UsageTimeBasisSelector(
                 selectedBasis = selectedBasis,
@@ -278,7 +280,6 @@ private fun AppRankingSelector(
                 onMajoritySelected = onMajoritySelected,
             )
         }
-        Spacer(Modifier.height(10.dp))
         Text(
             if (selectedView == AppRankingView.DISPLAY_SHARE) {
                 stringResource(
@@ -300,18 +301,7 @@ private fun AppRankingSelector(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Text(
-            stringResource(R.string.app_ranking_measurement_note),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        if (selectedView == AppRankingView.DISPLAY_SHARE) {
-            Text(
-                stringResource(R.string.app_ranking_even_split_note),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+
     }
 }
 
@@ -321,7 +311,7 @@ private fun UsageTimeBasisSelector(
     selectedBasis: AppRankingBasis,
     onBasisSelected: (AppRankingBasis) -> Unit,
 ) {
-    SegmentedToggle(
+    FilterChoices(
         options = AppRankingBasis.entries,
         selected = selectedBasis,
         onSelected = onBasisSelected,
@@ -348,7 +338,7 @@ private fun DisplayMajoritySelector(
     selectedMajority: AppDisplayMajority,
     onMajoritySelected: (AppDisplayMajority) -> Unit,
 ) {
-    SegmentedToggle(
+    FilterChoices(
         options = listOf(AppDisplayMajority.COVER, AppDisplayMajority.INNER),
         selected = selectedMajority,
         onSelected = onMajoritySelected,
@@ -438,8 +428,8 @@ internal fun AppUsageCard(
         modifier = Modifier
             .testTag("$APP_USAGE_CARD_TAG_PREFIX${app.packageName}")
             .clearAndSetSemantics { contentDescription = cardDescription },
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerLowest,
     ) {
         Column(
             modifier = Modifier
@@ -453,9 +443,9 @@ internal fun AppUsageCard(
             ) {
                 FigureText(
                     rankText,
-                    modifier = Modifier.widthIn(min = 40.dp),
-                    figureStyle = MaterialTheme.typography.headlineLarge,
-                    unitStyle = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.widthIn(min = 24.dp),
+                    figureStyle = MaterialTheme.typography.titleMedium,
+                    unitStyle = MaterialTheme.typography.labelSmall,
                     color = if (rank <= 3) selectedColor else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     textAlign = TextAlign.Center,

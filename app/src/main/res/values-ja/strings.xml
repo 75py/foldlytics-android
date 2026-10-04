@@ -247,9 +247,7 @@
     <string name="share_summary_chooser">利用サマリーを共有</string>
 
     <!-- App ranking -->
-    <string name="app_ranking_title">よく使ったアプリ</string>
     <string name="selected_period">対象期間：%1$s</string>
-    <string name="app_ranking_view">表示方法</string>
     <string name="app_ranking_view_usage_time">利用時間</string>
     <string name="app_ranking_view_display_share">よく使う画面</string>
     <string name="app_ranking_basis">並び順</string>
@@ -353,4 +351,24 @@
     <string name="report_observed_days">記録のある日: %1$d/%2$d日 / 内側利用日: %3$d日</string>
     <string name="label_inner_ratio_change">全記録の内側割合変化（開始30日と直近30日）</string>
     <string name="report_collection_heading">収集状態</string>
+
+    <!-- Display-first navigation and progressive disclosure -->
+    <string name="home_display_balance">画面の使い分け</string>
+    <string name="home_inner_share">内側の画面を使った割合</string>
+    <string name="home_apps_short">アプリ別</string>
+    <string name="home_apps_empty_short">この期間のアプリデータはありません</string>
+    <string name="home_sessions_short">開閉ごと</string>
+    <string name="home_sessions_empty_short">完了した利用の記録はありません</string>
+    <string name="home_record_details">この記録について</string>
+    <string name="home_record_quality">判定できた割合 %1$s · 記録の詳細</string>
+    <string name="home_classified_caption">画面を判定できた時間のうち</string>
+    <string name="home_inner_apps">内側で使ったアプリ</string>
+    <string name="home_inner_apps_caption">内側の利用時間が長い順</string>
+    <string name="home_median_short">中央値 %1$s</string>
+    <string name="home_recording_title">ここから記録がはじまります</string>
+    <string name="home_recording_body">ふたつの画面を、どう使い分けているか。利用状況へのアクセスを許可すると、この端末内で記録できます。</string>
+    <string name="action_show_details">詳しく見る</string>
+    <string name="action_hide_details">閉じる</string>
+    <string name="chart_reading_note">グラフの読み方</string>
+    <string name="chart_inspection_hint">タップ・スライドで期間ごとの値を確認</string>
 </resources>

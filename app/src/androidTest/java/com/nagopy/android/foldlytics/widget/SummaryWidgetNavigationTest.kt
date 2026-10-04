@@ -12,7 +12,7 @@ import com.nagopy.android.foldlytics.MainUiState
 import com.nagopy.android.foldlytics.R
 import com.nagopy.android.foldlytics.ui.FoldlyticsScreen
 import com.nagopy.android.foldlytics.ui.FoldlyticsTheme
-import com.nagopy.android.foldlytics.ui.LIVE_STATE_CARD_TAG
+import com.nagopy.android.foldlytics.ui.ANALYSIS_PERIOD_SELECTOR_TAG
 import org.junit.Rule
 import org.junit.Test
 
@@ -40,9 +40,9 @@ class SummaryWidgetNavigationTest {
             compose.onNodeWithContentDescription(context.getString(R.string.content_desc_open_menu)).performClick()
             compose.onNodeWithText(context.getString(R.string.screen_calibration)).performClick()
             compose.waitForIdle()
-            compose.onNodeWithTag(LIVE_STATE_CARD_TAG).assertDoesNotExist()
+            compose.onNodeWithTag(ANALYSIS_PERIOD_SELECTOR_TAG).assertDoesNotExist()
             compose.runOnIdle { request.intValue += 1 }
-            compose.onNodeWithTag(LIVE_STATE_CARD_TAG).assertIsDisplayed()
+            compose.onNodeWithTag(ANALYSIS_PERIOD_SELECTOR_TAG).assertIsDisplayed()
         }
     }
 }

@@ -8,6 +8,8 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,11 +25,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,17 +46,24 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.nagopy.android.foldlytics.R
 import com.nagopy.android.foldlytics.model.LongTermBucket
 import com.nagopy.android.foldlytics.toShortDateText
+import kotlin.math.roundToInt
 
 internal data class PostureColors(
     val inner: Color,
@@ -77,14 +89,14 @@ internal fun openCountChartScale(observedMaximum: Int): OpenCountChartScale {
 @Composable
 internal fun postureColors(): PostureColors = if (isSystemInDarkTheme()) {
     PostureColors(
-        inner = Color(DisplayChartPalette.DARK_INNER),
-        cover = Color(DisplayChartPalette.DARK_COVER),
+        inner = Color(0xFFBCB0FF),
+        cover = Color(0xFFCADF8A),
         unknown = Color(0xFF9CA3AF),
     )
 } else {
     PostureColors(
-        inner = Color(DisplayChartPalette.LIGHT_INNER),
-        cover = Color(DisplayChartPalette.LIGHT_COVER),
+        inner = Color(0xFF6550DB),
+        cover = Color(0xFF637821),
         unknown = Color(0xFF6B7280),
     )
 }
@@ -105,7 +117,7 @@ internal fun InnerRatioTrendChart(
     modifier: Modifier = Modifier,
 ) {
     val resources = LocalResources.current
-    val description = resources.formatChartAccessibilityList(buckets.map { bucket ->
+    val pointDescriptions = buckets.map { bucket ->
         if (bucket.classifiedMillis == 0L) {
             resources.getString(
                 R.string.content_desc_chart_no_data,
@@ -118,11 +130,14 @@ internal fun InnerRatioTrendChart(
                 resources.getString(R.string.value_percent_0, bucket.innerRatio * 100),
             )
         }
-    })
+    }
+    val description = resources.formatChartAccessibilityList(pointDescriptions)
     ChartWithYAxis(
         labels = listOf("100%", "50%", "0%"),
         buckets = buckets,
         description = description,
+        pointDescriptions = pointDescriptions,
+        values = buckets.map { if (it.classifiedMillis > 0L) it.innerRatio.coerceIn(0f, 1f) else null },
         modifier = modifier,
     ) {
         drawTrend(
@@ -145,7 +160,7 @@ internal fun OpenCountTrendChart(
         .maxOfOrNull(LongTermBucket::openedCount)
         ?: 0
     val scale = openCountChartScale(observedMaximum)
-    val description = resources.formatChartAccessibilityList(buckets.map { bucket ->
+    val pointDescriptions = buckets.map { bucket ->
         if (bucket.observedDayCount == 0) {
             resources.getString(
                 R.string.content_desc_chart_no_data,
@@ -159,7 +174,8 @@ internal fun OpenCountTrendChart(
                 bucket.openedCount,
             )
         }
-    })
+    }
+    val description = resources.formatChartAccessibilityList(pointDescriptions)
     ChartWithYAxis(
         labels = listOf(
             resources.getString(R.string.value_open_count, scale.maximum),
@@ -168,6 +184,8 @@ internal fun OpenCountTrendChart(
         ),
         buckets = buckets,
         description = description,
+        pointDescriptions = pointDescriptions,
+        values = buckets.map { if (it.observedDayCount > 0) it.openedCount.toFloat() / scale.maximum else null },
         modifier = modifier,
     ) {
         drawTrend(
@@ -265,12 +283,28 @@ private fun ChartWithYAxis(
     labels: List<String>,
     buckets: List<LongTermBucket>,
     description: String,
+    pointDescriptions: List<String>,
+    values: List<Float?>,
     modifier: Modifier,
     drawChart: DrawScope.() -> Unit,
 ) {
     val resources = LocalResources.current
     val axisWidth = AxisLabelWidth * LocalDensity.current.fontScale.coerceAtLeast(1f)
-    Column(modifier) {
+    var inspectionIndex by remember(buckets) { mutableStateOf<Int?>(null) }
+    val selectionColor = MaterialTheme.colorScheme.primary
+    val inspectHint = stringResource(R.string.chart_inspection_hint)
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Surface(
+            shape = MaterialTheme.shapes.small,
+            color = if (inspectionIndex != null) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+        ) {
+            Text(
+                inspectionIndex?.let { pointDescriptions.getOrNull(it) } ?: inspectHint,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp).testTag(TREND_INSPECTION_TAG),
+                style = MaterialTheme.typography.labelMedium,
+                color = if (inspectionIndex != null) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         Row(Modifier.fillMaxWidth()) {
             // The labels are as tall as the plot plus half a line at each end, which centers the
             // first and last label on their guides.
@@ -298,7 +332,41 @@ private fun ChartWithYAxis(
                     .weight(1f)
                     .padding(vertical = AxisLabelOverhang)
                     .height(ChartHeight)
-                    .semantics { contentDescription = description },
+                    .testTag(TREND_PLOT_TAG)
+                    .semantics {
+                        contentDescription = description
+                        if (values.isNotEmpty()) {
+                            stateDescription = inspectionIndex?.let { pointDescriptions[it] } ?: inspectHint
+                            progressBarRangeInfo = ProgressBarRangeInfo(
+                                (inspectionIndex ?: values.lastIndex).toFloat(),
+                                0f..values.lastIndex.toFloat(),
+                                (values.size - 2).coerceAtLeast(0),
+                            )
+                            setProgress { requested ->
+                                if (requested.isFinite()) {
+                                    inspectionIndex = requested.roundToInt().coerceIn(0, values.lastIndex)
+                                    true
+                                } else false
+                            }
+                        }
+                    }
+                    .pointerInput(buckets) {
+                        if (values.isNotEmpty()) {
+                            detectTapGestures { position ->
+                                inspectionIndex = ((position.x / size.width) * values.lastIndex)
+                                    .roundToInt().coerceIn(0, values.lastIndex)
+                            }
+                        }
+                    }
+                    .pointerInput(buckets) {
+                        if (values.isNotEmpty()) {
+                            detectHorizontalDragGestures { change, _ ->
+                                change.consume()
+                                inspectionIndex = ((change.position.x / size.width) * values.lastIndex)
+                                    .roundToInt().coerceIn(0, values.lastIndex)
+                            }
+                        }
+                    },
             ) {
                 // The line draws itself in from the oldest bucket; overshoot must not un-clip it.
                 clipRect(
@@ -308,6 +376,12 @@ private fun ChartWithYAxis(
                     bottom = size.height + 12.dp.toPx(),
                 ) {
                     drawChart()
+                }
+                inspectionIndex?.let { index ->
+                    val x = chartX(index, values.size, size.width)
+                    drawLine(selectionColor.copy(alpha = 0.4f), Offset(x, 0f), Offset(x, size.height), 1.dp.toPx())
+                    val y = size.height * (1f - (values[index] ?: 0f).coerceIn(0f, 1f))
+                    drawCircle(selectionColor, 6.dp.toPx(), Offset(x, y), style = Stroke(2.dp.toPx()))
                 }
             }
         }
@@ -458,3 +532,6 @@ private fun chartX(index: Int, count: Int, width: Float): Float = when {
     count == 1 -> width / 2f
     else -> index.toFloat() / (count - 1).toFloat() * width
 }
+
+internal const val TREND_PLOT_TAG = "trend_plot"
+internal const val TREND_INSPECTION_TAG = "trend_inspection"

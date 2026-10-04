@@ -114,9 +114,9 @@ internal const val INNER_SESSION_APP_DURATION_TAG_PREFIX = "inner_session_app_du
 internal const val INNER_SESSION_LONG_SESSIONS_CARD_TAG = "inner_session_long_sessions_card"
 internal const val INNER_SESSION_METHOD_TAG = "inner_session_method"
 
-internal val MaxContentWidth = 720.dp
+internal val MaxContentWidth = 640.dp
 internal val TwoPaneContentWidth = 1080.dp
-internal val TwoPaneMinWidth = 840.dp
+internal val TwoPaneMinWidth = 760.dp
 internal val CardPadding = 20.dp
 
 @Composable
@@ -138,8 +138,8 @@ internal fun FoldlyticsLazyColumn(
                 .widthIn(max = maxContentWidth)
                 .fillMaxSize(),
             state = listState,
-            contentPadding = PaddingValues(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 40.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
             content = content,
         )
     }
@@ -356,7 +356,7 @@ internal fun ApplicationIcon(
 }
 
 /**
- * Sets the digits of a formatted value in the serif figure face and the units around them in a
+ * Sets the digits of a formatted value in the display figure face and the units around them in a
  * smaller sans, so "259h 1m" and "259時間1分" read as numbers first in every language.
  */
 internal fun figureText(
@@ -367,7 +367,7 @@ internal fun figureText(
     // The unit size is relative to the figure so the pair scales together when auto-sized.
     val figureSpan = SpanStyle(
         fontFamily = FigureFontFamily,
-        fontWeight = FontWeight.Bold,
+        fontWeight = figureStyle.fontWeight ?: FontWeight.Medium,
         letterSpacing = figureStyle.letterSpacing,
     )
     val unitSpan = SpanStyle(
@@ -497,9 +497,9 @@ internal fun LabCard(
 }
 
 @Composable
-internal fun HintCard(text: String, isError: Boolean = false) {
+internal fun HintCard(text: String, modifier: Modifier = Modifier, isError: Boolean = false) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
         color = if (isError) {
             MaterialTheme.colorScheme.errorContainer

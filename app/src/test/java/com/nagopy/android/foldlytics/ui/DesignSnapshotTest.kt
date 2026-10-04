@@ -2,11 +2,13 @@ package com.nagopy.android.foldlytics.ui
 
 import android.app.Application
 import android.content.Context
+import android.graphics.Bitmap
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.test.assertIsSelected
-import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Density
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -16,6 +18,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.unit.Density
 import androidx.test.core.app.ApplicationProvider
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.nagopy.android.foldlytics.MainUiError
@@ -32,9 +35,11 @@ import com.nagopy.android.foldlytics.model.InnerSessionDetail
 import com.nagopy.android.foldlytics.model.InnerSessionSummary
 import com.nagopy.android.foldlytics.model.LongTermPeriod
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
+import java.io.File
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -88,6 +93,10 @@ class DesignSnapshotTest {
         composeRule.onNodeWithTag(APP_USAGE_INNER_SEGMENT_TAG).performClick().assertIsSelected()
         composeRule.onNodeWithTag(APP_USAGE_TOTAL_SEGMENT_TAG).assertIsNotSelected()
         capture("compact-large-text", "05-inner-sort")
+        composeRule.onNodeWithTag(DETAIL_BACK_BUTTON_TAG).performClick()
+        scrollTo(HOME_INNER_SESSIONS_LINK_TAG)
+        composeRule.onNodeWithTag(HOME_INNER_SESSIONS_LINK_TAG).performClick()
+        capture("compact-large-text", "06-inner-sessions")
     }
 
     @Test
@@ -124,7 +133,7 @@ class DesignSnapshotTest {
             openedCount = 0,
             closedCount = 0,
             apps = emptyList(),
-        ), longTermInsights = null))
+        ), longTermInsights = null, innerSessionSummary = null))
         scrollTo(SUMMARY_CARD_TAG)
         capture("edge-cases", "02-empty")
     }
@@ -144,6 +153,49 @@ class DesignSnapshotTest {
         capture("phone-states", "01-home-permission-error")
     }
 
+
+    @Test
+    fun firstLaunch() {
+        setContent(MainUiState())
+        capture("phone-states", "02-first-launch")
+    }
+
+    @Test
+    fun recordDetailsAreAvailableOnDemand() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        setContent(representativeState())
+        scrollTo(RECORD_DETAILS_TAG)
+        composeRule.onNodeWithTag(LIVE_STATE_CARD_TAG).assertDoesNotExist()
+        composeRule.onNodeWithTag(RECORD_DETAILS_TAG).performClick()
+        scrollTo(LIVE_STATE_CARD_TAG)
+        composeRule.onNodeWithTag(LIVE_STATE_CARD_TAG).assertExists()
+        composeRule.onNodeWithText(context.getString(R.string.display_classification_rate_note)).assertExists()
+        capture("phone-states", "03-record-details")
+        scrollTo(RECORD_DETAILS_TAG)
+        composeRule.onNodeWithTag(RECORD_DETAILS_TAG).performClick()
+        composeRule.onNodeWithTag(LIVE_STATE_CARD_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun chartInspectionShowsTheSelectedPeriod() {
+        setContent(representativeState())
+        scrollTo(USAGE_TREND_CARD_TAG)
+        composeRule.onNodeWithTag(TREND_PLOT_TAG).performTouchInput { click(center) }
+        capture("phone-states", "04-chart-inspection")
+    }
+
+    @Test
+    fun sharedImageFitsAllText() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val result = SummaryShareImageRenderer.renderWithDiagnostics(context.resources, representativeState().periodSummary!!)
+        assertTrue(result.textMeasurements.filterNot { it.fits }.toString(), result.textMeasurements.all { it.fits })
+        if (System.getProperty("roborazzi.test.record") == "true") {
+            val output = File("build/design-snapshots/shared/summary.png")
+            output.parentFile!!.mkdirs()
+            output.outputStream().use { result.bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        }
+        result.bitmap.recycle()
+    }
 
     private fun captureAllScreens(group: String) {
         val context = ApplicationProvider.getApplicationContext<Context>()

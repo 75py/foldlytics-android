@@ -20,90 +20,93 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.intl.LocaleList
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nagopy.android.foldlytics.R
 
-// Paper and ink: a warm page, navy ink, and the two panel colors of the launcher icon.
+// Iris, citron and cool mineral surfaces: display identity stays stable across both themes.
 private val LightColors = lightColorScheme(
-    primary = Color(0xFF14315E),
+    primary = Color(0xFF5141D9),
     onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFD9E4F7),
-    onPrimaryContainer = Color(0xFF0B1E3D),
-    inversePrimary = Color(0xFFA9C7FF),
-    secondary = Color(0xFF9A4300),
+    primaryContainer = Color(0xFFE6E1FF),
+    onPrimaryContainer = Color(0xFF27157F),
+    inversePrimary = Color(0xFFC6BEFF),
+    secondary = Color(0xFF52631C),
     onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFFFDCC6),
-    onSecondaryContainer = Color(0xFF331200),
-    tertiary = Color(0xFF0067A5),
+    secondaryContainer = Color(0xFFE2EDB8),
+    onSecondaryContainer = Color(0xFF202A00),
+    tertiary = Color(0xFF435D91),
     onTertiary = Color(0xFFFFFFFF),
-    tertiaryContainer = Color(0xFFCFE5FF),
-    onTertiaryContainer = Color(0xFF001D33),
+    tertiaryContainer = Color(0xFFD9E3FF),
+    onTertiaryContainer = Color(0xFF102247),
     error = Color(0xFFA8321F),
     onError = Color(0xFFFFFFFF),
     errorContainer = Color(0xFFFFDAD4),
     onErrorContainer = Color(0xFF410002),
-    background = Color(0xFFFAF5EC),
-    onBackground = Color(0xFF1A1F2B),
-    surface = Color(0xFFFAF5EC),
-    onSurface = Color(0xFF1A1F2B),
-    surfaceVariant = Color(0xFFE6DECF),
-    onSurfaceVariant = Color(0xFF575B66),
-    surfaceTint = Color(0xFF14315E),
-    inverseSurface = Color(0xFF12233F),
-    inverseOnSurface = Color(0xFFF6EFE3),
-    outline = Color(0xFF8A8576),
-    outlineVariant = Color(0xFFD9D0BE),
-    scrim = Color(0xFF0A1220),
-    surfaceBright = Color(0xFFFFFBF4),
-    surfaceDim = Color(0xFFE2D9C8),
-    surfaceContainerLowest = Color(0xFFFFFDF9),
-    surfaceContainerLow = Color(0xFFF5EFE3),
-    surfaceContainer = Color(0xFFEFE8DA),
-    surfaceContainerHigh = Color(0xFFE9E1D1),
-    surfaceContainerHighest = Color(0xFFE2D9C8),
+    background = Color(0xFFF8F9FC),
+    onBackground = Color(0xFF191B26),
+    surface = Color(0xFFF8F9FC),
+    onSurface = Color(0xFF191B26),
+    surfaceVariant = Color(0xFFE5E6EF),
+    onSurfaceVariant = Color(0xFF616575),
+    surfaceTint = Color(0xFF5141D9),
+    inverseSurface = Color(0xFF292052),
+    inverseOnSurface = Color(0xFFF1EEFF),
+    outline = Color(0xFF777C8C),
+    outlineVariant = Color(0xFFDDE0EB),
+    scrim = Color(0xFF151322),
+    surfaceBright = Color(0xFFFFFFFF),
+    surfaceDim = Color(0xFFD9DDE9),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF0F2F8),
+    surfaceContainer = Color(0xFFE9ECF5),
+    surfaceContainerHigh = Color(0xFFE2E6F1),
+    surfaceContainerHighest = Color(0xFFD9DDE9),
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFFA9C7FF),
-    onPrimary = Color(0xFF0A2A57),
-    primaryContainer = Color(0xFF1F3E6E),
-    onPrimaryContainer = Color(0xFFD9E4F7),
-    inversePrimary = Color(0xFF14315E),
-    secondary = Color(0xFFFFB077),
-    onSecondary = Color(0xFF4F2100),
-    secondaryContainer = Color(0xFF6B2F00),
-    onSecondaryContainer = Color(0xFFFFDCC6),
-    tertiary = Color(0xFF73C7FF),
-    onTertiary = Color(0xFF00344F),
-    tertiaryContainer = Color(0xFF004B73),
-    onTertiaryContainer = Color(0xFFCFE5FF),
+    primary = Color(0xFFC6BEFF),
+    onPrimary = Color(0xFF2A1C7F),
+    primaryContainer = Color(0xFF3D2DAB),
+    onPrimaryContainer = Color(0xFFE6E1FF),
+    inversePrimary = Color(0xFF5141D9),
+    secondary = Color(0xFFCADF8A),
+    onSecondary = Color(0xFF293900),
+    secondaryContainer = Color(0xFF3E5011),
+    onSecondaryContainer = Color(0xFFE2EDB8),
+    tertiary = Color(0xFFB1C6FF),
+    onTertiary = Color(0xFF163061),
+    tertiaryContainer = Color(0xFF2C4578),
+    onTertiaryContainer = Color(0xFFD9E3FF),
     error = Color(0xFFFFB4A6),
     onError = Color(0xFF5F1407),
     errorContainer = Color(0xFF7F2A19),
     onErrorContainer = Color(0xFFFFDAD4),
-    background = Color(0xFF0D1118),
-    onBackground = Color(0xFFECE6DA),
-    surface = Color(0xFF0D1118),
-    onSurface = Color(0xFFECE6DA),
-    surfaceVariant = Color(0xFF2A303B),
-    onSurfaceVariant = Color(0xFFB5B1A6),
-    surfaceTint = Color(0xFFA9C7FF),
-    inverseSurface = Color(0xFFECE6DA),
-    inverseOnSurface = Color(0xFF1A1F2B),
-    outline = Color(0xFF858277),
-    outlineVariant = Color(0xFF353B47),
+    background = Color(0xFF101118),
+    onBackground = Color(0xFFF0F0FA),
+    surface = Color(0xFF101118),
+    onSurface = Color(0xFFF0F0FA),
+    surfaceVariant = Color(0xFF292C3A),
+    onSurfaceVariant = Color(0xFFB8BDCF),
+    surfaceTint = Color(0xFFC6BEFF),
+    inverseSurface = Color(0xFFF0F0FA),
+    inverseOnSurface = Color(0xFF191B26),
+    outline = Color(0xFF888EA2),
+    outlineVariant = Color(0xFF35394C),
     scrim = Color(0xFF000000),
-    surfaceBright = Color(0xFF2C3442),
-    surfaceDim = Color(0xFF0D1118),
-    surfaceContainerLowest = Color(0xFF080B10),
-    surfaceContainerLow = Color(0xFF141922),
-    surfaceContainer = Color(0xFF181E28),
-    surfaceContainerHigh = Color(0xFF1F2632),
-    surfaceContainerHighest = Color(0xFF283040),
+    surfaceBright = Color(0xFF303349),
+    surfaceDim = Color(0xFF101118),
+    surfaceContainerLowest = Color(0xFF0B0C12),
+    surfaceContainerLow = Color(0xFF181A27),
+    surfaceContainer = Color(0xFF1E2030),
+    surfaceContainerHigh = Color(0xFF25283B),
+    surfaceContainerHighest = Color(0xFF2D3146),
 )
 
 /**
@@ -112,12 +115,7 @@ private val DarkColors = darkColorScheme(
  */
 @Immutable
 internal data class FoldlyticsPalette(
-    val hero: Color,
-    val onHero: Color,
-    val onHeroMuted: Color,
-    val heroOutline: Color,
     val heroInner: Color,
-    val onHeroInner: Color,
     val heroCover: Color,
     val onHeroCover: Color,
     val innerContainer: Color,
@@ -127,27 +125,20 @@ internal data class FoldlyticsPalette(
 )
 
 private val LightPalette = FoldlyticsPalette(
-    hero = Color(0xFF12233F),
-    onHero = Color(0xFFFAF5EC),
-    onHeroMuted = Color(0xFFB4BED1),
-    heroOutline = Color(0xFF2D4166),
-    heroInner = Color(DisplayChartPalette.DARK_INNER),
-    onHeroInner = Color(0xFF04263D),
-    heroCover = Color(DisplayChartPalette.DARK_COVER),
-    onHeroCover = Color(0xFF3A1600),
-    innerContainer = Color(0xFFD6E9F8),
-    onInnerContainer = Color(0xFF003A5E),
-    coverContainer = Color(0xFFFFE0CC),
-    onCoverContainer = Color(0xFF6E2A00),
+    heroInner = Color(0xFF7058F5),
+    heroCover = Color(0xFFD7EB98),
+    onHeroCover = Color(0xFF26340A),
+    innerContainer = Color(0xFFE6E1FF),
+    onInnerContainer = Color(0xFF342298),
+    coverContainer = Color(0xFFE8EFCB),
+    onCoverContainer = Color(0xFF3B4B16),
 )
 
 private val DarkPalette = LightPalette.copy(
-    hero = Color(0xFF182945),
-    heroOutline = Color(0xFF334A73),
-    innerContainer = Color(0xFF0E3A56),
-    onInnerContainer = Color(0xFFCFE5FF),
-    coverContainer = Color(0xFF52260A),
-    onCoverContainer = Color(0xFFFFDCC6),
+    innerContainer = Color(0xFF322963),
+    onInnerContainer = Color(0xFFD9E3FF),
+    coverContainer = Color(0xFF323F20),
+    onCoverContainer = Color(0xFFE2EDB8),
 )
 
 internal val LocalFoldlyticsPalette = staticCompositionLocalOf { LightPalette }
@@ -158,15 +149,15 @@ internal val foldlyticsPalette: FoldlyticsPalette
     get() = LocalFoldlyticsPalette.current
 
 // Generous outer corners; the tight "hinge" radius joins neighbouring surfaces like two panels.
-internal val HingeCorner = 6.dp
-internal val PanelCorner = 28.dp
+internal val HingeCorner = 4.dp
+internal val PanelCorner = 24.dp
 
 private val FoldlyticsShapes = Shapes(
     extraSmall = RoundedCornerShape(HingeCorner),
     small = RoundedCornerShape(12.dp),
     medium = RoundedCornerShape(20.dp),
     large = RoundedCornerShape(PanelCorner),
-    extraLarge = RoundedCornerShape(36.dp),
+    extraLarge = RoundedCornerShape(32.dp),
 )
 
 @Composable
@@ -189,8 +180,14 @@ fun FoldlyticsTheme(content: @Composable () -> Unit) {
     }
 }
 
-/** The serif used for figures and the wordmark; device fonts keep the app free of bundled assets. */
-internal val FigureFontFamily = FontFamily.Serif
+/** Bundled Manrope keeps the same geometry offline; Japanese uses the system glyph fallback. */
+@OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+internal val FigureFontFamily = FontFamily(
+    listOf(400, 500, 600, 700).map { weight ->
+        Font(R.font.manrope, weight = FontWeight(weight),
+            variationSettings = FontVariation.Settings(FontVariation.weight(weight)))
+    },
+)
 
 // Proportional kana and punctuation tighten Japanese headings; tabular figures keep columns steady.
 private const val HEADING_FEATURES = "palt"
@@ -200,26 +197,27 @@ private fun foldlyticsTypography(): Typography {
     val base = Typography()
     fun figure(size: Int, lineHeight: Int, tracking: Double) = TextStyle(
         fontFamily = FigureFontFamily,
-        fontWeight = FontWeight.Bold,
+        fontWeight = FontWeight.Medium,
+        fontFeatureSettings = DATA_FEATURES,
         fontSize = size.sp,
         lineHeight = lineHeight.sp,
         letterSpacing = tracking.sp,
     )
     return Typography(
-        displayLarge = figure(64, 68, -1.5),
-        displayMedium = figure(48, 52, -1.0),
-        displaySmall = figure(36, 40, -0.5),
-        headlineLarge = figure(30, 36, -0.4),
-        headlineMedium = figure(26, 32, -0.3),
+        displayLarge = figure(88, 92, -4.5),
+        displayMedium = figure(56, 60, -2.5),
+        displaySmall = figure(40, 44, -1.5),
+        headlineLarge = figure(32, 38, -1.0),
+        headlineMedium = figure(26, 32, -0.6),
         headlineSmall = base.headlineSmall.copy(
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.SemiBold,
             fontSize = 22.sp,
             lineHeight = 28.sp,
             letterSpacing = (-0.2).sp,
             fontFeatureSettings = HEADING_FEATURES,
         ),
         titleLarge = base.titleLarge.copy(
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.SemiBold,
             fontSize = 20.sp,
             lineHeight = 26.sp,
             letterSpacing = (-0.1).sp,
@@ -261,7 +259,7 @@ private fun foldlyticsTypography(): Typography {
         ),
         labelMedium = base.labelMedium.copy(
             fontWeight = FontWeight.SemiBold,
-            letterSpacing = 0.6.sp,
+            letterSpacing = 0.2.sp,
         ),
         labelSmall = base.labelSmall.copy(
             fontWeight = FontWeight.Medium,
@@ -272,19 +270,19 @@ private fun foldlyticsTypography(): Typography {
 }
 
 private fun Typography.withLocaleList(localeList: LocaleList): Typography = Typography(
-    displayLarge = displayLarge.copy(localeList = localeList),
-    displayMedium = displayMedium.copy(localeList = localeList),
-    displaySmall = displaySmall.copy(localeList = localeList),
-    headlineLarge = headlineLarge.copy(localeList = localeList),
-    headlineMedium = headlineMedium.copy(localeList = localeList),
-    headlineSmall = headlineSmall.copy(localeList = localeList),
-    titleLarge = titleLarge.copy(localeList = localeList),
-    titleMedium = titleMedium.copy(localeList = localeList),
-    titleSmall = titleSmall.copy(localeList = localeList),
-    bodyLarge = bodyLarge.copy(localeList = localeList),
-    bodyMedium = bodyMedium.copy(localeList = localeList),
-    bodySmall = bodySmall.copy(localeList = localeList),
-    labelLarge = labelLarge.copy(localeList = localeList),
-    labelMedium = labelMedium.copy(localeList = localeList),
-    labelSmall = labelSmall.copy(localeList = localeList),
+    displayLarge = displayLarge.copy(localeList = localeList, fontFamily = FigureFontFamily),
+    displayMedium = displayMedium.copy(localeList = localeList, fontFamily = FigureFontFamily),
+    displaySmall = displaySmall.copy(localeList = localeList, fontFamily = FigureFontFamily),
+    headlineLarge = headlineLarge.copy(localeList = localeList, fontFamily = FigureFontFamily),
+    headlineMedium = headlineMedium.copy(localeList = localeList, fontFamily = FigureFontFamily),
+    headlineSmall = headlineSmall.copy(localeList = localeList, fontFamily = FigureFontFamily),
+    titleLarge = titleLarge.copy(localeList = localeList, fontFamily = FigureFontFamily),
+    titleMedium = titleMedium.copy(localeList = localeList, fontFamily = FigureFontFamily),
+    titleSmall = titleSmall.copy(localeList = localeList, fontFamily = FigureFontFamily),
+    bodyLarge = bodyLarge.copy(localeList = localeList, fontFamily = FigureFontFamily),
+    bodyMedium = bodyMedium.copy(localeList = localeList, fontFamily = FigureFontFamily),
+    bodySmall = bodySmall.copy(localeList = localeList, fontFamily = FigureFontFamily),
+    labelLarge = labelLarge.copy(localeList = localeList, fontFamily = FigureFontFamily),
+    labelMedium = labelMedium.copy(localeList = localeList, fontFamily = FigureFontFamily),
+    labelSmall = labelSmall.copy(localeList = localeList, fontFamily = FigureFontFamily),
 )

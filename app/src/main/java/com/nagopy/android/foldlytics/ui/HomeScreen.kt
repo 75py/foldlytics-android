@@ -4,42 +4,37 @@ package com.nagopy.android.foldlytics.ui
 
 import android.content.res.Resources
 import android.icu.text.ListFormatter
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.Surface
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SelectableDates
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -51,9 +46,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
@@ -68,7 +62,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.nagopy.android.foldlytics.MainUiState
 import com.nagopy.android.foldlytics.R
 import com.nagopy.android.foldlytics.labelRes
@@ -106,15 +99,14 @@ internal fun HomeScreen(
     onRequestUsageAccess: () -> Unit,
     onPeriodChanged: (AnalysisPeriod) -> Unit,
     onCustomPeriodChanged: (Long, Long) -> Unit,
-    onRefresh: () -> Unit,
     onShareSummaryRequested: (PeriodUsageSummary) -> Unit,
     onOpenAppUsage: () -> Unit,
     onOpenInnerSessions: () -> Unit,
     screenshotSectionEndSpacing: Dp,
 ) {
-    // An unfolded device has room for the summary and its trend side by side.
+    val hasSavedData = state.periodSummary != null || state.recordRangeStartMillis != null
     BoxWithConstraints {
-        val twoPane = maxWidth >= TwoPaneMinWidth
+        val twoPane = maxWidth >= TwoPaneMinWidth && LocalDensity.current.fontScale < 1.5f
         FoldlyticsLazyColumn(
             scaffoldPadding = scaffoldPadding,
             listState = listState,
@@ -123,92 +115,59 @@ internal fun HomeScreen(
             if (!state.hasUsageAccess) {
                 item {
                     PermissionCard(
-                        hasSavedData = state.periodSummary != null,
+                        hasSavedData = hasSavedData,
                         onOpenSettings = onRequestUsageAccess,
                     )
                 }
             }
-            item { LiveStateCard(state) }
-            item {
-                ResultHeader(
-                    state = state,
-                    onPeriodChanged = onPeriodChanged,
-                    onCustomPeriodChanged = onCustomPeriodChanged,
-                    onRefresh = onRefresh,
-                )
+            if (state.hasUsageAccess || hasSavedData) {
+                item(key = "result-header") { ResultHeader(state, onPeriodChanged, onCustomPeriodChanged) }
             }
             state.periodSummary?.let { summary ->
-                val trendInsights = state.longTermInsights.takeIf { summary.period.showsTrends }
-                if (twoPane && trendInsights != null) {
+                val canShare = summary.classifiedMillis > 0L && !state.isLoading && !state.isAnalysisLoading
+                if (twoPane) {
                     item {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Box(Modifier.weight(1f)) {
-                                SummaryCard(
-                                    summary = summary,
-                                    canShare =
-                                        summary.classifiedMillis > 0L &&
-                                            !state.isLoading &&
-                                            !state.isAnalysisLoading,
-                                    onShare = { onShareSummaryRequested(summary) },
-                                )
+                        Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                                SummaryCard(summary, canShare) { onShareSummaryRequested(summary) }
+                                SessionEntry(state, onOpenInnerSessions)
                             }
                             Box(Modifier.weight(1f)) {
-                                UsageTrendCard(trendInsights)
+                                InnerAppsPreview(state, onOpenAppUsage)
                             }
                         }
                     }
                 } else {
                     item {
-                        Column {
-                            SummaryCard(
-                                summary = summary,
-                                canShare =
-                                    summary.classifiedMillis > 0L &&
-                                        !state.isLoading &&
-                                        !state.isAnalysisLoading,
-                                onShare = { onShareSummaryRequested(summary) },
-                            )
-                            if (screenshotSectionEndSpacing > 0.dp) {
-                                Spacer(Modifier.height(screenshotSectionEndSpacing))
-                            }
-                        }
+                        SummaryCard(summary, canShare) { onShareSummaryRequested(summary) }
+                        if (screenshotSectionEndSpacing > 0.dp) Spacer(Modifier.height(screenshotSectionEndSpacing))
                     }
-                    if (summary.period.showsTrends) {
-                        state.longTermInsights?.let { insights ->
-                            item {
-                                Column {
-                                    UsageTrendCard(insights)
-                                    if (screenshotSectionEndSpacing > 0.dp) {
-                                        Spacer(Modifier.height(screenshotSectionEndSpacing))
-                                    }
+                    item {
+                        BoxWithConstraints {
+                            if (maxWidth / LocalDensity.current.fontScale < 280.dp) {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    AppEntry(state, onOpenAppUsage)
+                                    SessionEntry(state, onOpenInnerSessions)
+                                }
+                            } else {
+                                Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Box(Modifier.weight(1f).fillMaxHeight()) { AppEntry(state, onOpenAppUsage) }
+                                    Box(Modifier.weight(1f).fillMaxHeight()) { SessionEntry(state, onOpenInnerSessions) }
                                 }
                             }
                         }
                     }
                 }
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        HomeDetailLink(
-                            title = stringResource(R.string.home_app_usage_link_title),
-                            preview = appUsagePreview(summary.apps),
-                            enabled = !state.isAnalysisLoading,
-                            tag = HOME_APP_USAGE_LINK_TAG,
-                            description = stringResource(R.string.content_desc_home_app_usage_link),
-                            shape = groupedShape(0, 2),
-                            onClick = onOpenAppUsage,
-                        )
-                        HomeDetailLink(
-                            title = stringResource(R.string.home_inner_sessions_link_title),
-                            preview = innerSessionsPreview(state.innerSessionSummary),
-                            enabled = !state.isAnalysisLoading,
-                            tag = HOME_INNER_SESSIONS_LINK_TAG,
-                            description = stringResource(R.string.content_desc_home_inner_sessions_link),
-                            shape = groupedShape(1, 2),
-                            onClick = onOpenInnerSessions,
-                        )
+                if (summary.period.showsTrends) {
+                    state.longTermInsights?.let { insights ->
+                        item {
+                            UsageTrendCard(insights)
+                            if (screenshotSectionEndSpacing > 0.dp) Spacer(Modifier.height(screenshotSectionEndSpacing))
+                        }
                     }
                 }
             }
+            item(key = "record-details") { RecordingDetails(state) }
         }
     }
 }
@@ -218,6 +177,24 @@ private fun PermissionCard(
     hasSavedData: Boolean,
     onOpenSettings: () -> Unit,
 ) {
+    if (!hasSavedData) {
+        Column(
+            modifier = Modifier.fillMaxWidth().testTag(HOME_PERMISSION_CARD_TAG)
+                .padding(horizontal = 8.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
+        ) {
+            DisplayDuet(Modifier.size(208.dp, 174.dp).align(Alignment.CenterHorizontally))
+            Text(stringResource(R.string.home_recording_title), style = MaterialTheme.typography.headlineLarge)
+            Text(stringResource(R.string.home_recording_body), style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
+                Text(stringResource(R.string.action_review_details))
+            }
+            Text(stringResource(R.string.drawer_privacy_note), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        return
+    }
     Surface(
         modifier = Modifier.testTag(HOME_PERMISSION_CARD_TAG),
         shape = MaterialTheme.shapes.large,
@@ -325,153 +302,87 @@ private fun ResultHeader(
     state: MainUiState,
     onPeriodChanged: (AnalysisPeriod) -> Unit,
     onCustomPeriodChanged: (Long, Long) -> Unit,
-    onRefresh: () -> Unit,
 ) {
     val resources = LocalResources.current
     var expanded by rememberSaveable { mutableStateOf(false) }
     var showCustomPeriodDialog by rememberSaveable { mutableStateOf(false) }
-    Column(
-        modifier = Modifier.padding(top = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Box(Modifier.weight(1f)) {
-                SectionTitle(stringResource(R.string.section_analysis_period))
-            }
-            val refreshEnabled = state.hasUsageAccess && !state.isLoading
-            FilledTonalButton(
-                onClick = onRefresh,
-                enabled = refreshEnabled,
-                contentPadding = PaddingValues(start = 14.dp, end = 18.dp),
-                colors = ButtonDefaults.filledTonalButtonColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                ),
-            ) {
-                val iconColor = LocalContentColor.current
-                Canvas(Modifier.size(18.dp).clearAndSetSemantics {}) {
-                    drawRefreshIcon(iconColor)
-                }
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    stringResource(
-                        if (state.isLoading) R.string.action_syncing else R.string.action_refresh,
-                    ),
-                )
-            }
-        }
-        Spacer(Modifier.height(2.dp))
-        Box(Modifier.fillMaxWidth()) {
-            val currentPeriodLabel = stringResource(state.selectedPeriod.labelRes)
-            val periodSelectorDescription = stringResource(
-                R.string.content_desc_analysis_period_selector,
-                currentPeriodLabel,
+            Text(
+                stringResource(R.string.home_display_balance),
+                modifier = Modifier.padding(top = 10.dp, end = 12.dp),
+                style = MaterialTheme.typography.headlineSmall,
             )
-            val selectorEnabled = state.availablePeriods.isNotEmpty()
-            Surface(
-                onClick = { expanded = true },
-                enabled = selectorEnabled,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .alpha(if (selectorEnabled) 1f else 0.5f)
-                    .testTag(ANALYSIS_PERIOD_SELECTOR_TAG)
-                    .semantics {
-                        contentDescription = periodSelectorDescription
-                        role = Role.Button
-                    },
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 60.dp)
-                        .padding(start = 24.dp, end = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+            Box {
+                val selectorDescription = stringResource(
+                    R.string.content_desc_analysis_period_selector,
+                    stringResource(state.selectedPeriod.labelRes),
+                )
+                Surface(
+                    onClick = { expanded = true },
+                    enabled = state.availablePeriods.isNotEmpty(),
+                    modifier = Modifier.testTag(ANALYSIS_PERIOD_SELECTOR_TAG)
+                        .semantics { contentDescription = selectorDescription; role = Role.Button },
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainer,
                 ) {
-                    FigureText(
-                        currentPeriodLabel,
-                        modifier = Modifier.weight(1f),
-                        figureStyle = MaterialTheme.typography.headlineMedium,
-                        unitStyle = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                    )
-                    Box(
-                        Modifier
-                            .size(36.dp)
-                            .background(MaterialTheme.colorScheme.surfaceContainerLowest, CircleShape),
-                        contentAlignment = Alignment.Center,
+                    Row(
+                        Modifier.heightIn(min = 48.dp).padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        Chevron(MaterialTheme.colorScheme.onSurface, down = true)
+                        Text(stringResource(state.selectedPeriod.labelRes), style = MaterialTheme.typography.labelLarge)
+                        Chevron(MaterialTheme.colorScheme.onSurfaceVariant, down = true)
+                    }
+                }
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                    shape = MaterialTheme.shapes.medium,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
+                ) {
+                    AnalysisPeriod.entries.forEach { period ->
+                        DropdownMenuItem(
+                            text = { Text(stringResource(period.labelRes)) },
+                            enabled = period in state.availablePeriods,
+                            onClick = {
+                                expanded = false
+                                if (period == AnalysisPeriod.CUSTOM) {
+                                    showCustomPeriodDialog = true
+                                } else {
+                                    onPeriodChanged(period)
+                                }
+                            },
+                            modifier = Modifier.testTag(
+                                "$ANALYSIS_PERIOD_OPTION_TAG_PREFIX${period.name}",
+                            ),
+                        )
                     }
                 }
             }
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-                shape = MaterialTheme.shapes.medium,
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
-            ) {
-                AnalysisPeriod.entries.forEach { period ->
-                    DropdownMenuItem(
-                        text = { Text(stringResource(period.labelRes)) },
-                        enabled = period in state.availablePeriods,
-                        onClick = {
-                            expanded = false
-                            if (period == AnalysisPeriod.CUSTOM) {
-                                showCustomPeriodDialog = true
-                            } else {
-                                onPeriodChanged(period)
-                            }
-                        },
-                        modifier = Modifier.testTag(
-                            "$ANALYSIS_PERIOD_OPTION_TAG_PREFIX${period.name}",
-                        ),
-                    )
-                }
-            }
         }
-        Spacer(Modifier.height(2.dp))
         state.periodSummary?.let { summary ->
             Text(
                 summary.analysisRangeText(resources),
-                modifier = Modifier.padding(horizontal = 4.dp),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             summary.calendarRange?.let { range ->
                 val days = range.recordedDayCount(ZoneId.systemDefault())
                 if (days > 0 && days.toLong() < requireNotNull(summary.period.calendarDays)) {
                     Text(
-                        stringResource(
-                            R.string.analysis_partial_recording,
-                            resources.getQuantityString(R.plurals.days_count, days, days),
-                        ),
-                        modifier = Modifier.padding(horizontal = 4.dp),
+                        stringResource(R.string.analysis_partial_recording,
+                            resources.getQuantityString(R.plurals.days_count, days, days)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
         }
-        Text(
-            state.recordRangeText(resources),
-            modifier = Modifier.padding(horizontal = 4.dp),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            state.lastSuccessfulSyncMillis?.let {
-                stringResource(R.string.last_updated, it.toTimeText(resources))
-            } ?: stringResource(R.string.never_synced),
-            modifier = Modifier.padding(horizontal = 4.dp),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 
     val recordStartMillis = state.recordRangeStartMillis
@@ -496,69 +407,6 @@ private fun ResultHeader(
                 onCustomPeriodChanged(startMillis, endMillis)
             },
         )
-    }
-}
-
-@Composable
-private fun HomeDetailLink(
-    title: String,
-    preview: String,
-    enabled: Boolean,
-    tag: String,
-    description: String,
-    shape: Shape,
-    onClick: () -> Unit,
-) {
-    val fullDescription = if (enabled) {
-        "$description $preview"
-    } else {
-        "$description $preview ${stringResource(R.string.detail_unavailable_while_analyzing)}"
-    }
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .alpha(if (enabled) 1f else 0.6f)
-            .testTag(tag)
-            .clip(shape)
-            .clickable(
-                enabled = enabled,
-                role = Role.Button,
-                onClick = onClick,
-            )
-            .semantics(mergeDescendants = true) {
-                contentDescription = fullDescription
-                if (!enabled) disabled()
-            },
-        shape = shape,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = CardPadding, top = 18.dp, end = 16.dp, bottom = 18.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    preview,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .background(MaterialTheme.colorScheme.primary, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Chevron(MaterialTheme.colorScheme.onPrimary)
-            }
-        }
     }
 }
 
@@ -613,237 +461,213 @@ private fun SummaryCard(
     onShare: () -> Unit,
 ) {
     val resources = LocalResources.current
-    val palette = foldlyticsPalette
-    val percent = resources.getString(R.string.value_percent_0, summary.innerRatio * 100)
-    val noData = stringResource(R.string.label_no_data)
-    val innerRatioText = if (summary.classifiedMillis > 0L) percent else noData
-    val dataCoverageText = if (summary.observedMillis > 0L) {
-        resources.getString(R.string.value_percent_0, summary.dataCoverageRatio * 100)
-    } else {
-        noData
-    }
+    val colors = postureColors()
+    val percent = if (summary.classifiedMillis > 0L) {
+        resources.getString(R.string.value_percent_0, summary.innerRatio * 100)
+    } else "—"
     val description = stringResource(
         R.string.content_desc_summary,
         stringResource(summary.period.labelRes),
         summary.coverMillis.toDurationText(resources),
         summary.innerMillis.toDurationText(resources),
-        innerRatioText,
+        if (summary.classifiedMillis > 0L) percent else stringResource(R.string.label_no_data),
     )
-    // Two joined surfaces: the ink panel carries the result, the paper panel how far to trust it.
     Column(
-        modifier = Modifier.testTag(SUMMARY_CARD_TAG),
-        verticalArrangement = Arrangement.spacedBy(3.dp),
+        Modifier.fillMaxWidth().testTag(SUMMARY_CARD_TAG),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Surface(
-            shape = groupedShape(0, 2),
-            color = palette.hero,
-            contentColor = palette.onHero,
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = CardPadding, top = 10.dp, end = CardPadding, bottom = CardPadding),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        stringResource(R.string.summary_title),
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = palette.onHeroMuted,
-                    )
-                    Box(Modifier.offset(x = 12.dp)) {
-                        SummaryShareButton(
-                            enabled = canShare,
-                            onClick = onShare,
-                            tint = palette.onHero,
-                        )
-                    }
-                }
-                val figure = if (summary.classifiedMillis > 0L) percent else "—"
-                val openedText = resources.getString(R.string.value_open_count, summary.openedCount)
-                BoxWithConstraints(Modifier.fillMaxWidth()) {
-                    if (maxWidth >= 520.dp) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(28.dp),
-                            verticalAlignment = Alignment.Bottom,
-                        ) {
-                            SummaryHeadline(figure, description, openedText, Modifier.weight(0.46f))
-                            FoldSplit(summary, Modifier.weight(0.54f))
-                        }
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                            SummaryHeadline(figure, description, openedText)
-                            FoldSplit(summary)
-                        }
-                    }
-                }
-            }
-        }
-        Surface(
-            shape = groupedShape(1, 2),
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = CardPadding, top = 16.dp, end = CardPadding, bottom = 18.dp),
-            ) {
-                InfoLine(
-                    stringResource(R.string.label_classified_time),
-                    summary.classifiedMillis.toDurationText(resources),
-                )
-                InfoLine(
-                    stringResource(R.string.label_data_coverage),
-                    dataCoverageText,
-                )
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f).clearAndSetSemantics { contentDescription = description }) {
                 Text(
-                    stringResource(R.string.display_classification_rate_note),
-                    style = MaterialTheme.typography.bodySmall,
+                    stringResource(R.string.home_inner_share),
+                    style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            }
-        }
-    }
-}
-
-/** The inner share as the headline figure, with the open count set against it. */
-@Composable
-private fun SummaryHeadline(
-    figure: String,
-    description: String,
-    openedText: String,
-    modifier: Modifier = Modifier,
-) {
-    val palette = foldlyticsPalette
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Bottom,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Column(
-            Modifier
-                .weight(1f)
-                .semantics { contentDescription = description },
-        ) {
-            Overline(stringResource(R.string.posture_inner), color = palette.heroInner)
-            FigureText(
-                figure,
-                figureStyle = MaterialTheme.typography.displayLarge.copy(
-                    fontSize = 88.sp,
-                    lineHeight = 92.sp,
-                    letterSpacing = (-2.5).sp,
-                ),
-                unitStyle = MaterialTheme.typography.headlineSmall.copy(fontSize = 34.sp),
-                color = palette.onHero,
-                shrinkToFit = true,
-            )
-        }
-        Column(
-            modifier = Modifier.padding(bottom = 14.dp),
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                FoldGlyph(
-                    DisplayPosture.INNER,
-                    palette.onHeroMuted,
-                    Modifier.size(width = 18.dp, height = 14.dp),
+                FigureText(
+                    percent,
+                    figureStyle = MaterialTheme.typography.displayLarge,
+                    unitStyle = MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    shrinkToFit = true,
                 )
-                Overline(stringResource(R.string.label_opened), color = palette.onHeroMuted)
             }
-            FigureText(
-                openedText,
-                figureStyle = MaterialTheme.typography.displaySmall,
-                unitStyle = MaterialTheme.typography.labelLarge,
-                color = palette.onHero,
-                maxLines = 1,
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                SummaryShareButton(canShare, onShare)
+                DisplayDuet(Modifier.size(104.dp, 86.dp))
+            }
         }
-    }
-}
-
-/** Equal-sized labels stay readable; the separate hinge bar encodes the exact display shares. */
-@Composable
-private fun FoldSplit(summary: PeriodUsageSummary, modifier: Modifier = Modifier) {
-    val resources = LocalResources.current
-    val palette = foldlyticsPalette
-    Column(
-        modifier = modifier.fillMaxWidth().clearAndSetSemantics {},
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
         if (summary.classifiedMillis > 0L) {
-            AppDisplayShareBar(
-                coverFraction = summary.coverMillis.toFloat() / summary.classifiedMillis,
-                colors = PostureColors(
-                    inner = palette.heroInner,
-                    cover = palette.heroCover,
-                    unknown = palette.onHeroMuted,
-                ),
+            DisplayRatioRibbon(coverFraction = 1f - summary.innerRatio)
+        }
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            DisplayTime(
+                stringResource(R.string.posture_cover), summary.coverMillis.toDurationText(resources),
+                colors.cover, Modifier.weight(1f),
+            )
+            DisplayTime(
+                stringResource(R.string.posture_inner), summary.innerMillis.toDurationText(resources),
+                colors.inner, Modifier.weight(1f),
             )
         }
-        Row(
-            modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            FoldPanel(
-                label = stringResource(R.string.posture_cover),
-                value = summary.coverMillis.toDurationText(resources),
-                color = palette.heroCover,
-                contentColor = palette.onHeroCover,
-                shape = RoundedCornerShape(
-                    topStart = 22.dp,
-                    bottomStart = 22.dp,
-                    topEnd = HingeCorner,
-                    bottomEnd = HingeCorner,
-                ),
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-            )
-            FoldPanel(
-                label = stringResource(R.string.posture_inner),
-                value = summary.innerMillis.toDurationText(resources),
-                color = palette.heroInner,
-                contentColor = palette.onHeroInner,
-                shape = RoundedCornerShape(
-                    topStart = HingeCorner,
-                    bottomStart = HingeCorner,
-                    topEnd = 22.dp,
-                    bottomEnd = 22.dp,
-                ),
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-            )
-        }
+        Text(
+            stringResource(R.string.home_classified_caption),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
 @Composable
-private fun FoldPanel(
-    label: String,
-    value: String,
+private fun DisplayTime(label: String, value: String, accent: Color, modifier: Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Box(Modifier.size(7.dp).background(accent, CircleShape))
+            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        FigureText(value, figureStyle = MaterialTheme.typography.headlineMedium,
+            unitStyle = MaterialTheme.typography.labelLarge, shrinkToFit = true)
+    }
+}
+
+@Composable
+private fun AppEntry(state: MainUiState, onClick: () -> Unit) {
+    val summary = state.periodSummary
+    val apps = rankAppsForHomePreview(summary?.apps.orEmpty())
+    val preview = appUsagePreview(summary?.apps.orEmpty())
+    EntrySurface(
+        title = stringResource(R.string.home_apps_short),
+        description = stringResource(R.string.content_desc_home_app_usage_link) + " " + preview,
+        tag = HOME_APP_USAGE_LINK_TAG,
+        enabled = !state.isAnalysisLoading,
+        onClick = onClick,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            apps.forEach { ApplicationIcon(it.packageName, it.label, 30.dp) }
+        }
+        Text(
+            if (apps.isEmpty()) stringResource(R.string.home_apps_empty_short) else apps.joinToString(" · ") { it.label },
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun SessionEntry(state: MainUiState, onClick: () -> Unit) {
+    val resources = LocalResources.current
+    val summary = state.innerSessionSummary
+    val count = state.periodSummary?.openedCount ?: 0
+    EntrySurface(
+        title = stringResource(R.string.home_sessions_short),
+        description = stringResource(R.string.content_desc_home_inner_sessions_link) + " " + innerSessionsPreview(summary),
+        tag = HOME_INNER_SESSIONS_LINK_TAG,
+        enabled = !state.isAnalysisLoading,
+        onClick = onClick,
+        color = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+    ) {
+        FigureText(
+            resources.getString(R.string.value_open_count, count),
+            figureStyle = MaterialTheme.typography.headlineLarge,
+            unitStyle = MaterialTheme.typography.labelMedium,
+        )
+        Text(
+            summary?.medianInnerActiveMillis?.let {
+                stringResource(R.string.home_median_short, it.toDurationText(resources))
+            } ?: stringResource(R.string.home_sessions_empty_short),
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun EntrySurface(
+    title: String,
+    description: String,
+    tag: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
     color: Color,
     contentColor: Color,
-    shape: Shape,
-    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(
-        modifier = modifier
-            .background(color, shape)
-            .padding(horizontal = 14.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    val unavailable = stringResource(R.string.detail_unavailable_while_analyzing)
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        color = color,
+        contentColor = contentColor,
+        shape = RoundedCornerShape(22.dp),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 142.dp).testTag(tag).alpha(if (enabled) 1f else 0.55f)
+            .clearAndSetSemantics {
+                contentDescription = description + if (enabled) "" else " " + unavailable
+                role = Role.Button
+                if (!enabled) disabled()
+            },
     ) {
-        Text(label, style = MaterialTheme.typography.labelLarge, color = contentColor)
-        FigureText(
-            value,
-            figureStyle = MaterialTheme.typography.headlineMedium.copy(
-                fontSize = 24.sp,
-                lineHeight = 28.sp,
-            ),
-            unitStyle = MaterialTheme.typography.labelMedium,
-            color = contentColor,
-            shrinkToFit = true,
-        )
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                Chevron(contentColor)
+            }
+            content()
+        }
+    }
+}
+
+@Composable
+private fun InnerAppsPreview(state: MainUiState, onClick: () -> Unit) {
+    val resources = LocalResources.current
+    val apps = rankAppsForDisplay(state.periodSummary?.apps.orEmpty(), AppRankingBasis.INNER).take(4)
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column {
+            Text(stringResource(R.string.home_inner_apps), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.home_inner_apps_caption), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        apps.forEach { ranked ->
+            val app = ranked.app
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                ApplicationIcon(app.packageName, app.label, 36.dp)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(app.label, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, maxLines = 1)
+                        Text(app.innerMillis.toDurationText(resources), style = MaterialTheme.typography.labelLarge)
+                    }
+                    AppRankingBar(ranked.rankingMillis, apps.first().rankingMillis, postureColors().inner)
+                }
+            }
+        }
+        AppEntry(state, onClick)
+    }
+}
+
+@Composable
+private fun RecordingDetails(state: MainUiState) {
+    val resources = LocalResources.current
+    val coverage = state.periodSummary?.takeIf { it.observedMillis > 0 }?.let {
+        resources.getString(R.string.value_percent_0, it.dataCoverageRatio * 100)
+    } ?: stringResource(R.string.label_no_data)
+    val title = if ((state.periodSummary?.observedMillis ?: 0L) > 0L) {
+        stringResource(R.string.home_record_quality, coverage)
+    } else {
+        stringResource(R.string.home_record_details)
+    }
+    DetailDisclosure(title, tag = RECORD_DETAILS_TAG) {
+        state.periodSummary?.let {
+            InfoLine(stringResource(R.string.label_classified_time), it.classifiedMillis.toDurationText(resources))
+            InfoLine(stringResource(R.string.label_data_coverage), coverage)
+            Text(stringResource(R.string.display_classification_rate_note), style = MaterialTheme.typography.bodySmall)
+        }
+        Text(state.recordRangeText(resources), style = MaterialTheme.typography.bodySmall)
+        Text(state.lastSuccessfulSyncMillis?.let { stringResource(R.string.last_updated, it.toTimeText(resources)) }
+            ?: stringResource(R.string.never_synced), style = MaterialTheme.typography.bodySmall)
+        LiveStateCard(state)
     }
 }
 

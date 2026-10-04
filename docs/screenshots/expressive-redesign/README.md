@@ -1,73 +1,43 @@
-# Expressive redesign — visual review
+# Foldlytics — display balance redesign
 
-2026-10-04。途中のデザイン実装を引き継ぎ、実際のCompose描画をRoborazziで撮影して修正した記録。
-掲載画像はすべて合成テストデータ。個人の利用履歴は含まない。
+2026-10-04。ホームで内側画面の割合を読み、アプリ別・開閉ごとの利用へ進める構成に再設計した。
+画像は実際のCompose描画と合成テストデータ。個人の利用履歴は含まない。
 
-## デザイン
+## 画面構成と表現
 
-Material 3 Expressiveを基盤に、生成りの紙面と濃紺、内側の青と外側のオレンジを使用。
-セリフ体の数値とサンセリフ体の単位、ヒンジを思わせる小さな接合角と大きな外周角を共通化。
-画面遷移、選択ピル、折りたたみ状態のグリフ、グラフの描画にテーマのモーションを使用。
-展開幅ではホームのサマリーと推移を2列に配置する。
+- ホームは、期間と実際の集計範囲、大きな内側割合、正確な比率バー、ふたつの詳細導線、推移の順。
+- 判定できた割合、記録範囲、最終更新、現在の画面は「記録の詳細」で展開して読む。判定率が記録の完全性を示すわけではないことも明記。
+- 展開幅ではサマリーに並べて内側画面のアプリ上位4件を表示。文字倍率が大きい場合は1列を優先。
+- アプリ詳細は「利用時間／よく使う画面」の表示切り替えと、並べ替え・絞り込みを区別。説明は一覧の後で開ける。
+- 開閉ごとの詳細は中央値を主役に、平均・最長と実際の利用記録を続ける。狭幅の拡大文字では平均・最長を縦並びにする。
+- 初回起動は端末の図、機能の紹介、権限の説明を確認するボタンを表示。保存済み記録があれば権限がなくても期間を選べる。
 
-## 撮影・改善
+Material 3 Expressiveのテーマとモーションを使用。アイリスの紫、シトロン、白に近い寒色の背景、
+同梱したManropeと日本語システム書体を組み合わせた。数字と単位の大きさを分け、48 dp以上の選択領域を確保。
+角丸は外周を大きく、連続する記録の接合部を小さくする。共有画像も同じ数値表現と比率バーを使用。
+ManropeのOFLライセンスはAPKのassetsに同梱する。
+
+推移グラフはタップ・横スライドで期間ごとの値を選択でき、読み上げサービス向けの選択操作も提供する。
+欠損区間をゼロと扱わず、データのない区間では線を切る。
+画面遷移、選択ピル、比率バー、グラフ、説明の展開にテーマのモーションを適用。
+
+## 撮影条件と確認内容
 
 - 412 × 915 dp：英語ライト・ダーク、日本語。ホーム、推移、アプリ一覧、画面別一覧、セッション、メニュー、調整、診断。
-- 841 × 900 dp：展開画面。同じ画面群を撮影。
-- 320 × 740 dp、文字倍率1.6：ホーム、サマリー、グラフ、アプリの選択操作。
-- 空データ、外側0.1%の比率、権限不足とエラー、アニメーション80 ms時点と収束後。
-- 計50枚を生成。全体のコンタクトシートと主要・境界条件の原寸画像で視認確認。
+- 841 × 900 dp：展開画面。同じ画面群。
+- 320 × 740 dp、文字160%：ホーム、サマリー、グラフ、アプリの表示と並べ替え、セッション。
+- 空データ、外側0.1%の比率、権限不足とエラー、初回起動、記録詳細、グラフの選択値、共有画像。
+- 選択アニメーション80 ms時点と収束後。
 
-撮影で見つけて修正した内容：
+計55枚。画面群のコンタクトシートと主要・境界条件の原寸画像を確認した。
+撮影結果を受け、詳細画面の説明を後ろに移動し、拡大文字の選択肢・指標・軸・日付を調整。
+初回起動の空の分析欄を利用開始の案内へ置き換えた。
 
-1. サマリーの色面幅を36〜64%に制限していた表示を変更。値のパネルは等幅で読みやすく保ち、独立したバーで実際の比率を表示。
-2. ごく小さい比率がバーの装飾用の隙間に消されないよう隙間の幅を制限。
-3. 文字拡大時の「Cover」の単語途中の折り返しを解消。選択肢が収まらない幅では縦並びに変更し、操作領域は48 dp以上。
-4. 記録状態の省略を解消。狭い画面では次の行に表示。
-5. グラフの軸幅を文字倍率に追従させ、日付が年の途中で折り返されない配置に変更。
-6. 小さな折りたたみグリフを描画領域に比例させ、右から左への配置でも選択表示の位置が一致するよう補正。
-
-## 確認画像
-
-| 条件 | 画像 |
-| --- | --- |
-| 日本語ホーム | [home-ja.png](home-ja.png) |
-| ダークホーム | [home-dark.png](home-dark.png) |
-| 展開時ホーム | [home-expanded.png](home-expanded.png) |
-| アプリ一覧 | [app-usage.png](app-usage.png) |
-| 開閉ごとの利用 | [inner-sessions.png](inner-sessions.png) |
-| 狭幅・拡大文字のホーム | [compact-home.png](compact-home.png) |
-| 狭幅・拡大文字の選択肢 | [compact-controls.png](compact-controls.png) |
-| 狭幅・拡大文字の日付 | [compact-trend.png](compact-trend.png) |
-| 空データ | [empty-summary.png](empty-summary.png) |
-| 遷移途中 | [motion-80ms.png](motion-80ms.png) |
-| 遷移収束後 | [motion-settled.png](motion-settled.png) |
-
-## 再現と検証結果
-
-JDK 17、Android SDK 36。Roborazzi 1.76.0 / Robolectric 4.17、API 35のnative graphicsで描画。
-
-```sh
-./gradlew testDebugUnitTest assembleDebug lintDebug -Proborazzi.test.record=true
-```
-
-244テスト成功、失敗・スキップ0。APKビルド成功。lintは0 errors / 28 warnings。
-lint警告はSDK・依存関係の更新案、既存widget XMLの小さい文字・互換属性・入れ子weight、KTX推奨。
-`git diff --check`成功。
-
-全撮影画像は `app/build/design-snapshots/` に生成される。
-記録用プロパティを付けない通常実行でも画面遷移・選択操作テストを行うが、画像比較による自動回帰判定ではない。
-
-実機の折りたたみ・ヒンジセンサー、OS設定での権限付与、TalkBackの実操作、実機フレーム時間は未検証。
-リリース前に実機検証担当が端末名とAndroidバージョンを添えて確認する。
-受賞水準への到達はスクリーンショット検証だけで断定せず、実機での使い心地とユーザー評価も必要。
-
-## PR用の変更前後比較
+## 変更前後
 
 変更前はmainの `cffb3114467d1614c89cd10d3588d7967b8ef6aa` を独立した一時領域に展開し、
-本PRと同じ `DesignSnapshotTest` と撮影用依存関係だけを追加して撮影した。
-変更前の本番UIコードは改変していない。同じ合成データ・端末寸法・言語・テーマを使用。
-変更前の撮影テスト4件も成功。
+同じ撮影テストと撮影用依存関係だけを追加して撮影した。
+本番UIは改変していない。同じ合成データ・端末寸法・言語・テーマを使用。
 
 | 画面 | 変更前 | 変更後 |
 | --- | --- | --- |
@@ -76,4 +46,37 @@ lint警告はSDK・依存関係の更新案、既存widget XMLの小さい文字
 | 展開時ホーム | [before-home-expanded.png](before-home-expanded.png) | [home-expanded.png](home-expanded.png) |
 | アプリ一覧 | [before-app-usage.png](before-app-usage.png) | [app-usage.png](app-usage.png) |
 
-APKの禁止権限チェックも成功（`scripts/check-forbidden-android-permissions.sh`）。
+| 追加の確認画面 | 画像 |
+| --- | --- |
+| 開閉ごとの利用 | [inner-sessions.png](inner-sessions.png) |
+| 狭幅・拡大文字 | [compact-home.png](compact-home.png)、[compact-controls.png](compact-controls.png)、[compact-trend.png](compact-trend.png)、[compact-sessions.png](compact-sessions.png) |
+| 初回起動 | [first-launch.png](first-launch.png) |
+| 記録詳細 | [record-details.png](record-details.png) |
+| グラフの選択値 | [chart-inspection.png](chart-inspection.png) |
+| 共有画像 | [shared-summary.png](shared-summary.png) |
+| 空データ | [empty-summary.png](empty-summary.png) |
+| 遷移途中・収束後 | [motion-80ms.png](motion-80ms.png)、[motion-settled.png](motion-settled.png) |
+
+## 再現と検証
+
+JDK 17、Android SDK 36。Roborazzi 1.76.0 / Robolectric 4.17、API 35のnative graphicsで描画。
+
+```sh
+./gradlew testDebugUnitTest assembleDebug lintDebug -Proborazzi.test.record=true
+./scripts/check-forbidden-android-permissions.sh app/build/outputs/apk/debug/app-debug.apk
+git diff --check
+```
+
+ローカル260テスト成功、失敗・スキップ0件。APKビルド成功。
+lintは0 errors / 38 warnings（SDK・依存更新案、widget XML、未使用リソース、KTX推奨）。
+エミュレーターの対象UIテスト48件成功。修正した3クラス39件を再実行し、先に成功した他4クラス9件と合わせて確認。
+禁止権限チェック、フォントライセンスのAPK同梱、`git diff --check`を確認。
+全画像は `app/build/design-snapshots/` に生成される。
+通常実行でも画面遷移・選択操作を検証するが、保存画像との自動ピクセル比較ではない。
+グラフのタップ・ドラッグ・読み上げ選択・欠損・空／単一点・期間変更時の選択解除を回帰テストで検証。
+共有画像の既存回帰テストはローカル実行に移し、大きい値、日英、期間、PNG、共有内容も確認する。
+
+Android 16のPixel 9 Pro Foldエミュレーターでも、アプリ別画面、期間選択、読み上げ用情報、
+開閉詳細、ウィジェットからのホーム復帰、権限説明のUIテストを実行。
+実機の開閉・ヒンジセンサー、OS設定での権限付与、TalkBack実操作、描画フレーム時間は未検証。
+リリース前の実機検証で端末名とAndroidバージョンを記録する。

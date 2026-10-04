@@ -174,10 +174,10 @@ class FoldlyticsScreenLoadingTest {
 
     @Test
     fun usesOnePeriodSelectorForShortAndLongRanges() {
-        setContent { false }
+        setContent(MainUiState(hasUsageAccess = true))
 
         composeRule.onNodeWithTag(ANALYSIS_PERIOD_SELECTOR_TAG).assertIsEnabled()
-        composeRule.onNodeWithText(text(R.string.section_analysis_period)).assertIsDisplayed()
+        composeRule.onNodeWithText(text(R.string.home_display_balance)).assertIsDisplayed()
         composeRule.onNodeWithText(text(R.string.period_24_hours)).assertIsDisplayed()
         composeRule.onNodeWithText("3 years").assertDoesNotExist()
         composeRule.onNodeWithText("Recent usage").assertDoesNotExist()
@@ -364,6 +364,8 @@ class FoldlyticsScreenLoadingTest {
             ),
         )
 
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag(RECORD_DETAILS_TAG))
+        composeRule.onNodeWithTag(RECORD_DETAILS_TAG).performClick()
         composeRule.onNode(hasScrollAction()).performScrollToNode(
             hasTestTag(LIVE_STATE_CARD_TAG),
         )
@@ -391,6 +393,8 @@ class FoldlyticsScreenLoadingTest {
     fun liveStateCardUsesContextualDescriptionsForEveryPostureAndRecordingState() {
         var state by mutableStateOf(MainUiState())
         setContentWithStateProvider(stateProvider = { state })
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag(RECORD_DETAILS_TAG))
+        composeRule.onNodeWithTag(RECORD_DETAILS_TAG).performClick()
         val cases = listOf(
             DisplayPosture.COVER to true,
             DisplayPosture.COVER to false,
@@ -426,6 +430,7 @@ class FoldlyticsScreenLoadingTest {
                 }
             }
 
+            composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag(LIVE_STATE_CARD_TAG))
             composeRule.onNode(
                 hasTestTag(LIVE_STATE_CARD_TAG) and hasContentDescription(text(descriptionRes)),
             ).assertIsDisplayed()

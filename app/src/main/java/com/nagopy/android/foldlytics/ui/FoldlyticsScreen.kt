@@ -216,7 +216,7 @@ fun FoldlyticsScreen(
                             if (destination == ScreenDestination.HOME) {
                                 Text(
                                     resolvedAppName,
-                                    style = MaterialTheme.typography.headlineMedium,
+                                    style = MaterialTheme.typography.titleLarge,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
@@ -226,6 +226,15 @@ fun FoldlyticsScreen(
                                     style = MaterialTheme.typography.titleLarge,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        },
+                        actions = {
+                            if (destination == ScreenDestination.HOME) {
+                                RefreshButton(
+                                    enabled = state.hasUsageAccess && !state.isLoading,
+                                    refreshing = state.isLoading,
+                                    onClick = onRefresh,
                                 )
                             }
                         },
@@ -301,7 +310,6 @@ fun FoldlyticsScreen(
                         onRequestUsageAccess = { showUsageAccessDisclosure = true },
                         onPeriodChanged = onPeriodChanged,
                         onCustomPeriodChanged = onCustomPeriodChanged,
-                        onRefresh = onRefresh,
                         onShareSummaryRequested = { summaryShareSnapshot = it },
                         onOpenAppUsage = { destination = ScreenDestination.APP_USAGE },
                         onOpenInnerSessions = { destination = ScreenDestination.INNER_SESSIONS },

@@ -71,20 +71,18 @@ internal fun interface SummaryShareImageGenerator {
 }
 
 internal object SummaryShareImageRenderer {
-    // The paper-and-ink palette of the app theme, fixed to its light values for a shared image.
-    private const val BackgroundColor = 0xFFFAF5EC.toInt()
-    private const val SurfaceColor = 0xFFFFFDF9.toInt()
-    private const val PrimaryTextColor = 0xFF12233F.toInt()
-    private const val SecondaryTextColor = 0xFF575B66.toInt()
-    private const val DividerColor = 0xFFD9D0BE.toInt()
-    private const val CoverColor = DisplayChartPalette.LIGHT_COVER
-    private const val InnerColor = DisplayChartPalette.LIGHT_INNER
+    // Fixed light values keep shared images consistent with the app on every destination.
+    private const val BackgroundColor = 0xFFF8F9FC.toInt()
+    private const val SurfaceColor = 0xFFFFFFFF.toInt()
+    private const val PrimaryTextColor = 0xFF191B26.toInt()
+    private const val SecondaryTextColor = 0xFF616575.toInt()
+    private const val DividerColor = 0xFFDDE0EB.toInt()
+    private const val CoverColor = 0xFF637821.toInt()
+    private const val InnerColor = 0xFF6550DB.toInt()
 
     private val RegularTypeface = Typeface.create("sans-serif", Typeface.NORMAL)
     private val MediumTypeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
     private val BoldTypeface = Typeface.create("sans-serif", Typeface.BOLD)
-    // The figure face of the app: used where the text is known to be Latin letters or digits.
-    private val FigureTypeface = Typeface.create("serif", Typeface.BOLD)
 
     fun createContent(
         resources: Resources,
@@ -138,6 +136,7 @@ internal object SummaryShareImageRenderer {
             deviceName = if (includeDeviceName) formatDeviceName(Build.MANUFACTURER, Build.MODEL) else "",
         )
         val locale = resources.configuration.locales[0]
+        val figureTypeface = Typeface.create(resources.getFont(R.font.manrope), 600, false)
         val bitmap = Bitmap.createBitmap(
             SUMMARY_SHARE_IMAGE_WIDTH,
             SUMMARY_SHARE_IMAGE_HEIGHT,
@@ -165,7 +164,7 @@ internal object SummaryShareImageRenderer {
             maxTextSize = 48f,
             minTextSize = 30f,
             color = PrimaryTextColor,
-            typeface = FigureTypeface,
+            typeface = figureTypeface,
             locale = locale,
         )
         if (includeDeviceName) {
@@ -200,13 +199,11 @@ internal object SummaryShareImageRenderer {
             },
         )
 
-        val leftPanel = RectF(54f, 194f, 548f, 621f)
-        val panelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = SurfaceColor }
-        canvas.drawRoundRect(leftPanel, 30f, 30f, panelPaint)
         drawRatioPanel(
             canvas = canvas,
             content = content,
             innerRatio = summary.innerRatio,
+            figureTypeface = figureTypeface,
             locale = locale,
             measurements = measurements,
         )
@@ -250,45 +247,49 @@ internal object SummaryShareImageRenderer {
         canvas: Canvas,
         content: SummaryShareContent,
         innerRatio: Float,
+        figureTypeface: Typeface,
         locale: java.util.Locale,
         measurements: MutableList<SummaryShareTextMeasurement>,
     ) {
-        val arcBounds = RectF(130f, 244f, 472f, 586f)
-        val arcPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = 38f
-            strokeCap = Paint.Cap.BUTT
+        val ribbon = RectF(60f, 529f, 524f, 570f)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        fun drawMarks(color: Int) {
+            paint.color = color
+            val step = ribbon.width() / 32f
+            repeat(32) { index ->
+                canvas.drawRoundRect(
+                    RectF(ribbon.left + index * step, ribbon.top,
+                        ribbon.left + (index + 1) * step - 4f, ribbon.bottom),
+                    4f, 4f, paint,
+                )
+            }
         }
-        val innerSweep = innerRatio.coerceIn(0f, 1f) * 360f
-        if (innerSweep > 0f) {
-            arcPaint.color = InnerColor
-            canvas.drawArc(arcBounds, -90f, innerSweep, false, arcPaint)
-        }
-        val coverSweep = 360f - innerSweep
-        if (coverSweep > 0f) {
-            arcPaint.color = CoverColor
-            canvas.drawArc(arcBounds, -90f + innerSweep, coverSweep, false, arcPaint)
-        }
+        drawMarks(InnerColor)
+        canvas.save()
+        canvas.clipRect(ribbon.left, ribbon.top,
+            ribbon.left + ribbon.width() * (1f - innerRatio.coerceIn(0f, 1f)), ribbon.bottom)
+        drawMarks(CoverColor)
+        canvas.restore()
 
         measurements += canvas.drawFittedText(
             text = content.innerRatioLabel,
-            bounds = RectF(174f, 344f, 428f, 390f),
+            bounds = RectF(60f, 236f, 530f, 293f),
             maxTextSize = 29f,
             minTextSize = 18f,
             color = SecondaryTextColor,
             typeface = MediumTypeface,
             locale = locale,
-            align = Paint.Align.CENTER,
+            align = Paint.Align.LEFT,
         )
         measurements += canvas.drawFittedText(
             text = content.innerRatio,
-            bounds = RectF(168f, 396f, 434f, 482f),
-            maxTextSize = 76f,
-            minTextSize = 44f,
+            bounds = RectF(52f, 306f, 536f, 480f),
+            maxTextSize = 152f,
+            minTextSize = 80f,
             color = InnerColor,
-            typeface = FigureTypeface,
+            typeface = figureTypeface,
             locale = locale,
-            align = Paint.Align.CENTER,
+            align = Paint.Align.LEFT,
         )
     }
 
