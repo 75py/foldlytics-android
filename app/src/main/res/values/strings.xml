@@ -254,9 +254,7 @@
     <string name="share_summary_chooser">Share usage summary</string>
 
     <!-- App ranking -->
-    <string name="app_ranking_title">Most-used apps</string>
     <string name="selected_period">Period: %1$s</string>
-    <string name="app_ranking_view">View</string>
     <string name="app_ranking_view_usage_time">Usage time</string>
     <string name="app_ranking_view_display_share">By display</string>
     <string name="app_ranking_basis">Sort by</string>
@@ -363,4 +361,24 @@
     <string name="report_observed_days">Days with data: %1$d/%2$d / days using inner display: %3$d</string>
     <string name="label_inner_ratio_change">Full-history inner-share change (first 30 vs latest 30)</string>
     <string name="report_collection_heading">Collection status</string>
+
+    <!-- Display-first navigation and progressive disclosure -->
+    <string name="home_display_balance">Your display balance</string>
+    <string name="home_inner_share">Time on the inner display</string>
+    <string name="home_apps_short">By app</string>
+    <string name="home_apps_empty_short">No app data for this period</string>
+    <string name="home_sessions_short">Each opening</string>
+    <string name="home_sessions_empty_short">No completed uses yet</string>
+    <string name="home_record_details">About this record</string>
+    <string name="home_record_quality">%1$s classified · About this record</string>
+    <string name="home_classified_caption">Of classified display time</string>
+    <string name="home_inner_apps">On the inner display</string>
+    <string name="home_inner_apps_caption">Ranked by inner-display time</string>
+    <string name="home_median_short">Median %1$s</string>
+    <string name="home_recording_title">Your record starts here</string>
+    <string name="home_recording_body">See how your two displays fit into your day. Allow usage access to begin recording on this device.</string>
+    <string name="action_show_details">Show details</string>
+    <string name="action_hide_details">Hide details</string>
+    <string name="chart_reading_note">How to read this chart</string>
+    <string name="chart_inspection_hint">Tap or slide to inspect a period</string>
 </resources>

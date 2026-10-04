@@ -2,9 +2,14 @@ package com.nagopy.android.foldlytics.ui
 
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,26 +19,30 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -47,6 +56,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -55,7 +66,10 @@ import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.nagopy.android.foldlytics.MainUiError
 import com.nagopy.android.foldlytics.MainUiErrorKind
@@ -64,6 +78,7 @@ import com.nagopy.android.foldlytics.R
 import com.nagopy.android.foldlytics.labelRes
 import com.nagopy.android.foldlytics.model.AnalysisPeriod
 import com.nagopy.android.foldlytics.model.CalibrationValidationFailure
+import com.nagopy.android.foldlytics.model.DisplayPosture
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -83,7 +98,7 @@ private enum class ScreenDestination(val titleRes: Int) {
     INNER_SESSIONS(R.string.inner_sessions_screen_title),
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun FoldlyticsScreen(
     state: MainUiState,
@@ -179,17 +194,53 @@ fun FoldlyticsScreen(
     ) {
         Scaffold(
             topBar = {
-                Column {
+                val windowWidth = with(LocalDensity.current) {
+                    LocalWindowInfo.current.containerSize.width.toDp()
+                }
+                val contentWidth = if (
+                    destination == ScreenDestination.HOME && windowWidth >= TwoPaneMinWidth
+                ) {
+                    TwoPaneContentWidth
+                } else {
+                    MaxContentWidth
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.background),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
                     TopAppBar(
+                        modifier = Modifier.widthIn(max = contentWidth),
                         title = {
-                            Text(
-                                if (destination == ScreenDestination.HOME) {
-                                    resolvedAppName
-                                } else {
-                                    stringResource(destination.titleRes)
-                                },
-                            )
+                            if (destination == ScreenDestination.HOME) {
+                                Text(
+                                    resolvedAppName,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            } else {
+                                Text(
+                                    stringResource(destination.titleRes),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         },
+                        actions = {
+                            if (destination == ScreenDestination.HOME) {
+                                RefreshButton(
+                                    enabled = state.hasUsageAccess && !state.isLoading,
+                                    refreshing = state.isLoading,
+                                    onClick = onRefresh,
+                                )
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.background,
+                        ),
                         navigationIcon = {
                             if (destination.isDetail()) {
                                 DetailBackButton { destination = ScreenDestination.HOME }
@@ -199,12 +250,16 @@ fun FoldlyticsScreen(
                         },
                     )
                     if (showAnalysisProgress) {
-                        LinearProgressIndicator(
+                        LinearWavyProgressIndicator(
                             modifier = Modifier
+                                .widthIn(max = contentWidth)
                                 .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
                                 .semantics {
                                     contentDescription = analysisProgressDescription
                                 },
+                            color = MaterialTheme.colorScheme.tertiary,
+                            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                         )
                     }
                     state.error?.let { error ->
@@ -216,53 +271,74 @@ fun FoldlyticsScreen(
                                     !state.isAnalysisLoading,
                             onRetry = onRefresh,
                             onDismiss = onDismissError,
-                            modifier = Modifier.padding(
-                                start = 16.dp,
-                                end = 16.dp,
-                                bottom = 8.dp,
-                            ),
+                            modifier = Modifier
+                                .widthIn(max = contentWidth)
+                                .padding(
+                                    start = 16.dp,
+                                    end = 16.dp,
+                                    bottom = 8.dp,
+                                ),
                         )
                     }
                 }
             },
+            containerColor = MaterialTheme.colorScheme.background,
         ) { scaffoldPadding ->
-            when (destination) {
-                ScreenDestination.HOME -> HomeScreen(
-                    state = state,
-                    scaffoldPadding = scaffoldPadding,
-                    listState = homeListState,
-                    onRequestUsageAccess = { showUsageAccessDisclosure = true },
-                    onPeriodChanged = onPeriodChanged,
-                    onCustomPeriodChanged = onCustomPeriodChanged,
-                    onRefresh = onRefresh,
-                    onShareSummaryRequested = { summaryShareSnapshot = it },
-                    onOpenAppUsage = { destination = ScreenDestination.APP_USAGE },
-                    onOpenInnerSessions = { destination = ScreenDestination.INNER_SESSIONS },
-                    screenshotSectionEndSpacing = screenshotSectionEndSpacing,
-                )
+            val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<IntOffset>()
+            val effects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+            AnimatedContent(
+                targetState = destination,
+                transitionSpec = {
+                    // Detail screens slide in from the hinge side; drawer destinations cross-fade.
+                    val direction = when {
+                        targetState.isDetail() -> 1
+                        initialState.isDetail() -> -1
+                        else -> 0
+                    }
+                    (slideInHorizontally(spatial) { it / 8 * direction } + fadeIn(effects))
+                        .togetherWith(
+                            slideOutHorizontally(spatial) { -it / 8 * direction } + fadeOut(effects),
+                        )
+                },
+                label = "destination",
+            ) { shownDestination ->
+                when (shownDestination) {
+                    ScreenDestination.HOME -> HomeScreen(
+                        state = state,
+                        scaffoldPadding = scaffoldPadding,
+                        listState = homeListState,
+                        onRequestUsageAccess = { showUsageAccessDisclosure = true },
+                        onPeriodChanged = onPeriodChanged,
+                        onCustomPeriodChanged = onCustomPeriodChanged,
+                        onShareSummaryRequested = { summaryShareSnapshot = it },
+                        onOpenAppUsage = { destination = ScreenDestination.APP_USAGE },
+                        onOpenInnerSessions = { destination = ScreenDestination.INNER_SESSIONS },
+                        screenshotSectionEndSpacing = screenshotSectionEndSpacing,
+                    )
 
-                ScreenDestination.APP_USAGE -> AppUsageScreen(
-                    state = state,
-                    scaffoldPadding = scaffoldPadding,
-                )
+                    ScreenDestination.APP_USAGE -> AppUsageScreen(
+                        state = state,
+                        scaffoldPadding = scaffoldPadding,
+                    )
 
-                ScreenDestination.INNER_SESSIONS -> InnerDisplaySessionScreen(
-                    state = state,
-                    scaffoldPadding = scaffoldPadding,
-                )
+                    ScreenDestination.INNER_SESSIONS -> InnerDisplaySessionScreen(
+                        state = state,
+                        scaffoldPadding = scaffoldPadding,
+                    )
 
-                ScreenDestination.DIAGNOSTICS -> DiagnosticsContent(
-                    state = state,
-                    scaffoldPadding = scaffoldPadding,
-                )
+                    ScreenDestination.DIAGNOSTICS -> DiagnosticsContent(
+                        state = state,
+                        scaffoldPadding = scaffoldPadding,
+                    )
 
-                ScreenDestination.CALIBRATION -> CalibrationContent(
-                    state = state,
-                    scaffoldPadding = scaffoldPadding,
-                    onSaveCover = onSaveCover,
-                    onSaveInner = onSaveInner,
-                    onClearCalibration = onClearCalibration,
-                )
+                    ScreenDestination.CALIBRATION -> CalibrationContent(
+                        state = state,
+                        scaffoldPadding = scaffoldPadding,
+                        onSaveCover = onSaveCover,
+                        onSaveInner = onSaveInner,
+                        onClearCalibration = onClearCalibration,
+                    )
+                }
             }
         }
     }
@@ -310,22 +386,24 @@ private fun MainErrorBanner(
         MainUiErrorKind.ANALYSIS -> R.string.analysis_error_title
         MainUiErrorKind.CHECKPOINT -> R.string.checkpoint_error_title
     }
-    Card(
+    Surface(
         modifier = modifier
             .fillMaxWidth()
             .testTag(MAIN_ERROR_BANNER_TAG)
             .semantics { liveRegion = LiveRegionMode.Polite },
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.errorContainer,
-        ),
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = CardPadding, top = 16.dp, end = 12.dp, bottom = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
                 stringResource(titleRes),
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleMedium,
             )
             Text(
                 error.message,
@@ -371,7 +449,15 @@ private fun FoldlyticsDrawer(
     onOssLicenses: () -> Unit,
 ) {
     val canExportCsv = state.periodSummary != null && !state.isAnalysisLoading
-    ModalDrawerSheet {
+    val itemColors = NavigationDrawerItemDefaults.colors(
+        selectedContainerColor = MaterialTheme.colorScheme.primary,
+        selectedTextColor = MaterialTheme.colorScheme.onPrimary,
+        unselectedContainerColor = Color.Transparent,
+    )
+    ModalDrawerSheet(
+        drawerShape = RoundedCornerShape(topEnd = 36.dp, bottomEnd = 36.dp),
+        drawerContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
         // Short windows (landscape or split screen) and large font scales make the drawer taller
         // than the sheet, so the items scroll while the privacy note keeps its bottom placement
         // whenever the content fits. The closed sheet stays composed, so scrolling is enabled only
@@ -384,40 +470,51 @@ private fun FoldlyticsDrawer(
                     .fillMaxWidth()
                     .testTag(DRAWER_CONTENT_TAG),
             ) {
-                Text(
-                    appName,
+                Row(
                     modifier = Modifier.padding(
                         start = 28.dp,
-                        top = 28.dp,
+                        top = 32.dp,
                         end = 28.dp,
-                        bottom = 16.dp,
+                        bottom = 20.dp,
                     ),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    FoldGlyph(state.currentPosture, MaterialTheme.colorScheme.primary)
+                    Text(
+                        appName,
+                        style = MaterialTheme.typography.headlineMedium,
+                    )
+                }
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.nav_home)) },
                     selected = destination == ScreenDestination.HOME,
                     onClick = onHome,
                     modifier = Modifier.padding(horizontal = 12.dp),
+                    colors = itemColors,
                 )
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.screen_diagnostics)) },
                     selected = destination == ScreenDestination.DIAGNOSTICS,
                     onClick = onDiagnostics,
                     modifier = Modifier.padding(horizontal = 12.dp),
+                    colors = itemColors,
                 )
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.screen_calibration)) },
                     selected = destination == ScreenDestination.CALIBRATION,
                     onClick = onCalibration,
                     modifier = Modifier.padding(horizontal = 12.dp),
+                    colors = itemColors,
                 )
-                HorizontalDivider(Modifier.padding(horizontal = 28.dp, vertical = 12.dp))
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 12.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                )
                 Text(
                     stringResource(R.string.drawer_section_data),
                     modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp),
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 NavigationDrawerItem(
@@ -430,39 +527,53 @@ private fun FoldlyticsDrawer(
                         .semantics {
                             if (!canExportCsv) disabled()
                         },
+                    colors = itemColors,
                 )
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.action_share_diagnostic_report)) },
                     selected = false,
                     onClick = onShare,
                     modifier = Modifier.padding(horizontal = 12.dp),
+                    colors = itemColors,
                 )
-                HorizontalDivider(Modifier.padding(horizontal = 28.dp, vertical = 12.dp))
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 12.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                )
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.action_usage_access_settings)) },
                     selected = false,
                     onClick = onUsageAccess,
                     modifier = Modifier.padding(horizontal = 12.dp),
+                    colors = itemColors,
                 )
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.action_privacy_policy)) },
                     selected = false,
                     onClick = onPrivacyPolicy,
                     modifier = Modifier.padding(horizontal = 12.dp),
+                    colors = itemColors,
                 )
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.action_open_source_licenses)) },
                     selected = false,
                     onClick = onOssLicenses,
                     modifier = Modifier.padding(horizontal = 12.dp),
+                    colors = itemColors,
                 )
                 Spacer(Modifier.weight(1f))
-                Text(
-                    stringResource(R.string.drawer_privacy_note),
-                    modifier = Modifier.padding(28.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Surface(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 20.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                ) {
+                    Text(
+                        stringResource(R.string.drawer_privacy_note),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
@@ -483,6 +594,7 @@ private fun CalibrationContent(
                     stringResource(R.string.calibration_intro_body),
                     style = MaterialTheme.typography.bodyMedium,
                 )
+                Spacer(Modifier.height(8.dp))
                 InfoLine(
                     stringResource(R.string.label_current_posture),
                     stringResource(state.currentPosture.labelRes),
@@ -566,10 +678,12 @@ private fun CalibrationCard(
     onClear: () -> Unit,
 ) {
     val colors = postureColors()
+    val palette = foldlyticsPalette
     LabCard(title = stringResource(R.string.calibration_values_title)) {
         Text(
             stringResource(R.string.calibration_instructions),
             style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         state.calibrationValidationFailure?.let { failure ->
             Text(
@@ -588,28 +702,44 @@ private fun CalibrationCard(
                 fontWeight = FontWeight.SemiBold,
             )
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth()) {
             CalibrationStatus(
                 label = stringResource(R.string.posture_cover),
+                posture = DisplayPosture.COVER,
                 isRegistered = state.calibration.cover != null,
                 color = colors.cover,
                 modifier = Modifier.weight(1f),
             )
             CalibrationStatus(
                 label = stringResource(R.string.posture_inner),
+                posture = DisplayPosture.INNER,
                 isRegistered = state.calibration.inner != null,
                 color = colors.inner,
                 modifier = Modifier.weight(1f),
             )
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onSaveCover, modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.action_record_cover))
+            FilledTonalButton(
+                onClick = onSaveCover,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = palette.coverContainer,
+                    contentColor = palette.onCoverContainer,
+                ),
+            ) {
+                Text(stringResource(R.string.action_record_cover), textAlign = TextAlign.Center)
             }
-            OutlinedButton(onClick = onSaveInner, modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.action_record_inner))
+            FilledTonalButton(
+                onClick = onSaveInner,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = palette.innerContainer,
+                    contentColor = palette.onInnerContainer,
+                ),
+            ) {
+                Text(stringResource(R.string.action_record_inner), textAlign = TextAlign.Center)
             }
         }
         if (state.calibration.cover != null || state.calibration.inner != null) {
@@ -623,6 +753,7 @@ private fun CalibrationCard(
 @Composable
 private fun CalibrationStatus(
     label: String,
+    posture: DisplayPosture,
     isRegistered: Boolean,
     color: Color,
     modifier: Modifier = Modifier,
@@ -630,18 +761,11 @@ private fun CalibrationStatus(
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(7.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Box(
-            Modifier
-                .size(9.dp)
-                .background(
-                    if (isRegistered) color else MaterialTheme.colorScheme.outline,
-                    androidx.compose.foundation.shape.CircleShape,
-                ),
-        )
+        FoldGlyph(posture, if (isRegistered) color else MaterialTheme.colorScheme.outline)
         Column {
-            Text(label, fontWeight = FontWeight.SemiBold)
+            Text(label, style = MaterialTheme.typography.titleSmall)
             Text(
                 stringResource(
                     if (isRegistered) R.string.status_registered else R.string.status_not_registered,

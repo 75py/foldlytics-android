@@ -1,10 +1,11 @@
 package com.nagopy.android.foldlytics.ui
 
+import android.app.Application
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.core.app.ApplicationProvider
 import com.nagopy.android.foldlytics.R
 import com.nagopy.android.foldlytics.model.AnalysisPeriod
 import com.nagopy.android.foldlytics.model.AppUsage
@@ -18,10 +19,17 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [35], application = Application::class)
 class SummaryShareImageTest {
     private val targetContext: Context
-        get() = InstrumentationRegistry.getInstrumentation().targetContext
+        get() = ApplicationProvider.getApplicationContext<Context>()
 
     @Test
     fun createsJapaneseAndEnglishShareContentFromTheCurrentAppLocale() {
@@ -145,7 +153,7 @@ class SummaryShareImageTest {
         assertTrue(result.textMeasurements.any { it.text == result.content.period })
         val deviceArea = IntArray(490 * 45)
         result.bitmap.getPixels(deviceArea, 0, 490, 650, 43, 490, 45)
-        assertTrue(deviceArea.all { it == 0xFFF4F7FB.toInt() })
+        assertTrue(deviceArea.all { it == 0xFFF8F9FC.toInt() })
     }
 
     @Test
@@ -178,9 +186,9 @@ class SummaryShareImageTest {
             ),
             content.visibleTexts.drop(3),
         )
-        assertEquals(0xFFF4F7FB.toInt(), result.bitmap.getPixel(0, 0))
-        assertEquals(DisplayChartPalette.LIGHT_INNER, result.bitmap.getPixel(422, 294))
-        assertEquals(DisplayChartPalette.LIGHT_COVER, result.bitmap.getPixel(422, 536))
+        assertEquals(0xFFF8F9FC.toInt(), result.bitmap.getPixel(0, 0))
+        assertEquals(0xFF6550DB.toInt(), result.bitmap.getPixel(516, 549))
+        assertEquals(0xFF637821.toInt(), result.bitmap.getPixel(80, 549))
     }
 
     @Test

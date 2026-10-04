@@ -12,6 +12,8 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.platform.app.InstrumentationRegistry
@@ -98,6 +100,8 @@ class SummaryAccessibilityTest {
             useUnmergedTree = true,
         ).assertExists()
         composeRule.onNodeWithText("25%", useUnmergedTree = true).assertExists()
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag(RECORD_DETAILS_TAG))
+        composeRule.onNodeWithTag(RECORD_DETAILS_TAG).performClick()
         composeRule.onNodeWithText("100%", useUnmergedTree = true).assertExists()
     }
 

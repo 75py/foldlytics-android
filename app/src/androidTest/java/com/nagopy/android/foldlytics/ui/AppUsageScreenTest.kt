@@ -11,6 +11,7 @@ import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -294,7 +295,7 @@ class AppUsageScreenTest {
             ),
         )
 
-        composeRule.onNodeWithText("よく使ったアプリ").assertIsDisplayed()
+        composeRule.onNodeWithText("利用時間").assertIsDisplayed()
         composeRule.onNodeWithText("利用時間の合計が長い順に表示しています。")
             .assertIsDisplayed()
         composeRule.onNodeWithText("よく使う画面").performClick()
@@ -302,6 +303,8 @@ class AppUsageScreenTest {
         composeRule.onNodeWithText(
             "外側より内側で長く使ったアプリを、内側での利用時間が長い順に表示します。",
         ).assertIsDisplayed()
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(context.getString(R.string.chart_reading_note)))
+        composeRule.onNodeWithText(context.getString(R.string.chart_reading_note)).performClick()
         composeRule.onNodeWithText(
             "割合は、アプリごとの外側・内側の利用時間から計算します。" +
                 "使用した画面が不明な時間は別に表示し、合計と割合には含めません。",
@@ -376,6 +379,9 @@ class AppUsageScreenTest {
         )
 
         composeRule.onNodeWithTag(APP_USAGE_TIME_VIEW_TAG).assertIsSelected()
+        composeRule.onNodeWithText(measurementNote).assertDoesNotExist()
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(context.getString(R.string.chart_reading_note)))
+        composeRule.onNodeWithText(context.getString(R.string.chart_reading_note)).performClick()
         composeRule.onNodeWithText(measurementNote).assertExists()
         composeRule.onNodeWithText(exclusionNote, substring = true).assertDoesNotExist()
         assertRankedFirst(context, "even")
@@ -384,15 +390,20 @@ class AppUsageScreenTest {
             hasTestTag(APP_USAGE_VIEW_SELECTOR_TAG),
         )
         composeRule.onNodeWithTag(APP_USAGE_DISPLAY_SHARE_VIEW_TAG).performClick()
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(context.getString(R.string.chart_reading_note)))
         composeRule.onNodeWithText(measurementNote).assertExists()
         composeRule.onNodeWithText(exclusionNote, substring = true).assertExists()
         composeRule.onNodeWithTag("${APP_USAGE_CARD_TAG_PREFIX}even").assertDoesNotExist()
 
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag(APP_USAGE_COVER_MAJORITY_TAG))
         composeRule.onNodeWithTag(APP_USAGE_COVER_MAJORITY_TAG).performClick()
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(context.getString(R.string.chart_reading_note)))
         composeRule.onNodeWithText(exclusionNote, substring = true).assertExists()
         composeRule.onNodeWithTag("${APP_USAGE_CARD_TAG_PREFIX}even").assertDoesNotExist()
 
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasTestTag(APP_USAGE_TIME_VIEW_TAG))
         composeRule.onNodeWithTag(APP_USAGE_TIME_VIEW_TAG).performClick()
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(context.getString(R.string.chart_reading_note)))
         composeRule.onNodeWithText(measurementNote).assertExists()
         composeRule.onNodeWithText(exclusionNote, substring = true).assertDoesNotExist()
         assertRankedFirst(context, "even")

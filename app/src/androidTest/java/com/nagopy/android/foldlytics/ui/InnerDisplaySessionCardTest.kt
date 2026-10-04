@@ -18,6 +18,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
@@ -92,10 +93,8 @@ class InnerDisplaySessionCardTest {
         setContent(context, sessionSummary)
         scrollToSessionCard()
 
-        composeRule.onAllNodes(
-            hasText(context.getString(R.string.inner_sessions_overview_title), substring = false),
-        ).assertCountEquals(1)
-        composeRule.onNodeWithText(context.getString(R.string.inner_sessions_description))
+        composeRule.onAllNodes(hasTestTag(INNER_SESSION_CARD_TAG)).assertCountEquals(1)
+        composeRule.onNodeWithText(context.getString(R.string.label_median_inner_session_time), useUnmergedTree = true)
             .assertExists()
         composeRule.onNodeWithTag(INNER_SESSION_COUNT_TAG).assertExists()
         composeRule.onNodeWithText(
@@ -149,9 +148,6 @@ class InnerDisplaySessionCardTest {
         ).assertCountEquals(0)
         composeRule.onNodeWithText(context.getString(R.string.long_inner_sessions_title))
             .assertExists()
-        composeRule.onNodeWithText(
-            context.getString(R.string.inner_session_other_description),
-        ).assertExists()
         composeRule.onNodeWithTag(
             "${INNER_SESSION_APP_TAG_PREFIX}one",
             useUnmergedTree = true,
@@ -172,8 +168,12 @@ class InnerDisplaySessionCardTest {
             "${INNER_SESSION_OTHER_TAG_PREFIX}1000_0",
             useUnmergedTree = true,
         ).assertExists()
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText(context.getString(R.string.chart_reading_note)))
+        composeRule.onNodeWithText(context.getString(R.string.chart_reading_note)).performClick()
+        composeRule.onNodeWithText(context.getString(R.string.inner_session_other_description)).assertExists()
         scrollToMethodCard()
-        composeRule.onNodeWithTag(INNER_SESSION_METHOD_TAG).assertExists()
+        composeRule.onNodeWithTag(INNER_SESSION_METHOD_TAG).performClick()
+        composeRule.onNodeWithText(context.getString(R.string.inner_sessions_description)).assertExists()
         composeRule.onNodeWithText(
             context.getString(R.string.inner_sessions_method_body),
         ).assertExists()
@@ -233,10 +233,8 @@ class InnerDisplaySessionCardTest {
         setContent(context, sessionSummary)
         scrollToSessionCard()
 
-        composeRule.onAllNodes(
-            hasText(context.getString(R.string.inner_sessions_overview_title), substring = false),
-        ).assertCountEquals(1)
-        composeRule.onNodeWithText(context.getString(R.string.inner_sessions_description))
+        composeRule.onAllNodes(hasTestTag(INNER_SESSION_CARD_TAG)).assertCountEquals(1)
+        composeRule.onNodeWithText(context.getString(R.string.label_median_inner_session_time), useUnmergedTree = true)
             .assertExists()
         composeRule.onNodeWithTag(INNER_SESSION_METRICS_TAG).assertExists()
         composeRule.onNodeWithContentDescription(
