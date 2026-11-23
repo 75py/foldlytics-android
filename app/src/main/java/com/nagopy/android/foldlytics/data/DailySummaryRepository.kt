@@ -229,8 +229,13 @@ class DailySummaryRepository(
             )
             check(chunkEnd > chunkStart) { "Daily aggregation chunk did not advance" }
 
-            val records = usageEventDao.loadUsageEventsForAnalysis(chunkStart, chunkEnd)
-                .map(UsageEventEntity::toModel)
+            // The analysis below applies the latest gap before the chunk, which is all a compact
+            // seed requires.
+            val records = usageEventDao.loadBoundedUsageEventsForAnalysis(
+                beginMillis = chunkStart,
+                endMillis = chunkEnd,
+                collectionGapStarts = orderedGapStarts,
+            ).map(UsageEventEntity::toModel)
             val currentRecords = records.filter { it.timestampMillis >= chunkStart }
             val checkpoints = checkpointDao.loadForAnalysis(chunkStart, chunkEnd)
                 .map(PostureCheckpointEntity::toModel)

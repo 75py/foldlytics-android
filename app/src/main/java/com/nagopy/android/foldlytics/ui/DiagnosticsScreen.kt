@@ -1,6 +1,7 @@
 package com.nagopy.android.foldlytics.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -11,10 +12,13 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -32,12 +36,27 @@ import com.nagopy.android.foldlytics.toTimeText
 internal fun DiagnosticsContent(
     state: MainUiState,
     scaffoldPadding: PaddingValues,
+    onLoadDiagnosticHistory: () -> Unit = {},
 ) {
     val resources = LocalResources.current
     val analysis = state.analysis
-    val events = analysis?.postureEvents.orEmpty()
+    // The startup analysis keeps only a compact lookback, so load the complete history here.
+    LaunchedEffect(state.diagnosticHistory.generation) { onLoadDiagnosticHistory() }
+    val historyRefreshing = state.isDiagnosticHistoryRefreshing
+    // Without a previous complete history to keep showing, wait instead of showing a partial one.
+    val historyLoading = state.isDiagnosticHistoryPending && !historyRefreshing
+    val historyFailed = state.isDiagnosticHistoryFailed
+    val events = state.visiblePostureEvents
     val inRangeCount = events.count { !it.isBeforeRange }
     val seedCount = events.size - inRangeCount
+    fun countText(count: Int): String {
+        val text = resources.getString(R.string.value_item_count, count)
+        return if (historyRefreshing) {
+            resources.getString(R.string.value_item_count_refreshing, text)
+        } else {
+            text
+        }
+    }
     FoldlyticsLazyColumn(scaffoldPadding = scaffoldPadding) {
         item {
             LabCard(title = stringResource(R.string.diagnostics_overview_title)) {
@@ -50,11 +69,17 @@ internal fun DiagnosticsContent(
                 )
                 InfoLine(
                     stringResource(R.string.label_in_range_posture_events),
-                    resources.getString(R.string.value_item_count, inRangeCount),
+                    countText(inRangeCount),
                 )
                 InfoLine(
                     stringResource(R.string.label_lookback_events),
-                    resources.getString(R.string.value_item_count, seedCount),
+                    if (historyLoading) {
+                        stringResource(R.string.diagnostic_history_loading)
+                    } else if (historyFailed) {
+                        stringResource(R.string.diagnostic_history_unavailable)
+                    } else {
+                        countText(seedCount)
+                    },
                 )
                 analysis?.let {
                     InfoLine(
@@ -74,14 +99,40 @@ internal fun DiagnosticsContent(
         item { ExcludedDataCard(state) }
         item { CollectionDiagnosticsCard(state) }
         item { SectionTitle(stringResource(R.string.posture_events_title)) }
-        if (events.isEmpty()) {
+        if (historyLoading) {
+            item(key = HISTORY_STATUS_KEY) {
+                Box(Modifier.testTag(DIAGNOSTIC_HISTORY_STATUS_TAG)) {
+                    HintCard(stringResource(R.string.diagnostic_history_loading))
+                }
+            }
+        } else if (historyFailed) {
+            // Do not fall back to the compact startup lookback, which would look complete.
+            item(key = HISTORY_STATUS_KEY) {
+                Column(
+                    modifier = Modifier.testTag(DIAGNOSTIC_HISTORY_STATUS_TAG),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    HintCard(stringResource(R.string.diagnostic_history_failed), isError = true)
+                    OutlinedButton(onClick = onLoadDiagnosticHistory) {
+                        Text(stringResource(R.string.action_retry))
+                    }
+                }
+            }
+        } else if (events.isEmpty()) {
             item { HintCard(stringResource(R.string.posture_events_empty)) }
         } else {
+            if (historyRefreshing) {
+                item(key = HISTORY_STATUS_KEY) {
+                    Box(Modifier.testTag(DIAGNOSTIC_HISTORY_STATUS_TAG)) {
+                        HintCard(stringResource(R.string.diagnostic_history_refreshing))
+                    }
+                }
+            }
+            // Stable keys keep the scroll position when the refreshed list replaces this one.
+            val keys = postureEventKeys(events)
             itemsIndexed(
                 items = events,
-                key = { index, event ->
-                    "${event.timestampMillis}:${event.source}:${event.rawEventType}:$index"
-                },
+                key = { index, _ -> keys[index] },
                 contentType = { _, _ -> "posture-event" },
             ) { _, event ->
                 PostureEventRow(event)
@@ -341,4 +392,30 @@ private fun PostureEventRow(event: PostureEvent) {
             }
         }
     }
+}
+
+private const val HISTORY_STATUS_KEY = "diagnostic-history-status"
+
+internal const val DIAGNOSTIC_HISTORY_STATUS_TAG = "diagnostic_history_status"
+
+/**
+ * Lazy-list keys for [events], listed newest first, that stay the same when newer events are
+ * added or the window moves an event from the range into the lookback. Events that share a
+ * timestamp, source, raw type and checkpoint source are told apart by their order counted from
+ * the oldest, which newer events do not change.
+ */
+internal fun postureEventKeys(events: List<PostureEvent>): List<String> {
+    val occurrences = mutableMapOf<String, Int>()
+    val keysOldestFirst = events.asReversed().map { event ->
+        val identity = listOf(
+            event.timestampMillis,
+            event.source,
+            event.rawEventType,
+            event.checkpointSource,
+        ).joinToString(":")
+        val occurrence = occurrences.getOrDefault(identity, 0)
+        occurrences[identity] = occurrence + 1
+        "posture-event:$identity#$occurrence"
+    }
+    return keysOldestFirst.asReversed()
 }

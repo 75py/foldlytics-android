@@ -91,7 +91,9 @@ class StoredAnalysisRoomTest {
         database = Room.inMemoryDatabaseBuilder(
             context,
             FoldlyticsDatabase::class.java,
-        ).build()
+        )
+            .addCallback(AnalysisSeedSnapshotTriggers.callback)
+            .build()
     }
 
     @After
@@ -580,7 +582,9 @@ class StoredAnalysisRoomTest {
         val databaseName = "inner-session-performance-test.db"
         testDatabaseName = databaseName
         context.deleteDatabase(databaseName)
-        database = Room.databaseBuilder(context, FoldlyticsDatabase::class.java, databaseName).build()
+        database = Room.databaseBuilder(context, FoldlyticsDatabase::class.java, databaseName)
+            .addCallback(AnalysisSeedSnapshotTriggers.callback)
+            .build()
         persistRecordedHistory()
         database.withTransaction {
             (-357L until 0L).forEach { day ->
@@ -606,7 +610,9 @@ class StoredAnalysisRoomTest {
         // Reopen after persistence so the measured read starts with a fresh Room connection.
         // OS page caches are intentionally not flushed; "cold" means the aggregate cache is empty.
         database.close()
-        database = Room.databaseBuilder(context, FoldlyticsDatabase::class.java, databaseName).build()
+        database = Room.databaseBuilder(context, FoldlyticsDatabase::class.java, databaseName)
+            .addCallback(AnalysisSeedSnapshotTriggers.callback)
+            .build()
         val source = loader(launchable = true)
         val request = request(AnalysisPeriod.DAYS_365)
         val coldMillis = measureTimeMillis { source.load(request, zoneId) }

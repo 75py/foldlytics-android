@@ -99,6 +99,7 @@ fun FoldlyticsScreen(
     onOpenPrivacyPolicy: () -> Unit,
     onOpenOssLicenses: () -> Unit,
     onDismissError: () -> Unit = {},
+    onLoadDiagnosticHistory: () -> Unit = {},
     onShareSummary: suspend (Bitmap) -> Boolean = { false },
     appName: String? = null,
     screenshotSectionEndSpacing: Dp = 0.dp,
@@ -106,6 +107,8 @@ fun FoldlyticsScreen(
     homeNavigationRequest: Int = 0,
 ) {
     val analysisProgressDescription = stringResource(R.string.content_desc_analysis_progress)
+    val reportProgressDescription =
+        stringResource(R.string.action_preparing_diagnostic_report)
     val resolvedAppName = appName ?: stringResource(R.string.app_name)
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -198,7 +201,15 @@ fun FoldlyticsScreen(
                             }
                         },
                     )
-                    if (showAnalysisProgress) {
+                    if (state.isPreparingReport) {
+                        LinearProgressIndicator(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .semantics {
+                                    contentDescription = reportProgressDescription
+                                },
+                        )
+                    } else if (showAnalysisProgress) {
                         LinearProgressIndicator(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -254,6 +265,7 @@ fun FoldlyticsScreen(
                 ScreenDestination.DIAGNOSTICS -> DiagnosticsContent(
                     state = state,
                     scaffoldPadding = scaffoldPadding,
+                    onLoadDiagnosticHistory = onLoadDiagnosticHistory,
                 )
 
                 ScreenDestination.CALIBRATION -> CalibrationContent(
@@ -432,10 +444,25 @@ private fun FoldlyticsDrawer(
                         },
                 )
                 NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.action_share_diagnostic_report)) },
+                    label = {
+                        Text(
+                            stringResource(
+                                if (state.isPreparingReport) {
+                                    R.string.action_preparing_diagnostic_report
+                                } else {
+                                    R.string.action_share_diagnostic_report
+                                },
+                            ),
+                        )
+                    },
                     selected = false,
-                    onClick = onShare,
-                    modifier = Modifier.padding(horizontal = 12.dp),
+                    onClick = { if (!state.isPreparingReport) onShare() },
+                    modifier = Modifier
+                        .padding(horizontal = 12.dp)
+                        .alpha(if (state.isPreparingReport) 0.38f else 1f)
+                        .semantics {
+                            if (state.isPreparingReport) disabled()
+                        },
                 )
                 HorizontalDivider(Modifier.padding(horizontal = 28.dp, vertical = 12.dp))
                 NavigationDrawerItem(

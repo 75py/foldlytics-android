@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nagopy.android.foldlytics.data.CalibrationStore
 import com.nagopy.android.foldlytics.data.CsvExportOutput
+import com.nagopy.android.foldlytics.data.DiagnosticHistoryRequest
 import com.nagopy.android.foldlytics.data.LongTermCsvExporter
 import com.nagopy.android.foldlytics.data.StoredAnalysisLoader
 import com.nagopy.android.foldlytics.data.StoredAnalysisRequest
@@ -23,6 +24,7 @@ import com.nagopy.android.foldlytics.model.DailyPostureSummary
 import com.nagopy.android.foldlytics.model.DisplayConfiguration
 import com.nagopy.android.foldlytics.model.PostureCheckpoint
 import com.nagopy.android.foldlytics.model.PostureCheckpointSource
+import com.nagopy.android.foldlytics.model.PostureEvent
 import com.nagopy.android.foldlytics.model.isValidCustomAnalysisRange
 import com.nagopy.android.foldlytics.widget.SummaryWidgetUpdater
 import com.nagopy.android.foldlytics.widget.WidgetPeriod
@@ -66,6 +68,11 @@ internal interface MainViewModelDataSource {
         calibration: Calibration,
         zoneId: ZoneId,
     ): List<DailyPostureSummary>
+
+    suspend fun loadDiagnosticPostureEvents(
+        request: DiagnosticHistoryRequest,
+        zoneId: ZoneId,
+    ): List<PostureEvent>
 }
 
 private class ProductionMainViewModelDataSource(
@@ -108,6 +115,11 @@ private class ProductionMainViewModelDataSource(
         calibration: Calibration,
         zoneId: ZoneId,
     ) = storedAnalysisLoader.loadSavedDailyHistory(calibration, zoneId)
+
+    override suspend fun loadDiagnosticPostureEvents(
+        request: DiagnosticHistoryRequest,
+        zoneId: ZoneId,
+    ): List<PostureEvent> = storedAnalysisLoader.loadDiagnosticPostureEvents(request, zoneId)
 }
 
 class MainViewModel internal constructor(
@@ -133,6 +145,23 @@ class MainViewModel internal constructor(
         )
     }
     private var refreshJob: Job? = null
+    private val diagnosticHistory = DiagnosticHistoryController(
+        scope = viewModelScope,
+        load = { request ->
+            withContext(Dispatchers.IO) {
+                dataSource.loadDiagnosticPostureEvents(request, ZoneId.systemDefault())
+            }
+        },
+        onStateChanged = { history ->
+            _uiState.update { it.copy(diagnosticHistory = history) }
+        },
+        // Stored events changed after the displayed analysis was read; display a fresh one.
+        onStale = { analysisRevision.value += 1L },
+    )
+    private val reportPreparation = ReportPreparation(viewModelScope)
+
+    /** A report ready for the share sheet; it stays here until [onReportShared]. */
+    val preparedReport: StateFlow<String?> = reportPreparation.prepared
 
     private val _uiState = MutableStateFlow(
         MainUiState(
@@ -146,6 +175,11 @@ class MainViewModel internal constructor(
     init {
         observeStoredAnalysis()
         checkPermissionAndRefresh()
+        viewModelScope.launch {
+            reportPreparation.preparing.collect { preparing ->
+                _uiState.update { it.copy(isPreparingReport = preparing) }
+            }
+        }
     }
 
     fun checkPermissionAndRefresh() {
@@ -205,6 +239,7 @@ class MainViewModel internal constructor(
             WidgetPeriod.DAYS_30 -> AnalysisPeriod.DAYS_30
         }
         // A widget opens its own results, so do not flash a retained, unrelated period.
+        diagnosticHistory.onAnalysisDisplayed(null)
         _uiState.update {
             it.copy(
                 selectedPeriod = appPeriod,
@@ -343,10 +378,49 @@ class MainViewModel internal constructor(
         _uiState.update { it.copy(error = null) }
     }
 
-    fun diagnosticReport(): String = DiagnosticReportFormatter.format(
-        state = _uiState.value,
-        resources = getApplication<Application>().resources,
-    )
+    /**
+     * Prepares the diagnostic report for sharing, ignoring repeated requests until it is shown.
+     * Preparation runs in the view model, so it survives activity recreation.
+     */
+    fun prepareReportShare() {
+        reportPreparation.start { diagnosticReport() }
+    }
+
+    fun onReportShared(report: String) {
+        reportPreparation.consume(report)
+    }
+
+    /** Loads, or after a failure retries, the complete posture history for diagnostics. */
+    fun loadDiagnosticHistory() {
+        diagnosticHistory.request()
+    }
+
+    /**
+     * Formats the shared report once the displayed analysis has its complete posture history.
+     * Returns null, with an error to show, if the history failed to load or the analysis kept
+     * changing, so a report never mixes one analysis with another analysis's history.
+     */
+    internal suspend fun diagnosticReport(): String? {
+        val report = diagnosticHistory.withCompleteHistory {
+            DiagnosticReportFormatter.format(
+                state = _uiState.value,
+                resources = getApplication<Application>().resources,
+            )
+        }
+        if (report == null) {
+            _uiState.update {
+                it.copy(
+                    error = MainUiError(
+                        kind = MainUiErrorKind.ANALYSIS,
+                        message = getApplication<Application>().getString(
+                            R.string.diagnostic_history_failed,
+                        ),
+                    ),
+                )
+            }
+        }
+        return report
+    }
 
     /**
      * Writes every saved daily summary to [output]. The history is loaded first, so an export
@@ -467,6 +541,9 @@ class MainViewModel internal constructor(
                             dataSource.load(request, ZoneId.systemDefault())
                         }
                         if (request.period != selectedPeriod.value) return@collectLatest
+                        // Each displayed analysis may come from changed source rows. Reset its
+                        // history first, so no state pairs this analysis with an older history.
+                        diagnosticHistory.onAnalysisDisplayed(snapshot.diagnosticHistory)
                         _uiState.update {
                             it.copy(
                                 selectedPeriod = snapshot.selectedPeriod,
@@ -496,6 +573,8 @@ class MainViewModel internal constructor(
                     } catch (error: CancellationException) {
                         throw error
                     } catch (error: Exception) {
+                        // A share waiting for this reload must not use the retained analysis.
+                        diagnosticHistory.onAnalysisReloadFailed()
                         _uiState.update {
                             it.copy(
                                 isAnalysisLoading = false,

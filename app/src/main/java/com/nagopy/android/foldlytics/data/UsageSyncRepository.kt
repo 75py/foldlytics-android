@@ -61,6 +61,30 @@ interface UsageEventStore {
 
     suspend fun loadRecordsForAnalysis(beginMillis: Long, endMillis: Long): List<UsageRecord>
 
+    /**
+     * Loads the same analyzer input as the two-argument overload. Stores may bound the history
+     * they read before [beginMillis] when the caller applies [collectionGapStarts] in analysis.
+     */
+    suspend fun loadRecordsForAnalysis(
+        beginMillis: Long,
+        endMillis: Long,
+        collectionGapStarts: List<Long>,
+    ): List<UsageRecord> = loadRecordsForAnalysis(beginMillis, endMillis)
+
+    /**
+     * Loads every stored configuration and restart record before [endMillis]. Posture events
+     * depend only on these, so diagnostics can replay the complete posture history without the
+     * activity records it would otherwise read.
+     */
+    suspend fun loadPostureEvidenceBefore(endMillis: Long): List<UsageRecord> =
+        loadRecordsForAnalysis(endMillis, endMillis)
+
+    /**
+     * A value that changes whenever stored usage events change, or null when the store cannot
+     * tell. Equal values in two transactions mean both read the same events.
+     */
+    suspend fun loadUsageEventRevision(): Long? = null
+
     suspend fun loadSyncAttempts(beginMillis: Long, endMillis: Long): List<SyncAttempt>
 
     suspend fun loadDeviceStateCheckpointsForAnalysis(
@@ -176,6 +200,18 @@ class UsageSyncRepository(
 
     suspend fun loadRecordsForAnalysis(beginMillis: Long, endMillis: Long): List<UsageRecord> =
         eventStore.loadRecordsForAnalysis(beginMillis, endMillis)
+
+    suspend fun loadRecordsForAnalysis(
+        beginMillis: Long,
+        endMillis: Long,
+        collectionGapStarts: List<Long>,
+    ): List<UsageRecord> =
+        eventStore.loadRecordsForAnalysis(beginMillis, endMillis, collectionGapStarts)
+
+    suspend fun loadPostureEvidenceBefore(endMillis: Long): List<UsageRecord> =
+        eventStore.loadPostureEvidenceBefore(endMillis)
+
+    suspend fun loadUsageEventRevision(): Long? = eventStore.loadUsageEventRevision()
 
     suspend fun loadSyncAttempts(beginMillis: Long, endMillis: Long): List<SyncAttempt> =
         eventStore.loadSyncAttempts(beginMillis, endMillis)

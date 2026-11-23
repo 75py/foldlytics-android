@@ -9,6 +9,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nagopy.android.foldlytics.data.CalibrationPersistence
 import com.nagopy.android.foldlytics.data.CalibrationStore
+import com.nagopy.android.foldlytics.data.DiagnosticHistoryRequest
 import com.nagopy.android.foldlytics.data.StoredAnalysisRequest
 import com.nagopy.android.foldlytics.data.StoredAnalysisSnapshot
 import com.nagopy.android.foldlytics.data.UsageSyncResult
@@ -18,6 +19,7 @@ import com.nagopy.android.foldlytics.model.Calibration
 import com.nagopy.android.foldlytics.model.DailyPostureSummary
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
 import com.nagopy.android.foldlytics.model.PostureCheckpoint
+import com.nagopy.android.foldlytics.model.PostureEvent
 import com.nagopy.android.foldlytics.model.UsageAnalysis
 import com.nagopy.android.foldlytics.widget.WidgetPeriod
 import java.time.LocalDate
@@ -331,6 +333,11 @@ class MainViewModelAnalysisPeriodTest {
             calibration: Calibration,
             zoneId: ZoneId,
         ): List<DailyPostureSummary> = emptyList()
+
+        override suspend fun loadDiagnosticPostureEvents(
+            request: DiagnosticHistoryRequest,
+            zoneId: ZoneId,
+        ): List<PostureEvent> = emptyList()
 
         suspend fun awaitLoad(): PendingLoad = withTimeout(TIMEOUT_MILLIS) {
             pendingLoads.receive()

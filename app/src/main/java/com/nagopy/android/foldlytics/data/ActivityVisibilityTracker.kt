@@ -9,6 +9,10 @@ internal class ActivityVisibilityTracker {
     val possibleStateCount: Int
         get() = activities.values.sumOf(ActivityState::possibleStateCount)
 
+    /** Per-activity states; equal maps make every later event produce the same results. */
+    val activityStates: Map<*, *>
+        get() = activities.toMap()
+
     val snapshot: ActivityVisibilitySnapshot
         get() {
             val definitePackages = linkedSetOf<String>()

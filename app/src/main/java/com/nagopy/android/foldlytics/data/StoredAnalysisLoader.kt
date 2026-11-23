@@ -10,11 +10,16 @@ import com.nagopy.android.foldlytics.model.DailyPostureSummary
 import com.nagopy.android.foldlytics.model.InnerSessionSummary
 import com.nagopy.android.foldlytics.model.LongTermInsights
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
+import com.nagopy.android.foldlytics.model.PostureCheckpoint
+import com.nagopy.android.foldlytics.model.PostureEvent
 import com.nagopy.android.foldlytics.model.UsageAnalysis
 import com.nagopy.android.foldlytics.model.availableAnalysisPeriods
 import com.nagopy.android.foldlytics.model.isValidCustomAnalysisRange
 import com.nagopy.android.foldlytics.model.resolveCalendarAnalysisRange
 import java.time.ZoneId
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 
 /** Inputs that identify one stored-analysis result. */
@@ -24,6 +29,29 @@ data class StoredAnalysisRequest(
     val calibration: Calibration,
     val syncState: UsageSyncState?,
     val checkpointRevision: Long,
+)
+
+/**
+ * The inputs of one displayed diagnostic analysis except its usage records. Startup analysis
+ * replaces old history with a compact seed, so diagnostics replay the complete posture history
+ * with these inputs only when they are shown or shared.
+ */
+data class DiagnosticHistoryRequest(
+    val calibration: Calibration,
+    val rangeStartMillis: Long,
+    val rangeEndMillis: Long,
+    val checkpoints: List<PostureCheckpoint>,
+    val collectionGapStarts: List<Long>,
+    /** The usage-event revision the analysis read, or null when the store cannot tell. */
+    val sourceRevision: Long? = null,
+)
+
+/**
+ * The stored usage events changed after the analysis behind a [DiagnosticHistoryRequest] was
+ * read, so its complete history would not match it. Reload the analysis and request again.
+ */
+class StaleDiagnosticHistoryException : IllegalStateException(
+    "Usage events changed after the displayed analysis was read",
 )
 
 /** Everything one stored-analysis pass produces for the screen. */
@@ -38,6 +66,7 @@ data class StoredAnalysisSnapshot(
     val innerSessionSummary: InnerSessionSummary?,
     val longTermInsights: LongTermInsights?,
     val collectionHealth: CollectionHealth?,
+    val diagnosticHistory: DiagnosticHistoryRequest? = null,
 )
 
 /**
@@ -95,6 +124,37 @@ class StoredAnalysisLoader(
         )
     }
 
+    /**
+     * Returns the posture events the full-history analysis behind [request] would list, including
+     * every lookback event before its range. Posture events depend only on configuration and
+     * restart records, checkpoints and collection gaps, so this replays those without activity.
+     */
+    suspend fun loadDiagnosticPostureEvents(
+        request: DiagnosticHistoryRequest,
+        zoneId: ZoneId,
+    ): List<PostureEvent> {
+        // Only the reads hold the transaction; the replay below runs after it ends.
+        val records = dailySummaryRepository.withDatabaseSnapshot {
+            // Check first, so a stale request does not pay for reading the full history.
+            val revision = syncRepository.loadUsageEventRevision()
+            if (request.sourceRevision != null && revision != request.sourceRevision) {
+                throw StaleDiagnosticHistoryException()
+            }
+            syncRepository.loadPostureEvidenceBefore(request.rangeEndMillis)
+        }
+        val job = currentCoroutineContext()[Job]
+        return analyzer.analyze(
+            records = records,
+            rangeStartMillis = request.rangeStartMillis,
+            rangeEndMillis = request.rangeEndMillis,
+            calibration = request.calibration,
+            checkpoints = request.checkpoints,
+            zoneId = zoneId,
+            collectionGapStarts = request.collectionGapStarts,
+            checkCancelled = { job?.ensureActive() },
+        ).postureEvents
+    }
+
     suspend fun load(
         request: StoredAnalysisRequest,
         zoneId: ZoneId,
@@ -140,6 +200,8 @@ class StoredAnalysisLoader(
             zoneId = zoneId,
             collectionGapStarts = collectionGaps.map(CollectionGap::startMillis),
         ) {
+            // Read in this transaction, so a later history read can prove it saw the same events.
+            val sourceRevision = syncRepository.loadUsageEventRevision()
             val summaries = dailySummaries
             val recordRangeStartMillis = summaries
                 .minOfOrNull(DailyPostureSummary::dayStartMillis)
@@ -213,7 +275,12 @@ class StoredAnalysisLoader(
                 selectedSessions.minOfOrNull { it.openedAtMillis } ?: window.seedStartMillis,
             )
             // One historical seed read supplies both diagnostic analysis and selected details.
-            val records = syncRepository.loadRecordsForAnalysis(seedStart, window.rangeEndMillis)
+            // Every gap is applied below, so the store may compact history before the seed start.
+            val records = syncRepository.loadRecordsForAnalysis(
+                beginMillis = seedStart,
+                endMillis = window.rangeEndMillis,
+                collectionGapStarts = collectionGaps.map(CollectionGap::startMillis),
+            )
             val checkpoints = checkpointRepository.loadForAnalysis(seedStart, window.rangeEndMillis)
             val deviceStateCheckpoints = syncRepository.loadDeviceStateCheckpointsForAnalysis(
                 seedStart,
@@ -286,6 +353,14 @@ class StoredAnalysisLoader(
                 innerSessionSummary = innerSessionSummary,
                 longTermInsights = longTermInsights,
                 collectionHealth = longTermAnalyzer.collectionHealth(periodSyncAttempts),
+                diagnosticHistory = DiagnosticHistoryRequest(
+                    calibration = request.calibration,
+                    rangeStartMillis = window.rangeStartMillis,
+                    rangeEndMillis = window.rangeEndMillis,
+                    checkpoints = checkpoints,
+                    collectionGapStarts = collectionGaps.map(CollectionGap::startMillis),
+                    sourceRevision = sourceRevision,
+                ),
             )
         }
     }

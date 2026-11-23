@@ -36,7 +36,9 @@ class ConfigurationDeltaStorageTest {
     @Before
     fun setUp() {
         val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
-        database = Room.inMemoryDatabaseBuilder(context, FoldlyticsDatabase::class.java).build()
+        database = Room.inMemoryDatabaseBuilder(context, FoldlyticsDatabase::class.java)
+            .addCallback(AnalysisSeedSnapshotTriggers.callback)
+            .build()
     }
 
     @After
@@ -165,7 +167,7 @@ class ConfigurationDeltaStorageTest {
             assertEquals(0L, detail.otherInnerActiveMillis)
             assertEquals("app.reader", detail.appUsages.single().packageName)
         }
-        assertEquals(9, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
+        assertEquals(10, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
         // Reconstruction must leave the source delta intact for future reanalysis.
         val savedDelta = database.usageEventDao().loadEvents(start + 2_000, start + 2_001)
         assertEquals(emptyDelta, savedDelta.single().toModel().configuration)
@@ -259,7 +261,7 @@ class ConfigurationDeltaStorageTest {
             assertRebuiltSession(loadCompleteInnerSessions(start, end + 1).single())
         }
         assertEquals(sourceBeforeRefresh, database.usageEventDao().loadEvents(start, end + 1))
-        assertEquals(9, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
+        assertEquals(10, database.dailyPostureSummaryDao().loadState()?.aggregationVersion)
     }
 
     @Test

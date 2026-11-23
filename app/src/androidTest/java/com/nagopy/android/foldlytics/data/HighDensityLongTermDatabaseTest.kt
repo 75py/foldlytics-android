@@ -423,6 +423,7 @@ class HighDensityLongTermDatabaseTest {
 
     private fun openDatabase(): FoldlyticsDatabase =
         Room.databaseBuilder(context, FoldlyticsDatabase::class.java, DATABASE_NAME)
+            .addCallback(AnalysisSeedSnapshotTriggers.callback)
             .build()
 
     private fun tableCount(tableName: String): Long =

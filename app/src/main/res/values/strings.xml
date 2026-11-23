@@ -285,6 +285,13 @@
     <string name="label_processed_usage_events">Usage events processed</string>
     <string name="label_multi_app_display">Multiple apps displayed simultaneously</string>
     <string name="posture_events_title">Posture events</string>
+    <string name="diagnostic_history_failed">The complete posture history could not be loaded. Try again.</string>
+    <string name="diagnostic_history_unavailable">Unavailable</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_preparing_diagnostic_report">Preparing diagnostic report…</string>
+    <string name="diagnostic_history_refreshing">Refreshing. Showing the previous complete history until the new one is ready.</string>
+    <string name="value_item_count_refreshing">%1$s (refreshing)</string>
+    <string name="diagnostic_history_loading">Loading the complete posture history…</string>
     <string name="posture_events_empty">No posture events are available for this period.</string>
     <string name="current_detection_title">Current detection data</string>
     <string name="label_current_configuration">Current configuration</string>

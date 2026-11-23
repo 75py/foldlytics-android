@@ -214,8 +214,9 @@ object DiagnosticReportFormatter {
                     )
                 }
                 appendLine()
-                val inRangeEvents = analysis.postureEvents.count { !it.isBeforeRange }
-                val seedEvents = analysis.postureEvents.size - inRangeEvents
+                val postureEvents = state.visiblePostureEvents
+                val inRangeEvents = postureEvents.count { !it.isBeforeRange }
+                val seedEvents = postureEvents.size - inRangeEvents
                 appendLine(
                     resources.getString(
                         R.string.report_posture_log_heading,
@@ -224,7 +225,7 @@ object DiagnosticReportFormatter {
                         MAX_REPORT_POSTURE_EVENTS,
                     ),
                 )
-                analysis.postureEvents.take(MAX_REPORT_POSTURE_EVENTS).forEach { event ->
+                postureEvents.take(MAX_REPORT_POSTURE_EVENTS).forEach { event ->
                     val rangeLabel = resources.getString(
                         if (event.isBeforeRange) R.string.status_range_seed else R.string.status_range_in,
                     )
