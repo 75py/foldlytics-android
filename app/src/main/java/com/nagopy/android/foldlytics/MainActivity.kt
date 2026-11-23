@@ -201,7 +201,8 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     private fun shareReport() {
         lifecycleScope.launch {
             // The report lists the complete posture history, which loads on demand.
-            val report = viewModel.diagnosticReport()
+            // Null means the history failed or kept changing; the error explains it.
+            val report = viewModel.diagnosticReport() ?: return@launch
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
                 putExtra(Intent.EXTRA_SUBJECT, getString(R.string.share_report_subject))

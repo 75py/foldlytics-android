@@ -59,10 +59,9 @@ data class MainUiState(
     val analysis: UsageAnalysis? = null,
     /**
      * Every posture event of [analysis], including lookback events older than its compact startup
-     * seed. Diagnostics load it on demand; null until loaded for the current analysis.
+     * seed. Diagnostics load it on demand for each displayed analysis.
      */
-    val diagnosticPostureEvents: List<PostureEvent>? = null,
-    val isDiagnosticHistoryLoading: Boolean = false,
+    val diagnosticHistory: DiagnosticHistoryState = DiagnosticHistoryState(),
     val periodSummary: PeriodUsageSummary? = null,
     val innerSessionSummary: InnerSessionSummary? = null,
     val longTermInsights: LongTermInsights? = null,
@@ -78,11 +77,15 @@ data class MainUiState(
 
     /** Posture events listed and counted by diagnostics and the shared report. */
     val visiblePostureEvents: List<PostureEvent>
-        get() = diagnosticPostureEvents ?: analysis?.postureEvents.orEmpty()
+        get() = diagnosticHistory.events ?: analysis?.postureEvents.orEmpty()
 
     /** True while diagnostics would otherwise show an incomplete lookback history. */
     val isDiagnosticHistoryPending: Boolean
-        get() = isDiagnosticHistoryLoading && diagnosticPostureEvents == null
+        get() = diagnosticHistory.status == DiagnosticHistoryStatus.PENDING ||
+            diagnosticHistory.status == DiagnosticHistoryStatus.LOADING
+
+    val isDiagnosticHistoryFailed: Boolean
+        get() = diagnosticHistory.status == DiagnosticHistoryStatus.FAILED
 }
 
 /**

@@ -60,8 +60,13 @@ class LongTermDatabaseTest {
     }
 
     @Test
-    fun createsFreshVersionSixDatabase() {
+    fun createsFreshVersionSixDatabase() = runBlocking {
         assertEquals(6, database.openHelper.readableDatabase.version)
+        // The DAO's trigger check and the installed triggers use the same names.
+        assertEquals(
+            AnalysisSeedSnapshotTriggers.names.size,
+            database.usageEventDao().countAnalysisSeedSnapshotTriggers(),
+        )
     }
 
     @Test

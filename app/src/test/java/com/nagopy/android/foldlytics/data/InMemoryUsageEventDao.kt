@@ -18,12 +18,18 @@ internal class InMemoryUsageEventDao(
     var rowsRead: Long = 0L
         private set
 
+    /** Thrown from the snapshot metadata write, after the snapshot's event rows are written. */
+    var snapshotWriteFailure: Exception? = null
+
     init {
         initialEvents.forEach { events[it.eventKey] = it }
     }
 
     val snapshotBoundaries: List<Long>
         get() = snapshots.keys.sorted()
+
+    val snapshotEventBoundaries: Set<Long>
+        get() = snapshotEvents.mapTo(sortedSetOf(), AnalysisSeedSnapshotEventEntity::boundaryMillis)
 
     fun snapshotEventCount(boundaryMillis: Long): Int =
         snapshotEvents.count { it.boundaryMillis == boundaryMillis }
@@ -117,7 +123,15 @@ internal class InMemoryUsageEventDao(
     }
 
     override suspend fun upsertAnalysisSeedSnapshot(snapshot: AnalysisSeedSnapshotEntity) {
+        snapshotWriteFailure?.let { throw it }
         snapshots[snapshot.boundaryMillis] = snapshot
+    }
+
+    override suspend fun countAnalysisSeedSnapshotsAfter(boundaryMillis: Long): Int =
+        snapshots.keys.count { it > boundaryMillis }
+
+    override suspend fun deleteAnalysisSeedSnapshot(boundaryMillis: Long) {
+        snapshots.remove(boundaryMillis)
     }
 
     override suspend fun insertAnalysisSeedSnapshotEvents(

@@ -1,6 +1,8 @@
 package com.nagopy.android.foldlytics.data
 
 import android.app.usage.UsageEvents
+import com.nagopy.android.foldlytics.DiagnosticHistoryState
+import com.nagopy.android.foldlytics.DiagnosticHistoryStatus
 import com.nagopy.android.foldlytics.MainUiState
 import com.nagopy.android.foldlytics.model.AnalysisPeriod
 import com.nagopy.android.foldlytics.model.Calibration
@@ -71,7 +73,11 @@ class DiagnosticPostureHistoryTest {
         val expected = MainUiState(analysis = legacyAnalysis)
         val actual = MainUiState(
             analysis = boundedAnalysis,
-            diagnosticPostureEvents = diagnosticEvents,
+            diagnosticHistory = DiagnosticHistoryState(
+                generation = 1L,
+                status = DiagnosticHistoryStatus.READY,
+                events = diagnosticEvents,
+            ),
         )
         assertEquals(expected.visiblePostureEvents, actual.visiblePostureEvents)
         assertEquals(
@@ -94,13 +100,19 @@ class DiagnosticPostureHistoryTest {
 
     @Test
     fun visibleEventsFallBackToTheAnalysisUntilTheHistoryLoads() {
-        val state = MainUiState(isDiagnosticHistoryLoading = true)
+        val state = MainUiState(
+            diagnosticHistory = DiagnosticHistoryState(status = DiagnosticHistoryStatus.LOADING),
+        )
 
         assertTrue(state.isDiagnosticHistoryPending)
         assertEquals(emptyList<Any>(), state.visiblePostureEvents)
-        assertTrue(
-            !state.copy(diagnosticPostureEvents = emptyList()).isDiagnosticHistoryPending,
+        val ready = state.copy(
+            diagnosticHistory = DiagnosticHistoryState(
+                status = DiagnosticHistoryStatus.READY,
+                events = emptyList(),
+            ),
         )
+        assertTrue(!ready.isDiagnosticHistoryPending)
     }
 
     private fun loader(dao: InMemoryUsageEventDao): StoredAnalysisLoader {

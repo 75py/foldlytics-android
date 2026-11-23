@@ -8,9 +8,11 @@ import com.nagopy.android.foldlytics.model.PostureCheckpoint
 import com.nagopy.android.foldlytics.model.PostureCheckpointSource
 import com.nagopy.android.foldlytics.model.UsageAnalysis
 import java.time.ZoneId
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.random.Random
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -18,6 +20,8 @@ class BoundedAnalysisSeedTest {
     private val cover = DisplayConfiguration(420, 890, 420, 1, 420)
     private val inner = DisplayConfiguration(730, 820, 730, 2, 420)
     private val calibration = Calibration(cover = cover, inner = inner)
+    private val partialInner = DisplayConfiguration(730, 0, 730, 0, 0)
+    private val partialCover = DisplayConfiguration(420, 0, 420, 0, 0)
     private val zoneId = ZoneId.of("Asia/Tokyo")
     private val analyzer = UsageAnalyzer { it }
 
@@ -162,12 +166,237 @@ class BoundedAnalysisSeedTest {
     fun repeatedStartupReadsTheSameRowsForSevenAndNinetySixDayHistories() = runBlocking {
         val sevenDay = startupWorkload(days = 7)
         val ninetySixDay = startupWorkload(days = 96)
-        println("startup rows read: 7-day=$sevenDay 96-day=$ninetySixDay")
-
         assertEquals(sevenDay.boundedRows, ninetySixDay.boundedRows)
         assertEquals(sevenDay.seedRows, ninetySixDay.seedRows)
         assertTrue(ninetySixDay.legacyRows > 10 * sevenDay.legacyRows / 2)
         assertTrue(ninetySixDay.boundedRows * 5 < ninetySixDay.legacyRows)
+    }
+
+    @Test
+    fun postureRowsPrecedeActivityRowsAtTheSameTimestampAndSequence() = runBlocking {
+        // A restart and a resume share (timestamp, sequence). The full read lists posture rows
+        // first, so the resume survives the restart and must survive compaction too.
+        val restartAt = DAY + 5 * HOUR
+        val events = scenario(
+            entity("restart", restartAt, UsageEvents.Event.DEVICE_STARTUP),
+            entity("resume", restartAt, RESUMED, packageName = "app.tie", className = "Main"),
+            entity("config", restartAt, CONFIGURATION, config = inner, sequence = 1),
+            entity("other", restartAt, RESUMED, packageName = "app.other", sequence = 1),
+        )
+        val seed = compact(events, boundary = 2 * DAY)
+
+        assertEquals(listOf("restart", "config"), seed.postureEvidence.map { it.eventKey })
+        assertEquals(listOf("resume", "other"), seed.activity.map { it.eventKey })
+        assertScenarioEquivalent(events)
+    }
+
+    @Test
+    fun configurationClearMasksAnEarlierCheckpoint() = runBlocking {
+        val events = scenario(
+            entity("inner", DAY + HOUR, CONFIGURATION, config = inner),
+            entity("clear", DAY + 3 * HOUR, CONFIGURATION, config = null),
+            entity("partial", DAY + 4 * HOUR, CONFIGURATION, config = partialCover),
+        )
+        val checkpoints = listOf(checkpoint(DAY + 2 * HOUR, inner))
+
+        assertEquals(
+            listOf("clear", "partial"),
+            compact(events, boundary = 2 * DAY).postureEvidence.map { it.eventKey },
+        )
+        assertScenarioEquivalent(events, checkpoints = checkpoints)
+    }
+
+    @Test
+    fun checkpointBetweenClearAndPositiveDeltaSuppliesTheMissingDimensions() = runBlocking {
+        val events = scenario(
+            entity("cover", DAY + HOUR, CONFIGURATION, config = cover),
+            entity("clear", DAY + 2 * HOUR, CONFIGURATION, config = null),
+            entity("partial", DAY + 4 * HOUR, CONFIGURATION, config = partialInner),
+        )
+        val checkpoints = listOf(checkpoint(DAY + 3 * HOUR, inner))
+
+        assertScenarioEquivalent(events, checkpoints = checkpoints)
+    }
+
+    @Test
+    fun restartAtAGapMillisecondIsClearedByTheGap() = runBlocking {
+        val gapAt = DAY + 6 * HOUR
+        val events = scenario(
+            entity("inner", DAY + HOUR, CONFIGURATION, config = inner),
+            entity("resume", DAY + 2 * HOUR, RESUMED, packageName = "app.a", className = "Main"),
+            entity("restart", gapAt, UsageEvents.Event.DEVICE_STARTUP),
+            entity("late", gapAt, RESUMED, packageName = "app.b", className = "Main", sequence = 1),
+        )
+        val seed = compact(events, boundary = 2 * DAY, gapStarts = listOf(gapAt))
+
+        // Raw rows at the gap's millisecond run before the gap, which clears them all.
+        assertEquals(emptyList<String>(), seed.eventKeys)
+        assertScenarioEquivalent(events, gapStarts = listOf(gapAt))
+        assertScenarioEquivalent(events, gapStarts = listOf(gapAt - 1))
+        assertScenarioEquivalent(events, gapStarts = listOf(gapAt + 1))
+    }
+
+    @Test
+    fun activityLoopBackToAnEarlierStateKeepsOnlyTheRowsUpToThatState() = runBlocking {
+        val (loop, loopStart) = findLoopToEarlierState()
+        val events = scenario(
+            *loop.mapIndexed { index, type ->
+                entity(
+                    "activity-$index",
+                    DAY + (index + 1) * MINUTE,
+                    type,
+                    packageName = "app.loop",
+                    className = "Main",
+                )
+            }.toTypedArray(),
+        )
+
+        assertEquals(
+            (0..loopStart).map { "activity-$it" },
+            compact(events, boundary = 2 * DAY).activity.map { it.eventKey },
+        )
+        assertScenarioEquivalent(events)
+    }
+
+    @Test
+    fun failedSnapshotWriteKeepsTheExactResultAndPublishesNoPartialSnapshot() = runBlocking {
+        val history = randomHistory(seed = 21, days = 8, allowRestarts = false)
+        val dao = InMemoryUsageEventDao(history.events)
+        val legacy = InMemoryUsageEventDao(history.events, triggersInstalled = false)
+        val begin = 6 * DAY + HOUR
+        dao.snapshotWriteFailure = IllegalStateException("disk full")
+
+        assertEquivalent(dao, legacy, history, begin, begin + DAY, "failed write")
+        assertEquals(emptyList<Long>(), dao.snapshotBoundaries)
+
+        dao.snapshotWriteFailure = null
+        assertEquivalent(dao, legacy, history, begin, begin + DAY, "recovered")
+        assertEquals(listOf(6 * DAY), dao.snapshotBoundaries)
+        // Rows left by the failed write were replaced, not mixed into the new snapshot.
+        assertEquals(setOf(6 * DAY), dao.snapshotEventBoundaries)
+    }
+
+    @Test
+    fun cancellationDuringSnapshotWriteIsNotSwallowed() {
+        val history = randomHistory(seed = 22, days = 4, allowRestarts = false)
+        val dao = InMemoryUsageEventDao(history.events)
+        dao.snapshotWriteFailure = CancellationException("cancelled")
+
+        assertThrows(CancellationException::class.java) {
+            runBlocking {
+                dao.loadBoundedUsageEventsForAnalysis(3 * DAY, 4 * DAY, history.gapStarts)
+            }
+        }
+    }
+
+    @Test
+    fun snapshotOlderThanEveryRetainedBoundaryIsNotWritten() = runBlocking {
+        val history = randomHistory(seed = 23, days = 20, allowRestarts = false)
+        val dao = InMemoryUsageEventDao(history.events)
+        val legacy = InMemoryUsageEventDao(history.events, triggersInstalled = false)
+        (10L until 18L).forEach { day ->
+            dao.loadBoundedUsageEventsForAnalysis(day * DAY, (day + 1) * DAY, history.gapStarts)
+        }
+        val retained = dao.snapshotBoundaries
+        assertEquals((10L until 18L).map { it * DAY }, retained)
+
+        assertEquivalent(dao, legacy, history, 3 * DAY + HOUR, 4 * DAY, "old boundary")
+        assertEquals(retained, dao.snapshotBoundaries)
+        assertEquals(retained.toSet(), dao.snapshotEventBoundaries)
+    }
+
+    @Test
+    fun triggerNamesAreVersionedAndDistinct() {
+        val names = AnalysisSeedSnapshotTriggers.names
+        assertEquals(
+            listOf(
+                AnalysisSeedSnapshotTriggers.INSERT,
+                AnalysisSeedSnapshotTriggers.UPDATE,
+                AnalysisSeedSnapshotTriggers.DELETE,
+            ),
+            names,
+        )
+        assertEquals(names.size, names.toSet().size)
+        assertTrue(names.all { it.matches(Regex("analysis_seed_snapshot_v\\d+_usage_event_\\w+")) })
+    }
+
+    /** Screen on and unlocked from the start, with fold changes inside the analyzed day. */
+    private fun scenario(vararg seedRows: UsageEventEntity): List<UsageEventEntity> = listOf(
+        entity("screen", HOUR, UsageEvents.Event.SCREEN_INTERACTIVE),
+        entity("unlocked", HOUR + 1, UsageEvents.Event.KEYGUARD_HIDDEN),
+    ) + seedRows + listOf(
+        entity("range-cover", 2 * DAY + 2 * HOUR, CONFIGURATION, config = cover),
+        entity("range-inner", 2 * DAY + 4 * HOUR, CONFIGURATION, config = inner),
+        entity("range-partial", 2 * DAY + 5 * HOUR, CONFIGURATION, config = partialCover),
+        entity("range-pause", 2 * DAY + 6 * HOUR, PAUSED, packageName = "app.loop", className = "Main"),
+        entity("range-tie-pause", 2 * DAY + 7 * HOUR, PAUSED, packageName = "app.tie", className = "Main"),
+    )
+
+    private suspend fun assertScenarioEquivalent(
+        events: List<UsageEventEntity>,
+        checkpoints: List<PostureCheckpoint> = emptyList(),
+        gapStarts: List<Long> = emptyList(),
+    ) {
+        val history = History(events, gapStarts, checkpoints, emptyList())
+        val dao = InMemoryUsageEventDao(events)
+        val legacy = InMemoryUsageEventDao(events, triggersInstalled = false)
+        listOf(2 * DAY, 2 * DAY + HOUR, 2 * DAY + 3 * HOUR).forEach { begin ->
+            assertEquivalent(dao, legacy, history, begin, 3 * DAY, "begin=$begin")
+        }
+    }
+
+    private fun compact(
+        events: List<UsageEventEntity>,
+        boundary: Long,
+        gapStarts: List<Long> = emptyList(),
+    ): AnalysisSeedRows {
+        val ordered = events.sortedWith(
+            compareBy<UsageEventEntity> { it.timestampMillis }
+                .thenBy { it.sequenceAtTimestamp }
+                .thenBy { it.eventKey },
+        )
+        return AnalysisSeedCompactor.compact(
+            postureEvidence = ordered.filter {
+                it.rawEventType in StoredUsageEventTypes.postureEvidence
+            },
+            activity = ordered.filter {
+                it.rawEventType in StoredUsageEventTypes.activity && it.packageName != null
+            },
+            collectionGapStarts = gapStarts,
+            boundaryMillis = boundary,
+        )
+    }
+
+    /**
+     * The shortest activity event sequence whose final state equals the state after an earlier
+     * row, without passing through no evidence. Returns the sequence and that earlier index.
+     */
+    private fun findLoopToEarlierState(): Pair<List<Int>, Int> {
+        val types = listOf(RESUMED, PAUSED, STOPPED)
+        fun statesAfter(sequence: List<Int>): List<Map<*, *>> {
+            val tracker = ActivityVisibilityTracker()
+            return sequence.map { type ->
+                tracker.apply(
+                    entity("probe", 0L, type, packageName = "app", className = "Main").toModel(),
+                )
+                tracker.activityStates
+            }
+        }
+        var candidates = types.map { listOf(it) }
+        repeat(8) {
+            candidates = candidates.flatMap { prefix -> types.map { prefix + it } }
+            candidates.firstNotNullOfOrNull { sequence ->
+                val states = statesAfter(sequence)
+                val earlier = states.dropLast(1)
+                val loopStart = earlier.indexOf(states.last())
+                (sequence to loopStart).takeIf {
+                    states.all { state -> state.isNotEmpty() } &&
+                        loopStart >= 0 &&
+                        earlier.toSet().size == earlier.size
+                }
+            }?.let { return it }
+        }
+        error("No activity loop back to an earlier state")
     }
 
     private data class Workload(
@@ -325,6 +554,12 @@ class BoundedAnalysisSeedTest {
         processChunk(records, checkpoints, deviceStates, gaps, endMillis)
     }.sessionsAtEnd()
 
+    private fun checkpoint(at: Long, configuration: DisplayConfiguration) = PostureCheckpoint(
+        timestampMillis = at,
+        configuration = configuration,
+        source = PostureCheckpointSource.APP_FOREGROUND,
+    )
+
     private fun UsageAnalysis.withoutLookback(): UsageAnalysis =
         copy(postureEvents = postureEvents.filterNot { it.isBeforeRange })
 
@@ -349,8 +584,6 @@ class BoundedAnalysisSeedTest {
     private fun randomHistory(seed: Int, days: Int, allowRestarts: Boolean): History {
         val random = Random(seed)
         val builder = EventBuilder()
-        val partialInner = DisplayConfiguration(730, 0, 730, 0, 0)
-        val partialCover = DisplayConfiguration(420, 0, 420, 0, 0)
         val emptyDelta = DisplayConfiguration(0, 0, 0, 0, 0)
         val packages = listOf("app.a", "app.b", "app.c", "launcher")
         val classes = listOf("Main", "Other", null)
@@ -473,6 +706,9 @@ class BoundedAnalysisSeedTest {
         const val HOUR = 60 * MINUTE
         const val DAY = 24 * HOUR
         const val CONFIGURATION = UsageEvents.Event.CONFIGURATION_CHANGE
+        const val RESUMED = UsageEvents.Event.ACTIVITY_RESUMED
+        const val PAUSED = UsageEvents.Event.ACTIVITY_PAUSED
+        const val STOPPED = UsageEvents.Event.ACTIVITY_STOPPED
 
         fun entity(
             key: String,

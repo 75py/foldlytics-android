@@ -25,6 +25,7 @@ import com.nagopy.android.foldlytics.model.PostureCheckpoint
 import com.nagopy.android.foldlytics.model.PostureCheckpointSource
 import com.nagopy.android.foldlytics.model.UsageRecord
 import java.security.MessageDigest
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -457,7 +458,7 @@ interface UsageEventDao {
             collectionGapStarts = collectionGapStarts,
             boundaryMillis = boundaryMillis,
         )
-        replaceAnalysisSeedSnapshot(
+        persistAnalysisSeedSnapshot(
             snapshot = AnalysisSeedSnapshotEntity(
                 boundaryMillis = boundaryMillis,
                 lastCollectionGapStartMillis = lastGapBefore(boundaryMillis),
@@ -480,20 +481,40 @@ interface UsageEventDao {
             ),
         )
 
-    @Transaction
-    suspend fun replaceAnalysisSeedSnapshot(
+    /**
+     * Stores a seed for later loads. The seed is only a cache: the caller already holds the exact
+     * result, so a failed write leaves analysis unaffected. This runs inside the caller's
+     * transaction without a nested one, because a failed nested transaction would silently roll
+     * back the caller's own writes. The metadata row is removed first and written last, so rows
+     * left by a failed write are never read as a snapshot, and the next write or prune drops them.
+     */
+    private suspend fun persistAnalysisSeedSnapshot(
         snapshot: AnalysisSeedSnapshotEntity,
         eventKeys: List<String>,
     ) {
-        deleteAnalysisSeedSnapshotEvents(snapshot.boundaryMillis)
-        upsertAnalysisSeedSnapshot(snapshot)
-        insertAnalysisSeedSnapshotEvents(
-            eventKeys.distinct().map { eventKey ->
-                AnalysisSeedSnapshotEventEntity(snapshot.boundaryMillis, eventKey)
-            },
-        )
-        deleteAnalysisSeedSnapshotEventsBeyondNewest(MAX_ANALYSIS_SEED_SNAPSHOTS)
-        deleteAnalysisSeedSnapshotsBeyondNewest(MAX_ANALYSIS_SEED_SNAPSHOTS)
+        // Pruning keeps the newest boundaries, so an older one would be deleted at once.
+        if (
+            countAnalysisSeedSnapshotsAfter(snapshot.boundaryMillis) >=
+            MAX_ANALYSIS_SEED_SNAPSHOTS
+        ) {
+            return
+        }
+        try {
+            deleteAnalysisSeedSnapshot(snapshot.boundaryMillis)
+            deleteAnalysisSeedSnapshotEvents(snapshot.boundaryMillis)
+            insertAnalysisSeedSnapshotEvents(
+                eventKeys.distinct().map { eventKey ->
+                    AnalysisSeedSnapshotEventEntity(snapshot.boundaryMillis, eventKey)
+                },
+            )
+            upsertAnalysisSeedSnapshot(snapshot)
+            deleteAnalysisSeedSnapshotEventsBeyondNewest(MAX_ANALYSIS_SEED_SNAPSHOTS)
+            deleteAnalysisSeedSnapshotsBeyondNewest(MAX_ANALYSIS_SEED_SNAPSHOTS)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // For example a full disk. The next load rebuilds the seed from an older snapshot.
+        }
     }
 
     @Query(
@@ -512,16 +533,18 @@ interface UsageEventDao {
     ): List<UsageEventEntity>
 
     @Query(
-        """
-        SELECT COUNT(*) FROM sqlite_master
-        WHERE type = 'trigger' AND name IN (
-            'analysis_seed_snapshot_usage_event_insert',
-            'analysis_seed_snapshot_usage_event_update',
-            'analysis_seed_snapshot_usage_event_delete'
-        )
-        """,
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name IN ('" +
+            AnalysisSeedSnapshotTriggers.INSERT + "', '" +
+            AnalysisSeedSnapshotTriggers.UPDATE + "', '" +
+            AnalysisSeedSnapshotTriggers.DELETE + "')",
     )
     suspend fun countAnalysisSeedSnapshotTriggers(): Int
+
+    @Query("SELECT COUNT(*) FROM analysis_seed_snapshots WHERE boundary_millis > :boundaryMillis")
+    suspend fun countAnalysisSeedSnapshotsAfter(boundaryMillis: Long): Int
+
+    @Query("DELETE FROM analysis_seed_snapshots WHERE boundary_millis = :boundaryMillis")
+    suspend fun deleteAnalysisSeedSnapshot(boundaryMillis: Long)
 
     @Query(
         """
@@ -1163,11 +1186,14 @@ internal val MIGRATION_5_6 = object : Migration(5, 6) {
  * path writes the event. Room does not model triggers, so they are installed on every open.
  */
 object AnalysisSeedSnapshotTriggers {
-    internal val names = listOf(
-        "analysis_seed_snapshot_usage_event_insert",
-        "analysis_seed_snapshot_usage_event_update",
-        "analysis_seed_snapshot_usage_event_delete",
-    )
+    // Versioned names: change the version whenever a trigger body changes, so databases that
+    // already hold the old body replace it on the next open.
+    const val INSERT = "analysis_seed_snapshot_v1_usage_event_insert"
+    const val UPDATE = "analysis_seed_snapshot_v1_usage_event_update"
+    const val DELETE = "analysis_seed_snapshot_v1_usage_event_delete"
+    private const val NAME_PREFIX = "analysis_seed_snapshot_"
+
+    internal val names = listOf(INSERT, UPDATE, DELETE)
 
     val callback: RoomDatabase.Callback = object : RoomDatabase.Callback() {
         override fun onOpen(db: SupportSQLiteDatabase) {
@@ -1176,11 +1202,18 @@ object AnalysisSeedSnapshotTriggers {
     }
 
     internal fun create(db: SupportSQLiteDatabase) {
-        db.execSQL(trigger(names[0], "INSERT", "NEW.timestamp_millis"))
-        db.execSQL(
-            trigger(names[1], "UPDATE", "MIN(OLD.timestamp_millis, NEW.timestamp_millis)"),
-        )
-        db.execSQL(trigger(names[2], "DELETE", "OLD.timestamp_millis"))
+        val retired = db.query(
+            "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE ?",
+            arrayOf<Any?>("$NAME_PREFIX%"),
+        ).use { cursor ->
+            buildList {
+                while (cursor.moveToNext()) add(cursor.getString(0))
+            }
+        }.filterNot { it in names }
+        retired.forEach { name -> db.execSQL("DROP TRIGGER IF EXISTS `$name`") }
+        db.execSQL(trigger(INSERT, "INSERT", "NEW.timestamp_millis"))
+        db.execSQL(trigger(UPDATE, "UPDATE", "MIN(OLD.timestamp_millis, NEW.timestamp_millis)"))
+        db.execSQL(trigger(DELETE, "DELETE", "OLD.timestamp_millis"))
     }
 
     // A row at timestamp t is part of the history before every boundary after t.

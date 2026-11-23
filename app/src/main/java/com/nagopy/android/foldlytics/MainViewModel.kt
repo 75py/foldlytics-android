@@ -30,10 +30,8 @@ import com.nagopy.android.foldlytics.widget.SummaryWidgetUpdater
 import com.nagopy.android.foldlytics.widget.WidgetPeriod
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -147,10 +145,17 @@ class MainViewModel internal constructor(
         )
     }
     private var refreshJob: Job? = null
-    private var diagnosticHistory: DiagnosticHistoryRequest? = null
-    private var loadedDiagnosticHistory: DiagnosticHistoryRequest? = null
-    private var diagnosticHistoryLoad:
-        Pair<DiagnosticHistoryRequest, Deferred<List<PostureEvent>>>? = null
+    private val diagnosticHistory = DiagnosticHistoryController(
+        scope = viewModelScope,
+        load = { request ->
+            withContext(Dispatchers.IO) {
+                dataSource.loadDiagnosticPostureEvents(request, ZoneId.systemDefault())
+            }
+        },
+        onStateChanged = { history ->
+            _uiState.update { it.copy(diagnosticHistory = history) }
+        },
+    )
 
     private val _uiState = MutableStateFlow(
         MainUiState(
@@ -223,13 +228,12 @@ class MainViewModel internal constructor(
             WidgetPeriod.DAYS_30 -> AnalysisPeriod.DAYS_30
         }
         // A widget opens its own results, so do not flash a retained, unrelated period.
+        diagnosticHistory.onAnalysisDisplayed(null)
         _uiState.update {
             it.copy(
                 selectedPeriod = appPeriod,
                 analyzedPeriod = null,
                 analysis = null,
-                diagnosticPostureEvents = null,
-                isDiagnosticHistoryLoading = false,
                 periodSummary = null,
                 innerSessionSummary = null,
                 longTermInsights = null,
@@ -237,8 +241,6 @@ class MainViewModel internal constructor(
                 isAnalysisLoading = true,
             )
         }
-        diagnosticHistory = null
-        loadedDiagnosticHistory = null
         if (selectedPeriod.value == appPeriod) {
             // A second widget using the same preset still needs a fresh result.
             analysisRevision.value += 1L
@@ -365,59 +367,36 @@ class MainViewModel internal constructor(
         _uiState.update { it.copy(error = null) }
     }
 
-    /** Loads the complete posture history of the displayed analysis for diagnostics. */
+    /** Loads, or after a failure retries, the complete posture history for diagnostics. */
     fun loadDiagnosticHistory() {
-        viewModelScope.launch { ensureDiagnosticHistory() }
+        diagnosticHistory.request()
     }
 
-    /** Formats the shared report after loading the complete posture history it lists. */
-    suspend fun diagnosticReport(): String {
-        ensureDiagnosticHistory()
-        return DiagnosticReportFormatter.format(
-            state = _uiState.value,
-            resources = getApplication<Application>().resources,
-        )
-    }
-
-    private suspend fun ensureDiagnosticHistory() {
-        val request = diagnosticHistory ?: return
-        if (loadedDiagnosticHistory == request) return
-        val pending = diagnosticHistoryLoad?.takeIf { it.first == request }?.second
-            ?: viewModelScope.async(Dispatchers.IO) {
-                dataSource.loadDiagnosticPostureEvents(request, ZoneId.systemDefault())
-            }.also { load ->
-                diagnosticHistoryLoad = request to load
-                _uiState.update { it.copy(isDiagnosticHistoryLoading = true) }
-            }
-        val events = try {
-            pending.await()
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: Exception) {
-            if (diagnosticHistoryLoad?.first == request) diagnosticHistoryLoad = null
-            if (diagnosticHistory == request) {
-                _uiState.update {
-                    it.copy(
-                        isDiagnosticHistoryLoading = false,
-                        error = MainUiError(
-                            kind = MainUiErrorKind.ANALYSIS,
-                            message = getApplication<Application>().getString(
-                                R.string.stored_analysis_failed,
-                                error.javaClass.simpleName,
-                            ),
+    /**
+     * Formats the shared report once the displayed analysis has its complete posture history.
+     * Returns null, with an error to show, if the history failed to load or the analysis kept
+     * changing, so a report never mixes one analysis with another analysis's history.
+     */
+    suspend fun diagnosticReport(): String? {
+        val report = diagnosticHistory.withCompleteHistory {
+            DiagnosticReportFormatter.format(
+                state = _uiState.value,
+                resources = getApplication<Application>().resources,
+            )
+        }
+        if (report == null) {
+            _uiState.update {
+                it.copy(
+                    error = MainUiError(
+                        kind = MainUiErrorKind.ANALYSIS,
+                        message = getApplication<Application>().getString(
+                            R.string.diagnostic_history_failed,
                         ),
-                    )
-                }
+                    ),
+                )
             }
-            return
         }
-        // A newer analysis replaced this one while its history was loading.
-        if (diagnosticHistory != request) return
-        loadedDiagnosticHistory = request
-        diagnosticHistoryLoad = null
-        _uiState.update {
-            it.copy(diagnosticPostureEvents = events, isDiagnosticHistoryLoading = false)
-        }
+        return report
     }
 
     /**
@@ -539,15 +518,11 @@ class MainViewModel internal constructor(
                             dataSource.load(request, ZoneId.systemDefault())
                         }
                         if (request.period != selectedPeriod.value) return@collectLatest
-                        val historyChanged = snapshot.diagnosticHistory != loadedDiagnosticHistory
-                        diagnosticHistory = snapshot.diagnosticHistory
-                        if (historyChanged) loadedDiagnosticHistory = null
+                        // Each displayed analysis may come from changed source rows. Reset its
+                        // history first, so no state pairs this analysis with an older history.
+                        diagnosticHistory.onAnalysisDisplayed(snapshot.diagnosticHistory)
                         _uiState.update {
                             it.copy(
-                                diagnosticPostureEvents = it.diagnosticPostureEvents
-                                    .takeUnless { historyChanged },
-                                isDiagnosticHistoryLoading = historyChanged &&
-                                    diagnosticHistoryLoad?.first == snapshot.diagnosticHistory,
                                 selectedPeriod = snapshot.selectedPeriod,
                                 analyzedPeriod = snapshot.selectedPeriod,
                                 availablePeriods = snapshot.availablePeriods,

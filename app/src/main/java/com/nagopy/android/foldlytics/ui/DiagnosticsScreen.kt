@@ -11,6 +11,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -38,8 +39,9 @@ internal fun DiagnosticsContent(
     val resources = LocalResources.current
     val analysis = state.analysis
     // The startup analysis keeps only a compact lookback, so load the complete history here.
-    LaunchedEffect(analysis) { onLoadDiagnosticHistory() }
+    LaunchedEffect(state.diagnosticHistory.generation) { onLoadDiagnosticHistory() }
     val historyPending = state.isDiagnosticHistoryPending
+    val historyFailed = state.isDiagnosticHistoryFailed
     val events = state.visiblePostureEvents
     val inRangeCount = events.count { !it.isBeforeRange }
     val seedCount = events.size - inRangeCount
@@ -61,6 +63,8 @@ internal fun DiagnosticsContent(
                     stringResource(R.string.label_lookback_events),
                     if (historyPending) {
                         stringResource(R.string.diagnostic_history_loading)
+                    } else if (historyFailed) {
+                        stringResource(R.string.diagnostic_history_unavailable)
                     } else {
                         resources.getString(R.string.value_item_count, seedCount)
                     },
@@ -85,6 +89,16 @@ internal fun DiagnosticsContent(
         item { SectionTitle(stringResource(R.string.posture_events_title)) }
         if (historyPending) {
             item { HintCard(stringResource(R.string.diagnostic_history_loading)) }
+        } else if (historyFailed) {
+            // Do not fall back to the compact startup lookback, which would look complete.
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HintCard(stringResource(R.string.diagnostic_history_failed), isError = true)
+                    OutlinedButton(onClick = onLoadDiagnosticHistory) {
+                        Text(stringResource(R.string.action_retry))
+                    }
+                }
+            }
         } else if (events.isEmpty()) {
             item { HintCard(stringResource(R.string.posture_events_empty)) }
         } else {

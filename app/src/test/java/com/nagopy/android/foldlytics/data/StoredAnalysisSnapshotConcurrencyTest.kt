@@ -385,6 +385,10 @@ class StoredAnalysisSnapshotConcurrencyTest {
 
         override suspend fun countAnalysisSeedSnapshotTriggers(): Int = 0
 
+        override suspend fun countAnalysisSeedSnapshotsAfter(boundaryMillis: Long): Int = 0
+
+        override suspend fun deleteAnalysisSeedSnapshot(boundaryMillis: Long) = Unit
+
         override suspend fun loadAnalysisSeedSnapshotsAtOrBefore(
             boundaryMillis: Long,
             compactionVersion: Int,

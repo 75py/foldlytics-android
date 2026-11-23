@@ -277,6 +277,9 @@
     <string name="label_processed_usage_events">処理した利用イベント</string>
     <string name="label_multi_app_display">複数アプリ同時表示</string>
     <string name="posture_events_title">姿勢イベント</string>
+    <string name="diagnostic_history_failed">姿勢イベントの全履歴を読み込めませんでした。もう一度お試しください。</string>
+    <string name="diagnostic_history_unavailable">取得できません</string>
+    <string name="action_retry">再試行</string>
     <string name="diagnostic_history_loading">姿勢イベントの全履歴を読み込んでいます…</string>
     <string name="posture_events_empty">この期間に表示できる姿勢イベントはありません。</string>
     <string name="current_detection_title">現在の判定情報</string>
