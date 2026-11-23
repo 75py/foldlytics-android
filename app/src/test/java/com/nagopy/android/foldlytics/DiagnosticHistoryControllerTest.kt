@@ -1,26 +1,35 @@
 package com.nagopy.android.foldlytics
 
 import com.nagopy.android.foldlytics.data.DiagnosticHistoryRequest
+import com.nagopy.android.foldlytics.data.StaleDiagnosticHistoryException
 import com.nagopy.android.foldlytics.model.Calibration
+import com.nagopy.android.foldlytics.model.DisplayConfiguration
 import com.nagopy.android.foldlytics.model.DisplayPosture
 import com.nagopy.android.foldlytics.model.PostureEvent
 import com.nagopy.android.foldlytics.model.PostureEventSource
 import java.io.IOException
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** Sharing and showing diagnostics must use one analysis with its own complete history. */
 class DiagnosticHistoryControllerTest {
     private val requestA = request(rangeEnd = 1_000L)
     private val requestB = request(rangeEnd = 2_000L)
+
+    /** [requestA]'s window after a sync moved it, with the same length. */
+    private val movedA = requestA.copy(rangeStartMillis = 1_000L, rangeEndMillis = 2_000L)
 
     @Test
     fun failedHistoryReturnsNoReportAndTheNextRequestRetries() = runBlocking {
@@ -137,13 +146,162 @@ class DiagnosticHistoryControllerTest {
         assertEquals("report", controller.withCompleteHistory { "report" })
     }
 
+    @Test
+    fun staleHistoryWaitsForTheReloadedAnalysisAndSharesOnlyIt() = runBlocking {
+        var reloads = 0
+        lateinit var controller: DiagnosticHistoryController
+        controller = controller(
+            this,
+            onStale = { reloads += 1 },
+        ) { request ->
+            if (request == requestA) throw StaleDiagnosticHistoryException()
+            events("reloaded")
+        }
+        var displayed = "A"
+        controller.onAnalysisDisplayed(requestA)
+
+        val share = async(start = CoroutineStart.UNDISPATCHED) {
+            controller.withCompleteHistory { displayed to controller.state.events }
+        }
+        yield()
+        assertEquals(1, reloads)
+        // The owner reloads the analysis and displays it.
+        controller.onAnalysisDisplayed(requestB)
+        displayed = "B"
+
+        assertEquals("B" to events("reloaded"), share.await())
+    }
+
+    @Test
+    fun staleHistoryWhoseReloadFailsSharesNothing() = runBlocking {
+        lateinit var controller: DiagnosticHistoryController
+        controller = controller(this, onStale = { controller.onAnalysisReloadFailed() }) {
+            throw StaleDiagnosticHistoryException()
+        }
+        controller.onAnalysisDisplayed(requestA)
+
+        assertNull(controller.withCompleteHistory { "report" })
+        assertEquals(DiagnosticHistoryStatus.FAILED, controller.state.status)
+    }
+
+    @Test
+    fun replacedAnalysisCancelsItsRunningLoad() = runBlocking {
+        val oldLoadCancelled = CompletableDeferred<Unit>()
+        val controller = controller(this) { request ->
+            if (request == requestA) {
+                try {
+                    awaitCancellation()
+                } finally {
+                    oldLoadCancelled.complete(Unit)
+                }
+            }
+            events("new")
+        }
+        controller.onAnalysisDisplayed(requestA)
+        controller.request()
+        yield()
+
+        controller.onAnalysisDisplayed(requestB)
+
+        withTimeout(1_000L) { oldLoadCancelled.await() }
+        assertEquals("ok", controller.withCompleteHistory { "ok" })
+    }
+
+    @Test
+    fun cancelledShareRethrowsAndLeavesTheLoadForTheScreen() = runBlocking {
+        val gate = CompletableDeferred<Unit>()
+        val controller = controller(this) {
+            gate.await()
+            events("complete")
+        }
+        controller.onAnalysisDisplayed(requestA)
+        val share = async(start = CoroutineStart.UNDISPATCHED) {
+            controller.withCompleteHistory { "report" }
+        }
+
+        share.cancel()
+        val error = runCatching { share.await() }.exceptionOrNull()
+        assertTrue("$error", error is CancellationException)
+        gate.complete(Unit)
+        yield()
+        yield()
+        assertEquals(DiagnosticHistoryStatus.READY, controller.state.status)
+        assertEquals(events("complete"), controller.state.events)
+    }
+
+    @Test
+    fun refreshKeepsThePreviousComparableHistoryUntilTheNewOneIsReady() = runBlocking {
+        val gate = CompletableDeferred<Unit>()
+        val controller = controller(this) { request ->
+            if (request == movedA) gate.await()
+            events(if (request == requestA) "first" else "second")
+        }
+        controller.onAnalysisDisplayed(requestA)
+        controller.withCompleteHistory { Unit }
+
+        // The next sync moves the same-length window.
+        controller.onAnalysisDisplayed(movedA)
+        assertEquals(DiagnosticHistoryStatus.PENDING, controller.state.status)
+        assertNull(controller.state.events)
+        assertEquals(events("first"), controller.state.refreshingEvents)
+        controller.request()
+        assertEquals(DiagnosticHistoryStatus.LOADING, controller.state.status)
+        assertEquals(events("first"), controller.state.refreshingEvents)
+
+        gate.complete(Unit)
+        // Sharing never uses the refreshing list: it waits for the new history.
+        assertEquals(events("second"), controller.withCompleteHistory { controller.state.events })
+        assertNull(controller.state.refreshingEvents)
+    }
+
+    @Test
+    fun refreshDropsThePreviousHistoryForAnotherWindowCalibrationOrFailure() = runBlocking {
+        var fail = false
+        val controller = controller(this) {
+            if (fail) throw IOException("disk")
+            events("first")
+        }
+        suspend fun displayLoaded() {
+            controller.onAnalysisDisplayed(requestA)
+            controller.withCompleteHistory { Unit }
+        }
+
+        displayLoaded()
+        // A different period's window is not comparable.
+        controller.onAnalysisDisplayed(requestB)
+        assertNull(controller.state.refreshingEvents)
+
+        displayLoaded()
+        controller.onAnalysisDisplayed(
+            movedA.copy(calibration = Calibration(cover = DisplayConfiguration(1, 1, 1, 1, 1))),
+        )
+        assertNull(controller.state.refreshingEvents)
+
+        displayLoaded()
+        controller.onAnalysisDisplayed(null)
+        assertNull(controller.state.refreshingEvents)
+
+        displayLoaded()
+        controller.onAnalysisDisplayed(movedA)
+        assertEquals(events("first"), controller.state.refreshingEvents)
+        fail = true
+        assertNull(controller.withCompleteHistory { "report" })
+        assertNull(controller.state.refreshingEvents)
+    }
+
     private fun controller(
         parent: CoroutineScope,
+        onStale: () -> Unit = {},
         load: suspend (DiagnosticHistoryRequest) -> List<PostureEvent>,
     ): DiagnosticHistoryController {
         // A failed load must not cancel the test, as in viewModelScope.
         val scope = CoroutineScope(parent.coroutineContext + SupervisorJob())
-        return DiagnosticHistoryController(scope = scope, load = load, onStateChanged = {})
+        return DiagnosticHistoryController(
+            scope = scope,
+            load = load,
+            onStateChanged = {},
+            onStale = onStale,
+        )
     }
 
     private fun request(rangeEnd: Long) = DiagnosticHistoryRequest(

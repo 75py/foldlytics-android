@@ -62,6 +62,7 @@ data class MainUiState(
      * seed. Diagnostics load it on demand for each displayed analysis.
      */
     val diagnosticHistory: DiagnosticHistoryState = DiagnosticHistoryState(),
+    val isPreparingReport: Boolean = false,
     val periodSummary: PeriodUsageSummary? = null,
     val innerSessionSummary: InnerSessionSummary? = null,
     val longTermInsights: LongTermInsights? = null,
@@ -77,7 +78,13 @@ data class MainUiState(
 
     /** Posture events listed and counted by diagnostics and the shared report. */
     val visiblePostureEvents: List<PostureEvent>
-        get() = diagnosticHistory.events ?: analysis?.postureEvents.orEmpty()
+        get() = diagnosticHistory.events
+            ?: diagnosticHistory.refreshingEvents.takeIf { isDiagnosticHistoryPending }
+            ?: analysis?.postureEvents.orEmpty()
+
+    /** Diagnostics show the previous complete history, marked as refreshing, while it reloads. */
+    val isDiagnosticHistoryRefreshing: Boolean
+        get() = isDiagnosticHistoryPending && diagnosticHistory.refreshingEvents != null
 
     /** True while diagnostics would otherwise show an incomplete lookback history. */
     val isDiagnosticHistoryPending: Boolean

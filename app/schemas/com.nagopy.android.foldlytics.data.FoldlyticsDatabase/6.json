@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 6,
-    "identityHash": "1355cd8c209cdc1c51412655d28753e4",
+    "identityHash": "1c669df0dc167c29438aeb16c4bbf564",
     "entities": [
       {
         "tableName": "usage_events",
@@ -679,11 +679,35 @@
             "event_key"
           ]
         }
+      },
+      {
+        "tableName": "usage_event_revision",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`singleton_id` INTEGER NOT NULL, `revision` INTEGER NOT NULL, PRIMARY KEY(`singleton_id`))",
+        "fields": [
+          {
+            "fieldPath": "singletonId",
+            "columnName": "singleton_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "singleton_id"
+          ]
+        }
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '1355cd8c209cdc1c51412655d28753e4')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '1c669df0dc167c29438aeb16c4bbf564')"
     ]
   }
 }

@@ -155,7 +155,13 @@ class MainViewModel internal constructor(
         onStateChanged = { history ->
             _uiState.update { it.copy(diagnosticHistory = history) }
         },
+        // Stored events changed after the displayed analysis was read; display a fresh one.
+        onStale = { analysisRevision.value += 1L },
     )
+    private val reportPreparation = ReportPreparation(viewModelScope)
+
+    /** A report ready for the share sheet; it stays here until [onReportShared]. */
+    val preparedReport: StateFlow<String?> = reportPreparation.prepared
 
     private val _uiState = MutableStateFlow(
         MainUiState(
@@ -169,6 +175,11 @@ class MainViewModel internal constructor(
     init {
         observeStoredAnalysis()
         checkPermissionAndRefresh()
+        viewModelScope.launch {
+            reportPreparation.preparing.collect { preparing ->
+                _uiState.update { it.copy(isPreparingReport = preparing) }
+            }
+        }
     }
 
     fun checkPermissionAndRefresh() {
@@ -367,6 +378,18 @@ class MainViewModel internal constructor(
         _uiState.update { it.copy(error = null) }
     }
 
+    /**
+     * Prepares the diagnostic report for sharing, ignoring repeated requests until it is shown.
+     * Preparation runs in the view model, so it survives activity recreation.
+     */
+    fun prepareReportShare() {
+        reportPreparation.start { diagnosticReport() }
+    }
+
+    fun onReportShared(report: String) {
+        reportPreparation.consume(report)
+    }
+
     /** Loads, or after a failure retries, the complete posture history for diagnostics. */
     fun loadDiagnosticHistory() {
         diagnosticHistory.request()
@@ -377,7 +400,7 @@ class MainViewModel internal constructor(
      * Returns null, with an error to show, if the history failed to load or the analysis kept
      * changing, so a report never mixes one analysis with another analysis's history.
      */
-    suspend fun diagnosticReport(): String? {
+    internal suspend fun diagnosticReport(): String? {
         val report = diagnosticHistory.withCompleteHistory {
             DiagnosticReportFormatter.format(
                 state = _uiState.value,
@@ -550,6 +573,8 @@ class MainViewModel internal constructor(
                     } catch (error: CancellationException) {
                         throw error
                     } catch (error: Exception) {
+                        // A share waiting for this reload must not use the retained analysis.
+                        diagnosticHistory.onAnalysisReloadFailed()
                         _uiState.update {
                             it.copy(
                                 isAnalysisLoading = false,

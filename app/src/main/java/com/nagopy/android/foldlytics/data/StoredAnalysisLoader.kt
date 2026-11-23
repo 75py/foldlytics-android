@@ -17,6 +17,9 @@ import com.nagopy.android.foldlytics.model.availableAnalysisPeriods
 import com.nagopy.android.foldlytics.model.isValidCustomAnalysisRange
 import com.nagopy.android.foldlytics.model.resolveCalendarAnalysisRange
 import java.time.ZoneId
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 
 /** Inputs that identify one stored-analysis result. */
@@ -39,6 +42,16 @@ data class DiagnosticHistoryRequest(
     val rangeEndMillis: Long,
     val checkpoints: List<PostureCheckpoint>,
     val collectionGapStarts: List<Long>,
+    /** The usage-event revision the analysis read, or null when the store cannot tell. */
+    val sourceRevision: Long? = null,
+)
+
+/**
+ * The stored usage events changed after the analysis behind a [DiagnosticHistoryRequest] was
+ * read, so its complete history would not match it. Reload the analysis and request again.
+ */
+class StaleDiagnosticHistoryException : IllegalStateException(
+    "Usage events changed after the displayed analysis was read",
 )
 
 /** Everything one stored-analysis pass produces for the screen. */
@@ -119,15 +132,25 @@ class StoredAnalysisLoader(
     suspend fun loadDiagnosticPostureEvents(
         request: DiagnosticHistoryRequest,
         zoneId: ZoneId,
-    ): List<PostureEvent> = dailySummaryRepository.withDatabaseSnapshot {
-        analyzer.analyze(
-            records = syncRepository.loadPostureEvidenceBefore(request.rangeEndMillis),
+    ): List<PostureEvent> {
+        // Only the reads hold the transaction; the replay below runs after it ends.
+        val (records, revision) = dailySummaryRepository.withDatabaseSnapshot {
+            syncRepository.loadPostureEvidenceBefore(request.rangeEndMillis) to
+                syncRepository.loadUsageEventRevision()
+        }
+        if (request.sourceRevision != null && revision != request.sourceRevision) {
+            throw StaleDiagnosticHistoryException()
+        }
+        val job = currentCoroutineContext()[Job]
+        return analyzer.analyze(
+            records = records,
             rangeStartMillis = request.rangeStartMillis,
             rangeEndMillis = request.rangeEndMillis,
             calibration = request.calibration,
             checkpoints = request.checkpoints,
             zoneId = zoneId,
             collectionGapStarts = request.collectionGapStarts,
+            checkCancelled = { job?.ensureActive() },
         ).postureEvents
     }
 
@@ -176,6 +199,8 @@ class StoredAnalysisLoader(
             zoneId = zoneId,
             collectionGapStarts = collectionGaps.map(CollectionGap::startMillis),
         ) {
+            // Read in this transaction, so a later history read can prove it saw the same events.
+            val sourceRevision = syncRepository.loadUsageEventRevision()
             val summaries = dailySummaries
             val recordRangeStartMillis = summaries
                 .minOfOrNull(DailyPostureSummary::dayStartMillis)
@@ -333,6 +358,7 @@ class StoredAnalysisLoader(
                     rangeEndMillis = window.rangeEndMillis,
                     checkpoints = checkpoints,
                     collectionGapStarts = collectionGaps.map(CollectionGap::startMillis),
+                    sourceRevision = sourceRevision,
                 ),
             )
         }

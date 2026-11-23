@@ -79,6 +79,12 @@ interface UsageEventStore {
     suspend fun loadPostureEvidenceBefore(endMillis: Long): List<UsageRecord> =
         loadRecordsForAnalysis(endMillis, endMillis)
 
+    /**
+     * A value that changes whenever stored usage events change, or null when the store cannot
+     * tell. Equal values in two transactions mean both read the same events.
+     */
+    suspend fun loadUsageEventRevision(): Long? = null
+
     suspend fun loadSyncAttempts(beginMillis: Long, endMillis: Long): List<SyncAttempt>
 
     suspend fun loadDeviceStateCheckpointsForAnalysis(
@@ -204,6 +210,8 @@ class UsageSyncRepository(
 
     suspend fun loadPostureEvidenceBefore(endMillis: Long): List<UsageRecord> =
         eventStore.loadPostureEvidenceBefore(endMillis)
+
+    suspend fun loadUsageEventRevision(): Long? = eventStore.loadUsageEventRevision()
 
     suspend fun loadSyncAttempts(beginMillis: Long, endMillis: Long): List<SyncAttempt> =
         eventStore.loadSyncAttempts(beginMillis, endMillis)

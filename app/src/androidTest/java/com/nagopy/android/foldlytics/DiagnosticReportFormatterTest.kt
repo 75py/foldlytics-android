@@ -9,7 +9,12 @@ import com.nagopy.android.foldlytics.model.LongTermInsights
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
 import com.nagopy.android.foldlytics.model.UsageAnalysis
 import java.time.Instant
+import com.nagopy.android.foldlytics.model.DisplayPosture
+import com.nagopy.android.foldlytics.model.PostureEvent
+import com.nagopy.android.foldlytics.model.PostureEventSource
+import java.time.format.DateTimeFormatter
 import java.time.ZoneOffset
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -79,6 +84,44 @@ class DiagnosticReportFormatterTest {
                 ),
             ),
         )
+    }
+
+    @Test
+    fun reportListsTheNewestFiftyOfTheCompleteHistoryAndCountsAllOfIt() {
+        // 60 events, newest first as the analyzer lists them: 10 in range, 50 lookback.
+        val complete = (59 downTo 0).map { index ->
+            PostureEvent(
+                timestampMillis = index * 60_000L,
+                source = PostureEventSource.CONFIGURATION_CHANGE,
+                posture = DisplayPosture.COVER,
+                configuration = null,
+                isBeforeRange = index < 50,
+            )
+        }
+        val report = format(
+            MainUiState(
+                // The startup analysis lists only its compact lookback.
+                analysis = analysis().copy(postureEvents = complete.take(12)),
+                periodSummary = summary(AnalysisPeriod.HOURS_24),
+                diagnosticHistory = DiagnosticHistoryState(
+                    generation = 1L,
+                    status = DiagnosticHistoryStatus.READY,
+                    events = complete,
+                ),
+            ),
+        )
+        val time = DateTimeFormatter.ofPattern(
+            context.getString(R.string.report_date_time_pattern),
+            context.resources.configuration.locales[0],
+        ).withZone(ZoneOffset.UTC)
+        fun line(event: PostureEvent) = time.format(Instant.ofEpochMilli(event.timestampMillis))
+
+        assertTrue(report.contains(context.getString(R.string.report_posture_log_heading, 10, 50, 50)))
+        val listed = report.lines().filter { reportLine ->
+            complete.any { reportLine.startsWith(line(it)) }
+        }
+        assertEquals(complete.take(50).map(::line), listed.map { it.take(line(complete[0]).length) })
+        assertFalse(complete.drop(50).any { event -> listed.any { it.startsWith(line(event)) } })
     }
 
     private fun format(state: MainUiState): String = DiagnosticReportFormatter.format(

@@ -30,6 +30,8 @@ class UsageAnalyzer(
         zoneId: ZoneId = ZoneId.systemDefault(),
         collectionGapStarts: List<Long> = emptyList(),
         deviceStateCheckpoints: List<DeviceStateCheckpoint> = emptyList(),
+        /** Called periodically, so a caller can stop a long replay by throwing. */
+        checkCancelled: () -> Unit = {},
     ): UsageAnalysis {
         val orderedRecords = records
             .asSequence()
@@ -218,7 +220,8 @@ class UsageAnalyzer(
             )
         }
 
-        orderedEntries.forEach { entry ->
+        orderedEntries.forEachIndexed { index, entry ->
+            if (index % CANCELLATION_CHECK_INTERVAL == 0) checkCancelled()
             addInterval(entry.timestampMillis)
 
             if (entry is TimelineEntry.CollectionGap) {
@@ -241,7 +244,7 @@ class UsageAnalyzer(
                     isBeforeRange = entry.timestampMillis < rangeStartMillis,
                 )
                 lastTimestamp = entry.timestampMillis
-                return@forEach
+                return@forEachIndexed
             }
 
             if (entry is TimelineEntry.Checkpoint) {
@@ -252,14 +255,14 @@ class UsageAnalyzer(
                     checkpoint = entry.checkpoint,
                 )
                 lastTimestamp = entry.timestampMillis
-                return@forEach
+                return@forEachIndexed
             }
 
             if (entry is TimelineEntry.DeviceState) {
                 screenInteractive = entry.checkpoint.screenInteractive
                 keyguardHidden = entry.checkpoint.keyguardHidden
                 lastTimestamp = entry.timestampMillis
-                return@forEach
+                return@forEachIndexed
             }
 
             val record = (entry as TimelineEntry.Usage).record
@@ -381,6 +384,10 @@ class UsageAnalyzer(
             eventCount = orderedRecords.count { it.timestampMillis >= rangeStartMillis },
             multiResumeMillis = multiResumeMillis,
         )
+    }
+
+    private companion object {
+        const val CANCELLATION_CHECK_INTERVAL = 1_024
     }
 
     private data class MutableAppUsage(

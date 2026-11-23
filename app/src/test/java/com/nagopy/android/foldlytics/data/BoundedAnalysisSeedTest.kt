@@ -355,6 +355,24 @@ class BoundedAnalysisSeedTest {
         assertTrue(names.all { it.matches(Regex("analysis_seed_snapshot_v\\d+_usage_event_\\w+")) })
     }
 
+    @Test
+    fun onlyTriggersWithTheLiteralPrefixAreRetired() {
+        val unrelated = listOf(
+            // LIKE 'analysis_seed_snapshot_%' would match these, since '_' is a wildcard.
+            "analysisXseedXsnapshotXuser_trigger",
+            "analysis-seed-snapshot-audit",
+            "room_table_modification_trigger_usage_events_INSERT",
+        )
+        val retired = "analysis_seed_snapshot_v1_usage_event_insert"
+
+        assertEquals(
+            listOf(retired),
+            AnalysisSeedSnapshotTriggers.retiredNames(
+                unrelated + retired + AnalysisSeedSnapshotTriggers.names,
+            ),
+        )
+    }
+
     /** Screen on and unlocked from the start, with fold changes inside the analyzed day. */
     private fun scenario(vararg seedRows: UsageEventEntity): List<UsageEventEntity> = listOf(
         entity("screen", HOUR, UsageEvents.Event.SCREEN_INTERACTIVE),

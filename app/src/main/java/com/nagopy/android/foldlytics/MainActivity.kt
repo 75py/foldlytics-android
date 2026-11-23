@@ -38,6 +38,7 @@ import com.nagopy.android.foldlytics.widget.WidgetPeriod
 import java.time.LocalDate
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -88,6 +89,12 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         viewModel.recordAppLaunchCheckpoint()
         applyWidgetIntent(intent)
 
+        // The report is prepared in the view model, so a recreated activity still shows it.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.preparedReport.filterNotNull().collect(::showShareSheet)
+            }
+        }
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 WindowInfoTracker.getOrCreate(this@MainActivity)
@@ -116,7 +123,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                     onRefresh = viewModel::refreshFromCurrentState,
                     onDismissError = viewModel::clearError,
                     onLoadDiagnosticHistory = viewModel::loadDiagnosticHistory,
-                    onShare = ::shareReport,
+                    onShare = viewModel::prepareReportShare,
                     onExportCsv = ::exportLongTermCsv,
                     onOpenPrivacyPolicy = ::openPrivacyPolicy,
                     onOpenOssLicenses = ::openOssLicenses,
@@ -198,18 +205,14 @@ class MainActivity : ComponentActivity(), SensorEventListener {
             .onFailure { startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
     }
 
-    private fun shareReport() {
-        lifecycleScope.launch {
-            // The report lists the complete posture history, which loads on demand.
-            // Null means the history failed or kept changing; the error explains it.
-            val report = viewModel.diagnosticReport() ?: return@launch
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/plain"
-                putExtra(Intent.EXTRA_SUBJECT, getString(R.string.share_report_subject))
-                putExtra(Intent.EXTRA_TEXT, report)
-            }
-            startActivity(Intent.createChooser(intent, getString(R.string.share_report_chooser)))
+    private fun showShareSheet(report: String) {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, getString(R.string.share_report_subject))
+            putExtra(Intent.EXTRA_TEXT, report)
         }
+        startActivity(Intent.createChooser(intent, getString(R.string.share_report_chooser)))
+        viewModel.onReportShared(report)
     }
 
     private suspend fun shareSummaryImage(bitmap: Bitmap): Boolean {

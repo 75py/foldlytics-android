@@ -40,11 +40,21 @@ internal fun DiagnosticsContent(
     val analysis = state.analysis
     // The startup analysis keeps only a compact lookback, so load the complete history here.
     LaunchedEffect(state.diagnosticHistory.generation) { onLoadDiagnosticHistory() }
-    val historyPending = state.isDiagnosticHistoryPending
+    val historyRefreshing = state.isDiagnosticHistoryRefreshing
+    // Without a previous complete history to keep showing, wait instead of showing a partial one.
+    val historyLoading = state.isDiagnosticHistoryPending && !historyRefreshing
     val historyFailed = state.isDiagnosticHistoryFailed
     val events = state.visiblePostureEvents
     val inRangeCount = events.count { !it.isBeforeRange }
     val seedCount = events.size - inRangeCount
+    fun countText(count: Int): String {
+        val text = resources.getString(R.string.value_item_count, count)
+        return if (historyRefreshing) {
+            resources.getString(R.string.value_item_count_refreshing, text)
+        } else {
+            text
+        }
+    }
     FoldlyticsLazyColumn(scaffoldPadding = scaffoldPadding) {
         item {
             LabCard(title = stringResource(R.string.diagnostics_overview_title)) {
@@ -57,16 +67,16 @@ internal fun DiagnosticsContent(
                 )
                 InfoLine(
                     stringResource(R.string.label_in_range_posture_events),
-                    resources.getString(R.string.value_item_count, inRangeCount),
+                    countText(inRangeCount),
                 )
                 InfoLine(
                     stringResource(R.string.label_lookback_events),
-                    if (historyPending) {
+                    if (historyLoading) {
                         stringResource(R.string.diagnostic_history_loading)
                     } else if (historyFailed) {
                         stringResource(R.string.diagnostic_history_unavailable)
                     } else {
-                        resources.getString(R.string.value_item_count, seedCount)
+                        countText(seedCount)
                     },
                 )
                 analysis?.let {
@@ -87,11 +97,13 @@ internal fun DiagnosticsContent(
         item { ExcludedDataCard(state) }
         item { CollectionDiagnosticsCard(state) }
         item { SectionTitle(stringResource(R.string.posture_events_title)) }
-        if (historyPending) {
-            item { HintCard(stringResource(R.string.diagnostic_history_loading)) }
+        if (historyLoading) {
+            item(key = HISTORY_STATUS_KEY) {
+                HintCard(stringResource(R.string.diagnostic_history_loading))
+            }
         } else if (historyFailed) {
             // Do not fall back to the compact startup lookback, which would look complete.
-            item {
+            item(key = HISTORY_STATUS_KEY) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     HintCard(stringResource(R.string.diagnostic_history_failed), isError = true)
                     OutlinedButton(onClick = onLoadDiagnosticHistory) {
@@ -102,6 +114,12 @@ internal fun DiagnosticsContent(
         } else if (events.isEmpty()) {
             item { HintCard(stringResource(R.string.posture_events_empty)) }
         } else {
+            if (historyRefreshing) {
+                item(key = HISTORY_STATUS_KEY) {
+                    HintCard(stringResource(R.string.diagnostic_history_refreshing))
+                }
+            }
+            // Stable keys keep the scroll position when the refreshed list replaces this one.
             itemsIndexed(
                 items = events,
                 key = { index, event ->
@@ -367,3 +385,5 @@ private fun PostureEventRow(event: PostureEvent) {
         }
     }
 }
+
+private const val HISTORY_STATUS_KEY = "diagnostic-history-status"

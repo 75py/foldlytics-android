@@ -1,6 +1,7 @@
 package com.nagopy.android.foldlytics.data
 
 import android.app.usage.UsageEvents
+import com.nagopy.android.foldlytics.DiagnosticHistoryController
 import com.nagopy.android.foldlytics.DiagnosticHistoryState
 import com.nagopy.android.foldlytics.DiagnosticHistoryStatus
 import com.nagopy.android.foldlytics.MainUiState
@@ -11,7 +12,11 @@ import com.nagopy.android.foldlytics.model.PostureCheckpoint
 import com.nagopy.android.foldlytics.model.PostureCheckpointSource
 import com.nagopy.android.foldlytics.model.PostureEventSource
 import java.time.ZoneOffset
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -34,18 +39,7 @@ class DiagnosticPostureHistoryTest {
         val events = history()
         val boundedDao = InMemoryUsageEventDao(events)
         val legacyDao = InMemoryUsageEventDao(events, triggersInstalled = false)
-        val request = StoredAnalysisRequest(
-            period = AnalysisPeriod.HOURS_24,
-            customRange = null,
-            calibration = calibration,
-            syncState = UsageSyncState(
-                lastSuccessfulEndMillis = END_MILLIS,
-                lastSuccessfulAtMillis = END_MILLIS,
-                lastQueryBeginMillis = END_MILLIS - HOUR,
-                lastInsertedEventCount = 0,
-            ),
-            checkpointRevision = 0L,
-        )
+        val request = request()
 
         val legacy = loader(legacyDao).load(request, zoneId)
         val boundedLoader = loader(boundedDao)
@@ -99,6 +93,106 @@ class DiagnosticPostureHistoryTest {
     }
 
     @Test
+    fun historyReadAfterABackfilledConfigurationDoesNotMixWithTheDisplayedAnalysis() = runBlocking {
+        val dao = InMemoryUsageEventDao(history())
+        val loader = loader(dao)
+        val displayed = loader.load(request(), zoneId)
+        val displayedInRange = requireNotNull(displayed.analysis).postureEvents
+            .filterNot { it.isBeforeRange }
+
+        // A late sync backfills a configuration inside the displayed window.
+        dao.insertEvents(listOf(backfilledInnerEvent()))
+
+        val outcome = runCatching {
+            loader.loadDiagnosticPostureEvents(requireNotNull(displayed.diagnosticHistory), zoneId)
+        }
+        // Before the source revision check, this returned the new history, whose in-range events
+        // no longer matched the displayed analysis.
+        assertTrue(
+            "returned history matches the display: " +
+                "${outcome.getOrNull()?.filterNot { it.isBeforeRange } == displayedInRange}",
+            outcome.exceptionOrNull() is StaleDiagnosticHistoryException,
+        )
+
+        // Reloading the analysis gives a history from the same revision.
+        val reloaded = loader.load(request(), zoneId)
+        val events = loader.loadDiagnosticPostureEvents(
+            requireNotNull(reloaded.diagnosticHistory),
+            zoneId,
+        )
+        assertEquals(
+            requireNotNull(reloaded.analysis).postureEvents.filterNot { it.isBeforeRange },
+            events.filterNot { it.isBeforeRange },
+        )
+        assertNotEquals(displayedInRange, events.filterNot { it.isBeforeRange })
+    }
+
+    @Test
+    fun sharingAfterABackfillReloadsAndUsesOneRevisionForAnalysisAndHistory() = runBlocking {
+        val events = history()
+        val dao = InMemoryUsageEventDao(events)
+        val loader = loader(dao)
+        var displayed = loader.load(request(), zoneId)
+        val scope = CoroutineScope(coroutineContext + SupervisorJob())
+        lateinit var controller: DiagnosticHistoryController
+        var reloads = 0
+        controller = DiagnosticHistoryController(
+            scope = scope,
+            load = { loader.loadDiagnosticPostureEvents(it, zoneId) },
+            onStateChanged = {},
+            onStale = {
+                // As the view model does: reload, then display the new analysis.
+                scope.launch {
+                    reloads += 1
+                    val reloaded = loader.load(request(), zoneId)
+                    controller.onAnalysisDisplayed(reloaded.diagnosticHistory)
+                    displayed = reloaded
+                }
+            },
+        )
+        controller.onAnalysisDisplayed(displayed.diagnosticHistory)
+
+        // A late sync backfills a configuration after the analysis was displayed.
+        dao.insertEvents(listOf(backfilledInnerEvent()))
+        val (sharedAnalysis, sharedEvents) = requireNotNull(
+            controller.withCompleteHistory {
+                requireNotNull(displayed.analysis) to requireNotNull(controller.state.events)
+            },
+        )
+
+        assertEquals(1, reloads)
+        val expected = loader(
+            InMemoryUsageEventDao(events + backfilledInnerEvent(), triggersInstalled = false),
+        ).load(request(), zoneId)
+        assertEquals(requireNotNull(expected.analysis).postureEvents, sharedEvents)
+        assertEquals(
+            sharedAnalysis.postureEvents.filterNot { it.isBeforeRange },
+            sharedEvents.filterNot { it.isBeforeRange },
+        )
+        scope.cancel()
+    }
+
+    @Test
+    fun completeHistoryListsMoreThanTheReportLimitNewestFirst() = runBlocking {
+        val events = history()
+        val bounded = loader(InMemoryUsageEventDao(events))
+        val legacy = loader(InMemoryUsageEventDao(events, triggersInstalled = false))
+            .load(request(), zoneId)
+        val snapshot = bounded.load(request(), zoneId)
+        val complete = bounded.loadDiagnosticPostureEvents(
+            requireNotNull(snapshot.diagnosticHistory),
+            zoneId,
+        )
+
+        assertTrue(complete.size > 50)
+        assertEquals(requireNotNull(legacy.analysis).postureEvents, complete)
+        assertEquals(
+            complete.sortedByDescending { it.timestampMillis }.map { it.timestampMillis },
+            complete.map { it.timestampMillis },
+        )
+    }
+
+    @Test
     fun visibleEventsFallBackToTheAnalysisUntilTheHistoryLoads() {
         val state = MainUiState(
             diagnosticHistory = DiagnosticHistoryState(status = DiagnosticHistoryStatus.LOADING),
@@ -114,6 +208,34 @@ class DiagnosticPostureHistoryTest {
         )
         assertTrue(!ready.isDiagnosticHistoryPending)
     }
+
+    private fun request() = StoredAnalysisRequest(
+        period = AnalysisPeriod.HOURS_24,
+        customRange = null,
+        calibration = calibration,
+        syncState = UsageSyncState(
+            lastSuccessfulEndMillis = END_MILLIS,
+            lastSuccessfulAtMillis = END_MILLIS,
+            lastQueryBeginMillis = END_MILLIS - HOUR,
+            lastInsertedEventCount = 0,
+        ),
+        checkpointRevision = 0L,
+    )
+
+    private fun backfilledInnerEvent() = UsageEventEntity(
+        eventKey = "backfill",
+        timestampMillis = END_MILLIS - 3 * HOUR - 7L,
+        sequenceAtTimestamp = 0,
+        rawEventType = UsageEvents.Event.CONFIGURATION_CHANGE,
+        packageName = null,
+        className = null,
+        hasConfiguration = true,
+        screenWidthDp = inner.screenWidthDp,
+        screenHeightDp = inner.screenHeightDp,
+        smallestScreenWidthDp = inner.smallestScreenWidthDp,
+        orientation = inner.orientation,
+        densityDpi = inner.densityDpi,
+    )
 
     private fun loader(dao: InMemoryUsageEventDao): StoredAnalysisLoader {
         val checkpointDao = InMemoryCheckpointDao(

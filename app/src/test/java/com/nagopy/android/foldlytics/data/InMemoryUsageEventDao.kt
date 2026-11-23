@@ -60,8 +60,11 @@ internal class InMemoryUsageEventDao(
     private fun Sequence<UsageEventEntity>.read(): List<UsageEventEntity> =
         toList().also { rowsRead += it.size }
 
+    private var usageEventRevision: Long? = null
+
     private fun invalidateAfter(timestampMillis: Long) {
         if (!triggersInstalled) return
+        usageEventRevision = (usageEventRevision ?: 0L) + 1L
         snapshots.keys.removeAll { it > timestampMillis }
         snapshotEvents.removeAll { it.boundaryMillis > timestampMillis }
     }
@@ -133,6 +136,8 @@ internal class InMemoryUsageEventDao(
         snapshotWriteFailure?.let { throw it }
         snapshots[snapshot.boundaryMillis] = snapshot
     }
+
+    override suspend fun loadUsageEventRevision(): Long? = usageEventRevision
 
     override suspend fun countAnalysisSeedSnapshotsAfter(boundaryMillis: Long): Int =
         snapshots.keys.count { it > boundaryMillis }

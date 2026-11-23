@@ -289,6 +289,23 @@ data class AnalysisSeedSnapshotEntity(
     val compactionVersion: Int,
 )
 
+/**
+ * Counts every insert, update and delete of a usage event, maintained by
+ * [AnalysisSeedSnapshotTriggers]. Two reads that see the same revision saw the same events.
+ */
+@Entity(tableName = "usage_event_revision")
+data class UsageEventRevisionEntity(
+    @PrimaryKey
+    @ColumnInfo(name = "singleton_id")
+    val singletonId: Int = SINGLETON_ID,
+    @ColumnInfo(name = "revision")
+    val revision: Long,
+) {
+    companion object {
+        const val SINGLETON_ID = 1
+    }
+}
+
 @Entity(
     tableName = "analysis_seed_snapshot_events",
     primaryKeys = ["boundary_millis", "event_key"],
@@ -491,6 +508,19 @@ interface UsageEventDao {
      * Each step also leaves only states that read correctly, should a step fail without a
      * rollback: a metadata row is removed before its event rows and written after them, so no
      * snapshot is ever readable without all of its rows.
+     *
+     * Deliberate trade-off: the seed is optional, yet a failure to store it fails the load.
+     * - Full atomic rollback (chosen): the cache update and its source reads commit or roll back
+     *   together, and the caller reports the error and retries on its next refresh. The cost is
+     *   that a rare storage failure, such as a full disk, fails an analysis that could have
+     *   succeeded without the cache.
+     * - A split transaction (rejected): writing the seed in its own transaction after the read
+     *   would need the read to run outside the caller's transaction, which
+     *   [DailySummaryRepository] and [StoredAnalysisLoader] use to keep the daily cache and the
+     *   displayed analysis consistent. The separate write could also see events changed after the
+     *   read and would have to revalidate them.
+     * - Catching the error inside the transaction (rejected): it silently rolls the caller back,
+     *   as described above.
      */
     private suspend fun persistAnalysisSeedSnapshot(
         snapshot: AnalysisSeedSnapshotEntity,
@@ -537,6 +567,12 @@ interface UsageEventDao {
             AnalysisSeedSnapshotTriggers.DELETE + "')",
     )
     suspend fun countAnalysisSeedSnapshotTriggers(): Int
+
+    @Query(
+        "SELECT revision FROM usage_event_revision WHERE singleton_id = " +
+            UsageEventRevisionEntity.SINGLETON_ID,
+    )
+    suspend fun loadUsageEventRevision(): Long?
 
     @Query("SELECT COUNT(*) FROM analysis_seed_snapshots WHERE boundary_millis > :boundaryMillis")
     suspend fun countAnalysisSeedSnapshotsAfter(boundaryMillis: Long): Int
@@ -1037,6 +1073,7 @@ interface DailyPostureSummaryDao {
         SyncHistoryEntity::class,
         AnalysisSeedSnapshotEntity::class,
         AnalysisSeedSnapshotEventEntity::class,
+        UsageEventRevisionEntity::class,
     ],
     version = 6,
     exportSchema = true,
@@ -1175,6 +1212,15 @@ internal val MIGRATION_5_6 = object : Migration(5, 6) {
             )
             """.trimIndent(),
         )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `usage_event_revision` (
+                `singleton_id` INTEGER NOT NULL,
+                `revision` INTEGER NOT NULL,
+                PRIMARY KEY(`singleton_id`)
+            )
+            """.trimIndent(),
+        )
         AnalysisSeedSnapshotTriggers.create(db)
     }
 }
@@ -1186,10 +1232,10 @@ internal val MIGRATION_5_6 = object : Migration(5, 6) {
 object AnalysisSeedSnapshotTriggers {
     // Versioned names: change the version whenever a trigger body changes, so databases that
     // already hold the old body replace it on the next open.
-    const val INSERT = "analysis_seed_snapshot_v1_usage_event_insert"
-    const val UPDATE = "analysis_seed_snapshot_v1_usage_event_update"
-    const val DELETE = "analysis_seed_snapshot_v1_usage_event_delete"
-    private const val NAME_PREFIX = "analysis_seed_snapshot_"
+    const val INSERT = "analysis_seed_snapshot_v2_usage_event_insert"
+    const val UPDATE = "analysis_seed_snapshot_v2_usage_event_update"
+    const val DELETE = "analysis_seed_snapshot_v2_usage_event_delete"
+    internal const val NAME_PREFIX = "analysis_seed_snapshot_"
 
     internal val names = listOf(INSERT, UPDATE, DELETE)
 
@@ -1199,28 +1245,36 @@ object AnalysisSeedSnapshotTriggers {
         }
     }
 
+    /** Our trigger names other than the current ones. The prefix is literal, not a pattern. */
+    internal fun retiredNames(existingTriggerNames: List<String>): List<String> =
+        existingTriggerNames.filter { it.startsWith(NAME_PREFIX) && it !in names }
+
     internal fun create(db: SupportSQLiteDatabase) {
-        val retired = db.query(
-            "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE ?",
-            arrayOf<Any?>("$NAME_PREFIX%"),
-        ).use { cursor ->
-            buildList {
-                while (cursor.moveToNext()) add(cursor.getString(0))
+        // LIKE would treat each underscore in the prefix as a wildcard, so match in Kotlin.
+        val existing = db.query("SELECT name FROM sqlite_master WHERE type = 'trigger'")
+            .use { cursor ->
+                buildList {
+                    while (cursor.moveToNext()) add(cursor.getString(0))
+                }
             }
-        }.filterNot { it in names }
-        retired.forEach { name -> db.execSQL("DROP TRIGGER IF EXISTS `$name`") }
+        retiredNames(existing).forEach { name -> db.execSQL("DROP TRIGGER IF EXISTS `$name`") }
         db.execSQL(trigger(INSERT, "INSERT", "NEW.timestamp_millis"))
         db.execSQL(trigger(UPDATE, "UPDATE", "MIN(OLD.timestamp_millis, NEW.timestamp_millis)"))
         db.execSQL(trigger(DELETE, "DELETE", "OLD.timestamp_millis"))
     }
 
-    // A row at timestamp t is part of the history before every boundary after t.
+    // A row at timestamp t is part of the history before every boundary after t. Every change
+    // also advances the usage-event revision.
     private fun trigger(name: String, operation: String, changedMillis: String): String =
         """
         CREATE TRIGGER IF NOT EXISTS `$name` AFTER $operation ON `usage_events`
         BEGIN
             DELETE FROM `analysis_seed_snapshot_events` WHERE `boundary_millis` > $changedMillis;
             DELETE FROM `analysis_seed_snapshots` WHERE `boundary_millis` > $changedMillis;
+            INSERT OR IGNORE INTO `usage_event_revision` (`singleton_id`, `revision`)
+                VALUES (${UsageEventRevisionEntity.SINGLETON_ID}, 0);
+            UPDATE `usage_event_revision` SET `revision` = `revision` + 1
+                WHERE `singleton_id` = ${UsageEventRevisionEntity.SINGLETON_ID};
         END
         """.trimIndent()
 }
@@ -1262,6 +1316,14 @@ class RoomUsageEventStore(
     ): List<UsageRecord> =
         dao.loadBoundedUsageEventsForAnalysis(beginMillis, endMillis, collectionGapStarts)
             .map(UsageEventEntity::toModel)
+
+    override suspend fun loadUsageEventRevision(): Long? =
+        if (dao.countAnalysisSeedSnapshotTriggers() == AnalysisSeedSnapshotTriggers.names.size) {
+            dao.loadUsageEventRevision() ?: 0L
+        } else {
+            // Without the triggers nothing advances the revision, so it proves nothing.
+            null
+        }
 
     override suspend fun loadPostureEvidenceBefore(endMillis: Long): List<UsageRecord> =
         dao.loadDeviceEvents(0L, endMillis, StoredUsageEventTypes.postureEvidence)

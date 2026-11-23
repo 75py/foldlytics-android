@@ -293,6 +293,48 @@ class LongTermDatabaseTest {
             }
         }
 
+    @Test
+    fun openingDropsOnlyRetiredSeedTriggersMatchedByTheLiteralPrefix() {
+        val db = writableDatabase()
+        // LIKE 'analysis_seed_snapshot_%' would match this unrelated name too.
+        db.execSQL(
+            "CREATE TRIGGER analysisXseedXsnapshotXkeep AFTER INSERT ON usage_events " +
+                "BEGIN SELECT 1; END",
+        )
+        db.execSQL(
+            "CREATE TRIGGER analysis_seed_snapshot_v1_usage_event_insert " +
+                "AFTER INSERT ON usage_events BEGIN SELECT 1; END",
+        )
+
+        AnalysisSeedSnapshotTriggers.create(db)
+
+        val triggers = db.query("SELECT name FROM sqlite_master WHERE type = 'trigger'")
+            .use { cursor ->
+                buildSet {
+                    while (cursor.moveToNext()) add(cursor.getString(0))
+                }
+            }
+        assertTrue(triggers.toString(), "analysisXseedXsnapshotXkeep" in triggers)
+        assertFalse(triggers.toString(), "analysis_seed_snapshot_v1_usage_event_insert" in triggers)
+        assertTrue(triggers.containsAll(AnalysisSeedSnapshotTriggers.names))
+    }
+
+    @Test
+    fun everyUsageEventChangeAdvancesTheRevision() = runBlocking {
+        val dao = database.usageEventDao()
+        val before = dao.loadUsageEventRevision() ?: 0L
+        dao.insertEvents(listOf(event("revision", 1_000L, 0, UsageEvents.Event.SCREEN_INTERACTIVE)))
+        val inserted = requireNotNull(dao.loadUsageEventRevision())
+        dao.updateEvents(
+            listOf(event("revision", 1_000L, 1, UsageEvents.Event.SCREEN_INTERACTIVE)),
+        )
+        val updated = requireNotNull(dao.loadUsageEventRevision())
+        writableDatabase().execSQL("DELETE FROM usage_events WHERE event_key = 'revision'")
+        val deleted = requireNotNull(dao.loadUsageEventRevision())
+
+        assertTrue(before < inserted && inserted < updated && updated < deleted)
+    }
+
     private fun seedSnapshotBoundaries(): List<Long> = database.openHelper.readableDatabase
         .query("SELECT boundary_millis FROM analysis_seed_snapshots ORDER BY boundary_millis")
         .use { cursor ->
