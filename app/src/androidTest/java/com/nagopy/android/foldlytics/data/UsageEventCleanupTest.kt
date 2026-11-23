@@ -40,6 +40,8 @@ class UsageEventCleanupTest {
         require(CACHE_CURSOR_MIGRATION_DATABASE_NAME != "foldlytics.db")
         require(LEGACY_MULTIPLICITY_MIGRATION_DATABASE_NAME != "foldlytics.db")
         require(FRESH_DATABASE_NAME != "foldlytics.db")
+        require(SEED_SNAPSHOT_MIGRATION_DATABASE_NAME != "foldlytics.db")
+        context.deleteDatabase(SEED_SNAPSHOT_MIGRATION_DATABASE_NAME)
         context.deleteDatabase(LEGACY_CLEANUP_DATABASE_NAME)
         context.deleteDatabase(DEVICE_STATE_MIGRATION_DATABASE_NAME)
         context.deleteDatabase(SESSION_MIGRATION_DATABASE_NAME)
@@ -50,6 +52,7 @@ class UsageEventCleanupTest {
 
     @After
     fun tearDown() {
+        context.deleteDatabase(SEED_SNAPSHOT_MIGRATION_DATABASE_NAME)
         context.deleteDatabase(LEGACY_CLEANUP_DATABASE_NAME)
         context.deleteDatabase(DEVICE_STATE_MIGRATION_DATABASE_NAME)
         context.deleteDatabase(SESSION_MIGRATION_DATABASE_NAME)
@@ -365,6 +368,65 @@ class UsageEventCleanupTest {
     }
 
     @Test
+    fun migrationFromFiveToSixAddsSeedSnapshotsThatUsageEventWritesInvalidate() {
+        val versionFive = migrationHelper.createDatabase(SEED_SNAPSHOT_MIGRATION_DATABASE_NAME, 5)
+        try {
+            insertUsageEvent(versionFive, event("existing", UsageEvents.Event.ACTIVITY_RESUMED))
+        } finally {
+            versionFive.close()
+        }
+        val migrated = migrationHelper.runMigrationsAndValidate(
+            SEED_SNAPSHOT_MIGRATION_DATABASE_NAME,
+            6,
+            true,
+            MIGRATION_5_6,
+        )
+        try {
+            listOf(500L, 2_000L).forEach { boundary ->
+                migrated.execSQL(
+                    "INSERT INTO analysis_seed_snapshots " +
+                        "(boundary_millis, last_collection_gap_start_millis, compaction_version) " +
+                        "VALUES ($boundary, NULL, 1)",
+                )
+                migrated.execSQL(
+                    "INSERT INTO analysis_seed_snapshot_events (boundary_millis, event_key) " +
+                        "VALUES ($boundary, 'existing')",
+                )
+            }
+            // The existing event is at 1000, so only the later boundary covers the changed row.
+            migrated.execSQL(
+                "UPDATE usage_events SET sequence_at_timestamp = 1 WHERE event_key = 'existing'",
+            )
+
+            assertEquals(
+                listOf(500L),
+                migrated.longs("SELECT boundary_millis FROM analysis_seed_snapshots"),
+            )
+            assertEquals(
+                listOf(500L),
+                migrated.longs("SELECT boundary_millis FROM analysis_seed_snapshot_events"),
+            )
+            migrated.execSQL(
+                "UPDATE analysis_seed_snapshots SET boundary_millis = 1500 " +
+                    "WHERE boundary_millis = 500",
+            )
+            migrated.execSQL("DELETE FROM usage_events WHERE event_key = 'existing'")
+            assertEquals(
+                emptyList<Long>(),
+                migrated.longs("SELECT boundary_millis FROM analysis_seed_snapshots"),
+            )
+        } finally {
+            migrated.close()
+        }
+    }
+
+    private fun SupportSQLiteDatabase.longs(sql: String): List<Long> = query(sql).use { cursor ->
+        buildList {
+            while (cursor.moveToNext()) add(cursor.getLong(0))
+        }
+    }
+
+    @Test
     fun migratedLegacyEventsRecoverDuplicateWithCoherentSameTimestampOrder() = runBlocking {
         val cover = DisplayConfiguration(
             screenWidthDp = 443,
@@ -487,10 +549,10 @@ class UsageEventCleanupTest {
     }
 
     @Test
-    fun reopeningFreshVersionFiveDatabaseDoesNotRunLegacyCleanup() = runBlocking {
+    fun reopeningFreshLatestDatabaseDoesNotRunLegacyCleanup() = runBlocking {
         var database = openLatestDatabase(FRESH_DATABASE_NAME)
         try {
-            assertEquals(5, database.openHelper.writableDatabase.version)
+            assertEquals(6, database.openHelper.writableDatabase.version)
             database.usageEventDao().insertEvents(
                 listOf(
                     event(
@@ -680,7 +742,14 @@ class UsageEventCleanupTest {
 
     private fun openLatestDatabase(name: String): FoldlyticsDatabase =
         Room.databaseBuilder(context, FoldlyticsDatabase::class.java, name)
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .addMigrations(
+                MIGRATION_1_2,
+                MIGRATION_2_3,
+                MIGRATION_3_4,
+                MIGRATION_4_5,
+                MIGRATION_5_6,
+            )
+            .addCallback(AnalysisSeedSnapshotTriggers.callback)
             .build()
 
     private fun event(eventKey: String, rawEventType: Int): UsageEventEntity = UsageEventEntity(
@@ -708,5 +777,7 @@ class UsageEventCleanupTest {
         const val LEGACY_MULTIPLICITY_MIGRATION_DATABASE_NAME =
             "foldlytics-legacy-multiplicity-migration-test.db"
         const val FRESH_DATABASE_NAME = "foldlytics-usage-event-fresh-v5-test.db"
+        const val SEED_SNAPSHOT_MIGRATION_DATABASE_NAME =
+            "foldlytics-seed-snapshot-migration-test.db"
     }
 }

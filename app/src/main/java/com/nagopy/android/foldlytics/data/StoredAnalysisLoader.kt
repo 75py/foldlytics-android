@@ -213,7 +213,12 @@ class StoredAnalysisLoader(
                 selectedSessions.minOfOrNull { it.openedAtMillis } ?: window.seedStartMillis,
             )
             // One historical seed read supplies both diagnostic analysis and selected details.
-            val records = syncRepository.loadRecordsForAnalysis(seedStart, window.rangeEndMillis)
+            // Every gap is applied below, so the store may compact history before the seed start.
+            val records = syncRepository.loadRecordsForAnalysis(
+                beginMillis = seedStart,
+                endMillis = window.rangeEndMillis,
+                collectionGapStarts = collectionGaps.map(CollectionGap::startMillis),
+            )
             val checkpoints = checkpointRepository.loadForAnalysis(seedStart, window.rangeEndMillis)
             val deviceStateCheckpoints = syncRepository.loadDeviceStateCheckpointsForAnalysis(
                 seedStart,

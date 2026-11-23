@@ -61,6 +61,16 @@ interface UsageEventStore {
 
     suspend fun loadRecordsForAnalysis(beginMillis: Long, endMillis: Long): List<UsageRecord>
 
+    /**
+     * Loads the same analyzer input as the two-argument overload. Stores may bound the history
+     * they read before [beginMillis] when the caller applies [collectionGapStarts] in analysis.
+     */
+    suspend fun loadRecordsForAnalysis(
+        beginMillis: Long,
+        endMillis: Long,
+        collectionGapStarts: List<Long>,
+    ): List<UsageRecord> = loadRecordsForAnalysis(beginMillis, endMillis)
+
     suspend fun loadSyncAttempts(beginMillis: Long, endMillis: Long): List<SyncAttempt>
 
     suspend fun loadDeviceStateCheckpointsForAnalysis(
@@ -176,6 +186,13 @@ class UsageSyncRepository(
 
     suspend fun loadRecordsForAnalysis(beginMillis: Long, endMillis: Long): List<UsageRecord> =
         eventStore.loadRecordsForAnalysis(beginMillis, endMillis)
+
+    suspend fun loadRecordsForAnalysis(
+        beginMillis: Long,
+        endMillis: Long,
+        collectionGapStarts: List<Long>,
+    ): List<UsageRecord> =
+        eventStore.loadRecordsForAnalysis(beginMillis, endMillis, collectionGapStarts)
 
     suspend fun loadSyncAttempts(beginMillis: Long, endMillis: Long): List<SyncAttempt> =
         eventStore.loadSyncAttempts(beginMillis, endMillis)

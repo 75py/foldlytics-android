@@ -377,6 +377,37 @@ class StoredAnalysisSnapshotConcurrencyTest {
             rawEventTypes: List<Int>,
         ): List<UsageEventEntity> = emptyList()
 
+        override suspend fun loadActivityEventsBetween(
+            beginMillis: Long,
+            endMillis: Long,
+            rawEventTypes: List<Int>,
+        ): List<UsageEventEntity> = emptyList()
+
+        override suspend fun countAnalysisSeedSnapshotTriggers(): Int = 0
+
+        override suspend fun loadAnalysisSeedSnapshotsAtOrBefore(
+            boundaryMillis: Long,
+            compactionVersion: Int,
+        ): List<AnalysisSeedSnapshotEntity> = emptyList()
+
+        override suspend fun loadAnalysisSeedSnapshotEvents(
+            boundaryMillis: Long,
+            rawEventTypes: List<Int>,
+        ): List<UsageEventEntity> = emptyList()
+
+        override suspend fun upsertAnalysisSeedSnapshot(snapshot: AnalysisSeedSnapshotEntity) =
+            Unit
+
+        override suspend fun insertAnalysisSeedSnapshotEvents(
+            events: List<AnalysisSeedSnapshotEventEntity>,
+        ) = Unit
+
+        override suspend fun deleteAnalysisSeedSnapshotEvents(boundaryMillis: Long) = Unit
+
+        override suspend fun deleteAnalysisSeedSnapshotEventsBeyondNewest(keep: Int) = Unit
+
+        override suspend fun deleteAnalysisSeedSnapshotsBeyondNewest(keep: Int) = Unit
+
         override suspend fun earliestEventTimestamp(): Long? = null
 
         override suspend fun earliestDeviceEventTimestamp(rawEventTypes: List<Int>): Long? = null

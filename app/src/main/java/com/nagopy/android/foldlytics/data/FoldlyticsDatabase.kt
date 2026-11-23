@@ -274,6 +274,32 @@ data class SyncHistoryEntity(
     val keyguardHidden: Boolean? = null,
 )
 
+/**
+ * A compact analyzer seed for one UTC midnight. Rows are invalidated by triggers whenever a usage
+ * event before the boundary is inserted, updated or deleted.
+ */
+@Entity(tableName = "analysis_seed_snapshots")
+data class AnalysisSeedSnapshotEntity(
+    @PrimaryKey
+    @ColumnInfo(name = "boundary_millis")
+    val boundaryMillis: Long,
+    @ColumnInfo(name = "last_collection_gap_start_millis")
+    val lastCollectionGapStartMillis: Long?,
+    @ColumnInfo(name = "compaction_version")
+    val compactionVersion: Int,
+)
+
+@Entity(
+    tableName = "analysis_seed_snapshot_events",
+    primaryKeys = ["boundary_millis", "event_key"],
+)
+data class AnalysisSeedSnapshotEventEntity(
+    @ColumnInfo(name = "boundary_millis")
+    val boundaryMillis: Long,
+    @ColumnInfo(name = "event_key")
+    val eventKey: String,
+)
+
 @Dao
 interface UsageEventDao {
     @Query(
@@ -348,6 +374,212 @@ interface UsageEventDao {
         return seeds.distinctBy(UsageEventEntity::eventKey) +
             loadDeviceEvents(beginMillis, endMillis, StoredUsageEventTypes.all)
     }
+
+    /**
+     * Returns the same analyzer input as [loadUsageEventsForAnalysis], except that history before
+     * the UTC midnight at or before [beginMillis] is replaced by a persisted compact seed. The seed
+     * is advanced from the newest valid snapshot, so repeated loads read a bounded span of rows.
+     *
+     * [collectionGapStarts] must be the gaps the caller applies; a snapshot is reused only while
+     * the latest gap before its boundary is unchanged. Without the invalidation triggers, for
+     * example in a database built without [AnalysisSeedSnapshotTriggers.callback], this falls back
+     * to the full read.
+     */
+    @Transaction
+    suspend fun loadBoundedUsageEventsForAnalysis(
+        beginMillis: Long,
+        endMillis: Long,
+        collectionGapStarts: List<Long>,
+    ): List<UsageEventEntity> {
+        if (countAnalysisSeedSnapshotTriggers() != AnalysisSeedSnapshotTriggers.names.size) {
+            return loadUsageEventsForAnalysis(beginMillis, endMillis)
+        }
+        val boundary = analysisSeedBoundaryAtOrBefore(beginMillis)
+        val seed = loadOrBuildAnalysisSeed(boundary, collectionGapStarts)
+        val seeds = buildList {
+            StoredUsageEventTypes.latestDeviceStateGroups.forEach { eventTypes ->
+                addAll(loadLatestDeviceEventsBefore(beginMillis, eventTypes))
+            }
+            addAll(seed.postureEvidence)
+            // Like the full read, posture evidence starts at the epoch.
+            addAll(
+                loadDeviceEvents(
+                    boundary.coerceAtLeast(0L),
+                    beginMillis,
+                    StoredUsageEventTypes.postureEvidence,
+                ),
+            )
+            addAll(seed.activity)
+            addAll(loadActivityEventsBetween(boundary, beginMillis, StoredUsageEventTypes.activity))
+        }
+        return seeds.distinctBy(UsageEventEntity::eventKey) +
+            loadDeviceEvents(beginMillis, endMillis, StoredUsageEventTypes.all)
+    }
+
+    private suspend fun loadOrBuildAnalysisSeed(
+        boundaryMillis: Long,
+        collectionGapStarts: List<Long>,
+    ): AnalysisSeedRows {
+        fun lastGapBefore(boundary: Long): Long? =
+            collectionGapStarts.asSequence().filter { it < boundary }.maxOrNull()
+
+        val base = loadAnalysisSeedSnapshotsAtOrBefore(
+            boundaryMillis = boundaryMillis,
+            compactionVersion = AnalysisSeedCompactor.VERSION,
+        ).firstOrNull { snapshot ->
+            snapshot.lastCollectionGapStartMillis == lastGapBefore(snapshot.boundaryMillis)
+        }
+        val baseRows = base?.let { loadAnalysisSeedSnapshotRows(it.boundaryMillis) }
+        if (base != null && base.boundaryMillis == boundaryMillis) {
+            return requireNotNull(baseRows)
+        }
+        val postureEvidence = if (base == null) {
+            loadDeviceEvents(0L, boundaryMillis, StoredUsageEventTypes.postureEvidence)
+        } else {
+            requireNotNull(baseRows).postureEvidence + loadDeviceEvents(
+                base.boundaryMillis.coerceAtLeast(0L),
+                boundaryMillis,
+                StoredUsageEventTypes.postureEvidence,
+            )
+        }
+        val activity = if (base == null) {
+            loadActivityEventsBefore(boundaryMillis, StoredUsageEventTypes.activity)
+        } else {
+            requireNotNull(baseRows).activity + loadActivityEventsBetween(
+                base.boundaryMillis,
+                boundaryMillis,
+                StoredUsageEventTypes.activity,
+            )
+        }
+        val compacted = AnalysisSeedCompactor.compact(
+            postureEvidence = postureEvidence,
+            activity = activity,
+            collectionGapStarts = collectionGapStarts,
+            boundaryMillis = boundaryMillis,
+        )
+        replaceAnalysisSeedSnapshot(
+            snapshot = AnalysisSeedSnapshotEntity(
+                boundaryMillis = boundaryMillis,
+                lastCollectionGapStartMillis = lastGapBefore(boundaryMillis),
+                compactionVersion = AnalysisSeedCompactor.VERSION,
+            ),
+            eventKeys = compacted.eventKeys,
+        )
+        return compacted
+    }
+
+    private suspend fun loadAnalysisSeedSnapshotRows(boundaryMillis: Long): AnalysisSeedRows =
+        AnalysisSeedRows(
+            postureEvidence = loadAnalysisSeedSnapshotEvents(
+                boundaryMillis,
+                StoredUsageEventTypes.postureEvidence,
+            ),
+            activity = loadAnalysisSeedSnapshotEvents(
+                boundaryMillis,
+                StoredUsageEventTypes.activity,
+            ),
+        )
+
+    @Transaction
+    suspend fun replaceAnalysisSeedSnapshot(
+        snapshot: AnalysisSeedSnapshotEntity,
+        eventKeys: List<String>,
+    ) {
+        deleteAnalysisSeedSnapshotEvents(snapshot.boundaryMillis)
+        upsertAnalysisSeedSnapshot(snapshot)
+        insertAnalysisSeedSnapshotEvents(
+            eventKeys.distinct().map { eventKey ->
+                AnalysisSeedSnapshotEventEntity(snapshot.boundaryMillis, eventKey)
+            },
+        )
+        deleteAnalysisSeedSnapshotEventsBeyondNewest(MAX_ANALYSIS_SEED_SNAPSHOTS)
+        deleteAnalysisSeedSnapshotsBeyondNewest(MAX_ANALYSIS_SEED_SNAPSHOTS)
+    }
+
+    @Query(
+        """
+        SELECT * FROM usage_events
+        WHERE timestamp_millis >= :beginMillis AND timestamp_millis < :endMillis
+            AND raw_event_type IN (:rawEventTypes)
+            AND package_name IS NOT NULL
+        ORDER BY timestamp_millis ASC, sequence_at_timestamp ASC, event_key ASC
+        """,
+    )
+    suspend fun loadActivityEventsBetween(
+        beginMillis: Long,
+        endMillis: Long,
+        rawEventTypes: List<Int>,
+    ): List<UsageEventEntity>
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM sqlite_master
+        WHERE type = 'trigger' AND name IN (
+            'analysis_seed_snapshot_usage_event_insert',
+            'analysis_seed_snapshot_usage_event_update',
+            'analysis_seed_snapshot_usage_event_delete'
+        )
+        """,
+    )
+    suspend fun countAnalysisSeedSnapshotTriggers(): Int
+
+    @Query(
+        """
+        SELECT * FROM analysis_seed_snapshots
+        WHERE boundary_millis <= :boundaryMillis AND compaction_version = :compactionVersion
+        ORDER BY boundary_millis DESC
+        """,
+    )
+    suspend fun loadAnalysisSeedSnapshotsAtOrBefore(
+        boundaryMillis: Long,
+        compactionVersion: Int,
+    ): List<AnalysisSeedSnapshotEntity>
+
+    @Query(
+        """
+        SELECT usage_events.* FROM usage_events
+        INNER JOIN analysis_seed_snapshot_events AS seed
+            ON seed.event_key = usage_events.event_key
+        WHERE seed.boundary_millis = :boundaryMillis
+            AND usage_events.raw_event_type IN (:rawEventTypes)
+        ORDER BY usage_events.timestamp_millis ASC,
+            usage_events.sequence_at_timestamp ASC,
+            usage_events.event_key ASC
+        """,
+    )
+    suspend fun loadAnalysisSeedSnapshotEvents(
+        boundaryMillis: Long,
+        rawEventTypes: List<Int>,
+    ): List<UsageEventEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAnalysisSeedSnapshot(snapshot: AnalysisSeedSnapshotEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAnalysisSeedSnapshotEvents(events: List<AnalysisSeedSnapshotEventEntity>)
+
+    @Query("DELETE FROM analysis_seed_snapshot_events WHERE boundary_millis = :boundaryMillis")
+    suspend fun deleteAnalysisSeedSnapshotEvents(boundaryMillis: Long)
+
+    @Query(
+        """
+        DELETE FROM analysis_seed_snapshot_events WHERE boundary_millis NOT IN (
+            SELECT boundary_millis FROM analysis_seed_snapshots
+            ORDER BY boundary_millis DESC LIMIT :keep
+        )
+        """,
+    )
+    suspend fun deleteAnalysisSeedSnapshotEventsBeyondNewest(keep: Int)
+
+    @Query(
+        """
+        DELETE FROM analysis_seed_snapshots WHERE boundary_millis NOT IN (
+            SELECT boundary_millis FROM analysis_seed_snapshots
+            ORDER BY boundary_millis DESC LIMIT :keep
+        )
+        """,
+    )
+    suspend fun deleteAnalysisSeedSnapshotsBeyondNewest(keep: Int)
 
     @Query("SELECT MIN(timestamp_millis) FROM usage_events")
     suspend fun earliestEventTimestamp(): Long?
@@ -782,8 +1014,10 @@ interface DailyPostureSummaryDao {
         InnerDisplaySessionAppUsageEntity::class,
         DailySummaryStateEntity::class,
         SyncHistoryEntity::class,
+        AnalysisSeedSnapshotEntity::class,
+        AnalysisSeedSnapshotEventEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class FoldlyticsDatabase : RoomDatabase() {
@@ -809,7 +1043,9 @@ abstract class FoldlyticsDatabase : RoomDatabase() {
                         MIGRATION_2_3,
                         MIGRATION_3_4,
                         MIGRATION_4_5,
+                        MIGRATION_5_6,
                     )
+                    .addCallback(AnalysisSeedSnapshotTriggers.callback)
                     .build()
                     .also { instance = it }
             }
@@ -897,6 +1133,67 @@ internal val MIGRATION_4_5 = object : Migration(4, 5) {
     }
 }
 
+internal val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `analysis_seed_snapshots` (
+                `boundary_millis` INTEGER NOT NULL,
+                `last_collection_gap_start_millis` INTEGER,
+                `compaction_version` INTEGER NOT NULL,
+                PRIMARY KEY(`boundary_millis`)
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `analysis_seed_snapshot_events` (
+                `boundary_millis` INTEGER NOT NULL,
+                `event_key` TEXT NOT NULL,
+                PRIMARY KEY(`boundary_millis`, `event_key`)
+            )
+            """.trimIndent(),
+        )
+        AnalysisSeedSnapshotTriggers.create(db)
+    }
+}
+
+/**
+ * Drops every analyzer seed snapshot whose boundary follows a changed usage event, whichever code
+ * path writes the event. Room does not model triggers, so they are installed on every open.
+ */
+object AnalysisSeedSnapshotTriggers {
+    internal val names = listOf(
+        "analysis_seed_snapshot_usage_event_insert",
+        "analysis_seed_snapshot_usage_event_update",
+        "analysis_seed_snapshot_usage_event_delete",
+    )
+
+    val callback: RoomDatabase.Callback = object : RoomDatabase.Callback() {
+        override fun onOpen(db: SupportSQLiteDatabase) {
+            create(db)
+        }
+    }
+
+    internal fun create(db: SupportSQLiteDatabase) {
+        db.execSQL(trigger(names[0], "INSERT", "NEW.timestamp_millis"))
+        db.execSQL(
+            trigger(names[1], "UPDATE", "MIN(OLD.timestamp_millis, NEW.timestamp_millis)"),
+        )
+        db.execSQL(trigger(names[2], "DELETE", "OLD.timestamp_millis"))
+    }
+
+    // A row at timestamp t is part of the history before every boundary after t.
+    private fun trigger(name: String, operation: String, changedMillis: String): String =
+        """
+        CREATE TRIGGER IF NOT EXISTS `$name` AFTER $operation ON `usage_events`
+        BEGIN
+            DELETE FROM `analysis_seed_snapshot_events` WHERE `boundary_millis` > $changedMillis;
+            DELETE FROM `analysis_seed_snapshots` WHERE `boundary_millis` > $changedMillis;
+        END
+        """.trimIndent()
+}
+
 class RoomUsageEventStore(
     private val dao: UsageEventDao,
 ) : UsageEventStore {
@@ -926,6 +1223,14 @@ class RoomUsageEventStore(
         endMillis: Long,
     ): List<UsageRecord> =
         dao.loadUsageEventsForAnalysis(beginMillis, endMillis).map(UsageEventEntity::toModel)
+
+    override suspend fun loadRecordsForAnalysis(
+        beginMillis: Long,
+        endMillis: Long,
+        collectionGapStarts: List<Long>,
+    ): List<UsageRecord> =
+        dao.loadBoundedUsageEventsForAnalysis(beginMillis, endMillis, collectionGapStarts)
+            .map(UsageEventEntity::toModel)
 
     override suspend fun loadSyncAttempts(
         beginMillis: Long,
@@ -1235,6 +1540,8 @@ private fun stableKey(vararg fields: String?): String {
 }
 
 private const val EVENT_TIMESTAMP_QUERY_BATCH_SIZE = 500
+
+private const val MAX_ANALYSIS_SEED_SNAPSHOTS = 8
 
 private val USAGE_EVENT_ORDER = compareBy<UsageEventEntity> { it.sequenceAtTimestamp }
     .thenBy(UsageEventEntity::eventKey)

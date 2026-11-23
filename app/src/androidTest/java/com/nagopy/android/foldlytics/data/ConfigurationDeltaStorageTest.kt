@@ -36,7 +36,9 @@ class ConfigurationDeltaStorageTest {
     @Before
     fun setUp() {
         val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
-        database = Room.inMemoryDatabaseBuilder(context, FoldlyticsDatabase::class.java).build()
+        database = Room.inMemoryDatabaseBuilder(context, FoldlyticsDatabase::class.java)
+            .addCallback(AnalysisSeedSnapshotTriggers.callback)
+            .build()
     }
 
     @After

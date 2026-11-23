@@ -49,7 +49,9 @@ class LongTermDatabaseTest {
         database = Room.inMemoryDatabaseBuilder(
             context,
             FoldlyticsDatabase::class.java,
-        ).build()
+        )
+            .addCallback(AnalysisSeedSnapshotTriggers.callback)
+            .build()
     }
 
     @After
@@ -58,9 +60,118 @@ class LongTermDatabaseTest {
     }
 
     @Test
-    fun createsFreshVersionFiveDatabase() {
-        assertEquals(5, database.openHelper.readableDatabase.version)
+    fun createsFreshVersionSixDatabase() {
+        assertEquals(6, database.openHelper.readableDatabase.version)
     }
+
+    @Test
+    fun boundedSeedReadMatchesFullHistoryAndFollowsEventWrites() = runBlocking {
+        val dao = database.usageEventDao()
+        val dayMillis = TimeUnit.DAYS.toMillis(1)
+        val start = LocalDate.of(2026, 1, 1).atStartOfDay(zoneId).toInstant().toEpochMilli()
+        dao.insertEvents(
+            (0 until 12).flatMap { day ->
+                val dayStart = start + day * dayMillis
+                (0 until 6).flatMap { index ->
+                    val at = dayStart + TimeUnit.HOURS.toMillis(index * 3L + 1L)
+                    val packageName = "app.${index % 3}"
+                    listOfNotNull(
+                        event("on-$day-$index", at, 0, UsageEvents.Event.SCREEN_INTERACTIVE),
+                        event("unlock-$day-$index", at, 1, UsageEvents.Event.KEYGUARD_HIDDEN),
+                        event(
+                            "config-$day-$index",
+                            at + 1L,
+                            0,
+                            UsageEvents.Event.CONFIGURATION_CHANGE,
+                            eventConfiguration = if (index % 2 == 0) {
+                                innerConfiguration
+                            } else {
+                                configuration
+                            },
+                        ),
+                        event(
+                            "resume-$day-$index",
+                            at + 2L,
+                            0,
+                            UsageEvents.Event.ACTIVITY_RESUMED,
+                            packageName = packageName,
+                        ),
+                        // One activity loses its pauses, so its evidence never clears.
+                        event(
+                            "pause-$day-$index",
+                            at + TimeUnit.MINUTES.toMillis(30),
+                            0,
+                            UsageEvents.Event.ACTIVITY_PAUSED,
+                            packageName = packageName,
+                        ).takeIf { index % 3 != 2 },
+                        event(
+                            "off-$day-$index",
+                            at + TimeUnit.MINUTES.toMillis(31),
+                            0,
+                            UsageEvents.Event.SCREEN_NON_INTERACTIVE,
+                        ),
+                    )
+                }
+            },
+        )
+        val calibration = Calibration(cover = configuration, inner = innerConfiguration)
+        val gapStarts = listOf(start + 3 * dayMillis + 5L)
+
+        suspend fun assertBoundedMatches(begin: Long) {
+            val end = begin + dayMillis
+            fun analyze(records: List<UsageEventEntity>) = UsageAnalyzer(packageLabel = { it })
+                .analyze(
+                    records = records.map(UsageEventEntity::toModel),
+                    rangeStartMillis = begin,
+                    rangeEndMillis = end,
+                    calibration = calibration,
+                    zoneId = zoneId,
+                    collectionGapStarts = gapStarts,
+                )
+                .let { analysis ->
+                    analysis.copy(
+                        postureEvents = analysis.postureEvents.filterNot { it.isBeforeRange },
+                    )
+                }
+            val full = analyze(dao.loadUsageEventsForAnalysis(begin, end))
+            repeat(2) {
+                assertEquals(
+                    full,
+                    analyze(dao.loadBoundedUsageEventsForAnalysis(begin, end, gapStarts)),
+                )
+            }
+        }
+
+        assertBoundedMatches(start + 9 * dayMillis + 7L)
+        assertBoundedMatches(start + 10 * dayMillis + 7L)
+        assertEquals(
+            listOf(start + 9 * dayMillis, start + 10 * dayMillis),
+            seedSnapshotBoundaries(),
+        )
+
+        // A backfilled resume before both boundaries invalidates them, and is then replayed.
+        dao.insertEvents(
+            listOf(
+                event(
+                    "backfill",
+                    start + 8 * dayMillis + 9L,
+                    0,
+                    UsageEvents.Event.ACTIVITY_RESUMED,
+                    packageName = "app.backfill",
+                ),
+            ),
+        )
+        assertEquals(emptyList<Long>(), seedSnapshotBoundaries())
+        assertBoundedMatches(start + 10 * dayMillis + 7L)
+    }
+
+    private fun seedSnapshotBoundaries(): List<Long> = database.openHelper.readableDatabase
+        .query("SELECT boundary_millis FROM analysis_seed_snapshots ORDER BY boundary_millis")
+        .use { cursor ->
+            buildList {
+                while (cursor.moveToNext()) add(cursor.getLong(0))
+            }
+        }
 
     @Test
     fun periodAnalysisAndPersistedSessionsShareThePostureBaselineBeforeSeed() = runBlocking {
