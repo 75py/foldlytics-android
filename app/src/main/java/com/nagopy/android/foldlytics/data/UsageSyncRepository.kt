@@ -71,6 +71,14 @@ interface UsageEventStore {
         collectionGapStarts: List<Long>,
     ): List<UsageRecord> = loadRecordsForAnalysis(beginMillis, endMillis)
 
+    /**
+     * Loads every stored configuration and restart record before [endMillis]. Posture events
+     * depend only on these, so diagnostics can replay the complete posture history without the
+     * activity records it would otherwise read.
+     */
+    suspend fun loadPostureEvidenceBefore(endMillis: Long): List<UsageRecord> =
+        loadRecordsForAnalysis(endMillis, endMillis)
+
     suspend fun loadSyncAttempts(beginMillis: Long, endMillis: Long): List<SyncAttempt>
 
     suspend fun loadDeviceStateCheckpointsForAnalysis(
@@ -193,6 +201,9 @@ class UsageSyncRepository(
         collectionGapStarts: List<Long>,
     ): List<UsageRecord> =
         eventStore.loadRecordsForAnalysis(beginMillis, endMillis, collectionGapStarts)
+
+    suspend fun loadPostureEvidenceBefore(endMillis: Long): List<UsageRecord> =
+        eventStore.loadPostureEvidenceBefore(endMillis)
 
     suspend fun loadSyncAttempts(beginMillis: Long, endMillis: Long): List<SyncAttempt> =
         eventStore.loadSyncAttempts(beginMillis, endMillis)

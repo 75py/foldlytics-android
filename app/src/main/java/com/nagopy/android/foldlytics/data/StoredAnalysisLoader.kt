@@ -10,6 +10,8 @@ import com.nagopy.android.foldlytics.model.DailyPostureSummary
 import com.nagopy.android.foldlytics.model.InnerSessionSummary
 import com.nagopy.android.foldlytics.model.LongTermInsights
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
+import com.nagopy.android.foldlytics.model.PostureCheckpoint
+import com.nagopy.android.foldlytics.model.PostureEvent
 import com.nagopy.android.foldlytics.model.UsageAnalysis
 import com.nagopy.android.foldlytics.model.availableAnalysisPeriods
 import com.nagopy.android.foldlytics.model.isValidCustomAnalysisRange
@@ -26,6 +28,19 @@ data class StoredAnalysisRequest(
     val checkpointRevision: Long,
 )
 
+/**
+ * The inputs of one displayed diagnostic analysis except its usage records. Startup analysis
+ * replaces old history with a compact seed, so diagnostics replay the complete posture history
+ * with these inputs only when they are shown or shared.
+ */
+data class DiagnosticHistoryRequest(
+    val calibration: Calibration,
+    val rangeStartMillis: Long,
+    val rangeEndMillis: Long,
+    val checkpoints: List<PostureCheckpoint>,
+    val collectionGapStarts: List<Long>,
+)
+
 /** Everything one stored-analysis pass produces for the screen. */
 data class StoredAnalysisSnapshot(
     val selectedPeriod: AnalysisPeriod,
@@ -38,6 +53,7 @@ data class StoredAnalysisSnapshot(
     val innerSessionSummary: InnerSessionSummary?,
     val longTermInsights: LongTermInsights?,
     val collectionHealth: CollectionHealth?,
+    val diagnosticHistory: DiagnosticHistoryRequest? = null,
 )
 
 /**
@@ -93,6 +109,26 @@ class StoredAnalysisLoader(
             collectionGapStarts = detectCollectionGaps(syncAttempts)
                 .map(CollectionGap::startMillis),
         )
+    }
+
+    /**
+     * Returns the posture events the full-history analysis behind [request] would list, including
+     * every lookback event before its range. Posture events depend only on configuration and
+     * restart records, checkpoints and collection gaps, so this replays those without activity.
+     */
+    suspend fun loadDiagnosticPostureEvents(
+        request: DiagnosticHistoryRequest,
+        zoneId: ZoneId,
+    ): List<PostureEvent> = dailySummaryRepository.withDatabaseSnapshot {
+        analyzer.analyze(
+            records = syncRepository.loadPostureEvidenceBefore(request.rangeEndMillis),
+            rangeStartMillis = request.rangeStartMillis,
+            rangeEndMillis = request.rangeEndMillis,
+            calibration = request.calibration,
+            checkpoints = request.checkpoints,
+            zoneId = zoneId,
+            collectionGapStarts = request.collectionGapStarts,
+        ).postureEvents
     }
 
     suspend fun load(
@@ -291,6 +327,13 @@ class StoredAnalysisLoader(
                 innerSessionSummary = innerSessionSummary,
                 longTermInsights = longTermInsights,
                 collectionHealth = longTermAnalyzer.collectionHealth(periodSyncAttempts),
+                diagnosticHistory = DiagnosticHistoryRequest(
+                    calibration = request.calibration,
+                    rangeStartMillis = window.rangeStartMillis,
+                    rangeEndMillis = window.rangeEndMillis,
+                    checkpoints = checkpoints,
+                    collectionGapStarts = collectionGaps.map(CollectionGap::startMillis),
+                ),
             )
         }
     }

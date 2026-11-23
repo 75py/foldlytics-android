@@ -1232,6 +1232,10 @@ class RoomUsageEventStore(
         dao.loadBoundedUsageEventsForAnalysis(beginMillis, endMillis, collectionGapStarts)
             .map(UsageEventEntity::toModel)
 
+    override suspend fun loadPostureEvidenceBefore(endMillis: Long): List<UsageRecord> =
+        dao.loadDeviceEvents(0L, endMillis, StoredUsageEventTypes.postureEvidence)
+            .map(UsageEventEntity::toModel)
+
     override suspend fun loadSyncAttempts(
         beginMillis: Long,
         endMillis: Long,

@@ -99,6 +99,7 @@ fun FoldlyticsScreen(
     onOpenPrivacyPolicy: () -> Unit,
     onOpenOssLicenses: () -> Unit,
     onDismissError: () -> Unit = {},
+    onLoadDiagnosticHistory: () -> Unit = {},
     onShareSummary: suspend (Bitmap) -> Boolean = { false },
     appName: String? = null,
     screenshotSectionEndSpacing: Dp = 0.dp,
@@ -254,6 +255,7 @@ fun FoldlyticsScreen(
                 ScreenDestination.DIAGNOSTICS -> DiagnosticsContent(
                     state = state,
                     scaffoldPadding = scaffoldPadding,
+                    onLoadDiagnosticHistory = onLoadDiagnosticHistory,
                 )
 
                 ScreenDestination.CALIBRATION -> CalibrationContent(

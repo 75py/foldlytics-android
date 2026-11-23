@@ -13,6 +13,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
@@ -32,10 +33,14 @@ import com.nagopy.android.foldlytics.toTimeText
 internal fun DiagnosticsContent(
     state: MainUiState,
     scaffoldPadding: PaddingValues,
+    onLoadDiagnosticHistory: () -> Unit = {},
 ) {
     val resources = LocalResources.current
     val analysis = state.analysis
-    val events = analysis?.postureEvents.orEmpty()
+    // The startup analysis keeps only a compact lookback, so load the complete history here.
+    LaunchedEffect(analysis) { onLoadDiagnosticHistory() }
+    val historyPending = state.isDiagnosticHistoryPending
+    val events = state.visiblePostureEvents
     val inRangeCount = events.count { !it.isBeforeRange }
     val seedCount = events.size - inRangeCount
     FoldlyticsLazyColumn(scaffoldPadding = scaffoldPadding) {
@@ -54,7 +59,11 @@ internal fun DiagnosticsContent(
                 )
                 InfoLine(
                     stringResource(R.string.label_lookback_events),
-                    resources.getString(R.string.value_item_count, seedCount),
+                    if (historyPending) {
+                        stringResource(R.string.diagnostic_history_loading)
+                    } else {
+                        resources.getString(R.string.value_item_count, seedCount)
+                    },
                 )
                 analysis?.let {
                     InfoLine(
@@ -74,7 +83,9 @@ internal fun DiagnosticsContent(
         item { ExcludedDataCard(state) }
         item { CollectionDiagnosticsCard(state) }
         item { SectionTitle(stringResource(R.string.posture_events_title)) }
-        if (events.isEmpty()) {
+        if (historyPending) {
+            item { HintCard(stringResource(R.string.diagnostic_history_loading)) }
+        } else if (events.isEmpty()) {
             item { HintCard(stringResource(R.string.posture_events_empty)) }
         } else {
             itemsIndexed(

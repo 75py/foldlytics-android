@@ -115,6 +115,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
                     onCustomPeriodChanged = viewModel::setCustomPeriod,
                     onRefresh = viewModel::refreshFromCurrentState,
                     onDismissError = viewModel::clearError,
+                    onLoadDiagnosticHistory = viewModel::loadDiagnosticHistory,
                     onShare = ::shareReport,
                     onExportCsv = ::exportLongTermCsv,
                     onOpenPrivacyPolicy = ::openPrivacyPolicy,
@@ -198,12 +199,16 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     }
 
     private fun shareReport() {
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_SUBJECT, getString(R.string.share_report_subject))
-            putExtra(Intent.EXTRA_TEXT, viewModel.diagnosticReport())
+        lifecycleScope.launch {
+            // The report lists the complete posture history, which loads on demand.
+            val report = viewModel.diagnosticReport()
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_SUBJECT, getString(R.string.share_report_subject))
+                putExtra(Intent.EXTRA_TEXT, report)
+            }
+            startActivity(Intent.createChooser(intent, getString(R.string.share_report_chooser)))
         }
-        startActivity(Intent.createChooser(intent, getString(R.string.share_report_chooser)))
     }
 
     private suspend fun shareSummaryImage(bitmap: Bitmap): Boolean {

@@ -10,6 +10,7 @@ import com.nagopy.android.foldlytics.model.DisplayPosture
 import com.nagopy.android.foldlytics.model.InnerSessionSummary
 import com.nagopy.android.foldlytics.model.LongTermInsights
 import com.nagopy.android.foldlytics.model.PeriodUsageSummary
+import com.nagopy.android.foldlytics.model.PostureEvent
 import com.nagopy.android.foldlytics.model.UsageAnalysis
 
 data class FoldFeatureSnapshot(
@@ -56,6 +57,12 @@ data class MainUiState(
     val isLoading: Boolean = false,
     val isAnalysisLoading: Boolean = false,
     val analysis: UsageAnalysis? = null,
+    /**
+     * Every posture event of [analysis], including lookback events older than its compact startup
+     * seed. Diagnostics load it on demand; null until loaded for the current analysis.
+     */
+    val diagnosticPostureEvents: List<PostureEvent>? = null,
+    val isDiagnosticHistoryLoading: Boolean = false,
     val periodSummary: PeriodUsageSummary? = null,
     val innerSessionSummary: InnerSessionSummary? = null,
     val longTermInsights: LongTermInsights? = null,
@@ -68,6 +75,14 @@ data class MainUiState(
     /** Uses the retained snapshot, including summary-only synthetic states, when describing data. */
     val displayedAnalysisPeriod: AnalysisPeriod
         get() = analyzedPeriod ?: periodSummary?.period ?: selectedPeriod
+
+    /** Posture events listed and counted by diagnostics and the shared report. */
+    val visiblePostureEvents: List<PostureEvent>
+        get() = diagnosticPostureEvents ?: analysis?.postureEvents.orEmpty()
+
+    /** True while diagnostics would otherwise show an incomplete lookback history. */
+    val isDiagnosticHistoryPending: Boolean
+        get() = isDiagnosticHistoryLoading && diagnosticPostureEvents == null
 }
 
 /**
