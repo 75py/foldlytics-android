@@ -3,6 +3,7 @@ package com.nagopy.android.foldlytics.data
 import android.app.usage.UsageEvents
 import android.content.Context
 import androidx.room.Room
+import androidx.room.withTransaction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nagopy.android.foldlytics.model.Calibration
@@ -169,6 +170,128 @@ class LongTermDatabaseTest {
         assertEquals(emptyList<Long>(), seedSnapshotBoundaries())
         assertBoundedMatches(start + 10 * dayMillis + 7L)
     }
+
+    @Test
+    fun injectedSnapshotInsertFailureRollsBackTheWholeLoadTransaction() = runBlocking {
+        val dao = database.usageEventDao()
+        val dayMillis = TimeUnit.DAYS.toMillis(1)
+        val start = LocalDate.of(2026, 1, 1).atStartOfDay(zoneId).toInstant().toEpochMilli()
+        dao.insertEvents(seedFaultHistory(start, days = 6))
+        val begin = start + 4 * dayMillis + 7L
+        val end = begin + dayMillis
+        val full = dao.loadUsageEventsForAnalysis(begin, end)
+        writableDatabase().execSQL(
+            "CREATE TRIGGER inject_seed_insert_failure BEFORE INSERT ON analysis_seed_snapshots " +
+                "BEGIN SELECT RAISE(ABORT, 'injected seed failure'); END",
+        )
+
+        // A caller write in the same transaction, like the daily cache update.
+        val failure = runCatching {
+            database.withTransaction {
+                dao.insertEvents(
+                    listOf(
+                        event(
+                            "caller-write",
+                            end + 1L,
+                            0,
+                            UsageEvents.Event.SCREEN_INTERACTIVE,
+                        ),
+                    ),
+                )
+                dao.loadBoundedUsageEventsForAnalysis(begin, end, emptyList())
+            }
+        }.exceptionOrNull()
+
+        assertTrue("$failure", failure?.message.orEmpty().contains("injected seed failure"))
+        assertEquals(emptyList<UsageEventEntity>(), dao.loadEvents(end + 1L, end + 2L))
+        assertEquals(emptyList<Long>(), seedSnapshotBoundaries())
+        assertEquals(0L, scalar("SELECT COUNT(*) FROM analysis_seed_snapshot_events"))
+
+        writableDatabase().execSQL("DROP TRIGGER inject_seed_insert_failure")
+        val bounded = dao.loadBoundedUsageEventsForAnalysis(begin, end, emptyList())
+        assertEquals(
+            full.filter { it.timestampMillis >= begin },
+            bounded.filter { it.timestampMillis >= begin },
+        )
+        assertEquals(listOf(start + 4 * dayMillis), seedSnapshotBoundaries())
+    }
+
+    @Test
+    fun injectedSnapshotPruneFailureKeepsEverySnapshotWithItsRows() = runBlocking {
+        val dao = database.usageEventDao()
+        val dayMillis = TimeUnit.DAYS.toMillis(1)
+        val start = LocalDate.of(2026, 1, 1).atStartOfDay(zoneId).toInstant().toEpochMilli()
+        dao.insertEvents(seedFaultHistory(start, days = 12))
+        (2L until 10L).forEach { day ->
+            val begin = start + day * dayMillis
+            dao.loadBoundedUsageEventsForAnalysis(begin, begin + dayMillis, emptyList())
+        }
+        val before = snapshotEventCounts()
+        assertEquals(8, before.size)
+        writableDatabase().execSQL(
+            "CREATE TRIGGER inject_seed_prune_failure BEFORE DELETE ON analysis_seed_snapshots " +
+                "BEGIN SELECT RAISE(ABORT, 'injected prune failure'); END",
+        )
+
+        // A newer boundary makes the oldest snapshot due for pruning.
+        val failure = runCatching {
+            val begin = start + 10 * dayMillis
+            dao.loadBoundedUsageEventsForAnalysis(begin, begin + dayMillis, emptyList())
+        }.exceptionOrNull()
+
+        assertTrue("$failure", failure?.message.orEmpty().contains("injected prune failure"))
+        assertEquals(before, snapshotEventCounts())
+        writableDatabase().execSQL("DROP TRIGGER inject_seed_prune_failure")
+    }
+
+    private fun seedFaultHistory(start: Long, days: Int): List<UsageEventEntity> {
+        val dayMillis = TimeUnit.DAYS.toMillis(1)
+        return (0 until days).flatMap { day ->
+            val at = start + day * dayMillis + TimeUnit.HOURS.toMillis(9)
+            listOf(
+                event("fault-on-$day", at, 0, UsageEvents.Event.SCREEN_INTERACTIVE),
+                event(
+                    "fault-config-$day",
+                    at + 1L,
+                    0,
+                    UsageEvents.Event.CONFIGURATION_CHANGE,
+                    eventConfiguration = if (day % 2 == 0) innerConfiguration else configuration,
+                ),
+                event(
+                    "fault-resume-$day",
+                    at + 2L,
+                    0,
+                    UsageEvents.Event.ACTIVITY_RESUMED,
+                    packageName = "app.fault",
+                ),
+            )
+        }
+    }
+
+    private fun writableDatabase() = database.openHelper.writableDatabase
+
+    private fun scalar(sql: String): Long =
+        database.openHelper.readableDatabase.query(sql).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            cursor.getLong(0)
+        }
+
+    private fun snapshotEventCounts(): Map<Long, Long> = database.openHelper.readableDatabase
+        .query(
+            """
+            SELECT snapshot.boundary_millis, COUNT(seed.event_key)
+            FROM analysis_seed_snapshots AS snapshot
+            LEFT JOIN analysis_seed_snapshot_events AS seed
+                ON seed.boundary_millis = snapshot.boundary_millis
+            GROUP BY snapshot.boundary_millis
+            ORDER BY snapshot.boundary_millis
+            """.trimIndent(),
+        )
+        .use { cursor ->
+            buildMap {
+                while (cursor.moveToNext()) put(cursor.getLong(0), cursor.getLong(1))
+            }
+        }
 
     private fun seedSnapshotBoundaries(): List<Long> = database.openHelper.readableDatabase
         .query("SELECT boundary_millis FROM analysis_seed_snapshots ORDER BY boundary_millis")

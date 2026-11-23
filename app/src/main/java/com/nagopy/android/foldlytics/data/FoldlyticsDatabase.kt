@@ -25,7 +25,6 @@ import com.nagopy.android.foldlytics.model.PostureCheckpoint
 import com.nagopy.android.foldlytics.model.PostureCheckpointSource
 import com.nagopy.android.foldlytics.model.UsageRecord
 import java.security.MessageDigest
-import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -482,11 +481,16 @@ interface UsageEventDao {
         )
 
     /**
-     * Stores a seed for later loads. The seed is only a cache: the caller already holds the exact
-     * result, so a failed write leaves analysis unaffected. This runs inside the caller's
-     * transaction without a nested one, because a failed nested transaction would silently roll
-     * back the caller's own writes. The metadata row is removed first and written last, so rows
-     * left by a failed write are never read as a snapshot, and the next write or prune drops them.
+     * Stores a seed for later loads, inside the caller's transaction.
+     *
+     * Errors propagate. Room runs every generated write as a nested transaction, and under
+     * SupportSQLite a failed nested transaction marks the enclosing one as failed, so catching
+     * the error here would let the caller continue and then silently roll back its own writes.
+     * Propagating rolls the whole load back explicitly and reports the failure.
+     *
+     * Each step also leaves only states that read correctly, should a step fail without a
+     * rollback: a metadata row is removed before its event rows and written after them, so no
+     * snapshot is ever readable without all of its rows.
      */
     private suspend fun persistAnalysisSeedSnapshot(
         snapshot: AnalysisSeedSnapshotEntity,
@@ -499,22 +503,16 @@ interface UsageEventDao {
         ) {
             return
         }
-        try {
-            deleteAnalysisSeedSnapshot(snapshot.boundaryMillis)
-            deleteAnalysisSeedSnapshotEvents(snapshot.boundaryMillis)
-            insertAnalysisSeedSnapshotEvents(
-                eventKeys.distinct().map { eventKey ->
-                    AnalysisSeedSnapshotEventEntity(snapshot.boundaryMillis, eventKey)
-                },
-            )
-            upsertAnalysisSeedSnapshot(snapshot)
-            deleteAnalysisSeedSnapshotEventsBeyondNewest(MAX_ANALYSIS_SEED_SNAPSHOTS)
-            deleteAnalysisSeedSnapshotsBeyondNewest(MAX_ANALYSIS_SEED_SNAPSHOTS)
-        } catch (error: CancellationException) {
-            throw error
-        } catch (_: Exception) {
-            // For example a full disk. The next load rebuilds the seed from an older snapshot.
-        }
+        deleteAnalysisSeedSnapshot(snapshot.boundaryMillis)
+        deleteAnalysisSeedSnapshotEvents(snapshot.boundaryMillis)
+        insertAnalysisSeedSnapshotEvents(
+            eventKeys.distinct().map { eventKey ->
+                AnalysisSeedSnapshotEventEntity(snapshot.boundaryMillis, eventKey)
+            },
+        )
+        upsertAnalysisSeedSnapshot(snapshot)
+        deleteAnalysisSeedSnapshotsBeyondNewest(MAX_ANALYSIS_SEED_SNAPSHOTS)
+        deleteOrphanAnalysisSeedSnapshotEvents()
     }
 
     @Query(
@@ -586,13 +584,13 @@ interface UsageEventDao {
 
     @Query(
         """
-        DELETE FROM analysis_seed_snapshot_events WHERE boundary_millis NOT IN (
-            SELECT boundary_millis FROM analysis_seed_snapshots
-            ORDER BY boundary_millis DESC LIMIT :keep
+        DELETE FROM analysis_seed_snapshot_events WHERE NOT EXISTS (
+            SELECT 1 FROM analysis_seed_snapshots AS snapshot
+            WHERE snapshot.boundary_millis = analysis_seed_snapshot_events.boundary_millis
         )
         """,
     )
-    suspend fun deleteAnalysisSeedSnapshotEventsBeyondNewest(keep: Int)
+    suspend fun deleteOrphanAnalysisSeedSnapshotEvents()
 
     @Query(
         """

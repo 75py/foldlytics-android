@@ -21,6 +21,13 @@ internal class InMemoryUsageEventDao(
     /** Thrown from the snapshot metadata write, after the snapshot's event rows are written. */
     var snapshotWriteFailure: Exception? = null
 
+    /** Thrown from pruning old snapshot metadata. Nothing is rolled back, unlike Room. */
+    var snapshotPruneFailure: Exception? = null
+
+    /** Event-row counts of every readable snapshot, by boundary. */
+    val snapshotEventCounts: Map<Long, Int>
+        get() = snapshots.keys.sorted().associateWith(::snapshotEventCount)
+
     init {
         initialEvents.forEach { events[it.eventKey] = it }
     }
@@ -144,12 +151,12 @@ internal class InMemoryUsageEventDao(
         snapshotEvents.removeAll { it.boundaryMillis == boundaryMillis }
     }
 
-    override suspend fun deleteAnalysisSeedSnapshotEventsBeyondNewest(keep: Int) {
-        val kept = snapshots.keys.sortedDescending().take(keep).toSet()
-        snapshotEvents.removeAll { it.boundaryMillis !in kept }
+    override suspend fun deleteOrphanAnalysisSeedSnapshotEvents() {
+        snapshotEvents.removeAll { it.boundaryMillis !in snapshots }
     }
 
     override suspend fun deleteAnalysisSeedSnapshotsBeyondNewest(keep: Int) {
+        snapshotPruneFailure?.let { throw it }
         val kept = snapshots.keys.sortedDescending().take(keep).toSet()
         snapshots.keys.retainAll(kept)
     }

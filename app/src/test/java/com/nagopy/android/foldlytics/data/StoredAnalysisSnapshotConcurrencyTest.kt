@@ -408,7 +408,7 @@ class StoredAnalysisSnapshotConcurrencyTest {
 
         override suspend fun deleteAnalysisSeedSnapshotEvents(boundaryMillis: Long) = Unit
 
-        override suspend fun deleteAnalysisSeedSnapshotEventsBeyondNewest(keep: Int) = Unit
+        override suspend fun deleteOrphanAnalysisSeedSnapshotEvents() = Unit
 
         override suspend fun deleteAnalysisSeedSnapshotsBeyondNewest(keep: Int) = Unit
 

@@ -259,14 +259,20 @@ class BoundedAnalysisSeedTest {
     }
 
     @Test
-    fun failedSnapshotWriteKeepsTheExactResultAndPublishesNoPartialSnapshot() = runBlocking {
+    fun failedSnapshotWritePropagatesAndPublishesNoPartialSnapshot() = runBlocking {
         val history = randomHistory(seed = 21, days = 8, allowRestarts = false)
         val dao = InMemoryUsageEventDao(history.events)
         val legacy = InMemoryUsageEventDao(history.events, triggersInstalled = false)
         val begin = 6 * DAY + HOUR
-        dao.snapshotWriteFailure = IllegalStateException("disk full")
+        val failure = IllegalStateException("disk full")
+        dao.snapshotWriteFailure = failure
 
-        assertEquivalent(dao, legacy, history, begin, begin + DAY, "failed write")
+        // Room would roll the enclosing transaction back; this fake does not, so the rows the
+        // failed write left must not be readable as a snapshot.
+        val thrown = assertThrows(IllegalStateException::class.java) {
+            runBlocking { dao.loadBoundedUsageEventsForAnalysis(begin, begin + DAY, history.gapStarts) }
+        }
+        assertEquals(failure, thrown)
         assertEquals(emptyList<Long>(), dao.snapshotBoundaries)
 
         dao.snapshotWriteFailure = null
@@ -274,6 +280,35 @@ class BoundedAnalysisSeedTest {
         assertEquals(listOf(6 * DAY), dao.snapshotBoundaries)
         // Rows left by the failed write were replaced, not mixed into the new snapshot.
         assertEquals(setOf(6 * DAY), dao.snapshotEventBoundaries)
+    }
+
+    @Test
+    fun failedMetadataPruneNeverLeavesAReadableSnapshotWithoutItsRows() = runBlocking {
+        val history = randomHistory(seed = 24, days = 20, allowRestarts = false)
+        val dao = InMemoryUsageEventDao(history.events)
+        val legacy = InMemoryUsageEventDao(history.events, triggersInstalled = false)
+        (10L until 18L).forEach { day ->
+            dao.loadBoundedUsageEventsForAnalysis(day * DAY, (day + 1) * DAY, history.gapStarts)
+        }
+        val before = dao.snapshotEventCounts
+        assertTrue(before.values.all { it > 0 })
+        dao.snapshotPruneFailure = IllegalStateException("prune failed")
+
+        // A newer boundary makes the oldest snapshot due for pruning.
+        assertThrows(IllegalStateException::class.java) {
+            runBlocking {
+                dao.loadBoundedUsageEventsForAnalysis(18 * DAY, 19 * DAY, history.gapStarts)
+            }
+        }
+        // Every snapshot the failed prune left behind still has all of its rows.
+        before.forEach { (boundary, count) ->
+            assertEquals("boundary=$boundary", count, dao.snapshotEventCounts[boundary])
+        }
+
+        dao.snapshotPruneFailure = null
+        assertEquivalent(dao, legacy, history, 10 * DAY + HOUR, 11 * DAY, "oldest after failure")
+        assertEquivalent(dao, legacy, history, 18 * DAY + HOUR, 19 * DAY, "newest after failure")
+        assertEquals(dao.snapshotBoundaries.toSet(), dao.snapshotEventBoundaries)
     }
 
     @Test
