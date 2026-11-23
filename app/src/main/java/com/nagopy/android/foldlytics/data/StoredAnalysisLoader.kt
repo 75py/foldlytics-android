@@ -134,12 +134,13 @@ class StoredAnalysisLoader(
         zoneId: ZoneId,
     ): List<PostureEvent> {
         // Only the reads hold the transaction; the replay below runs after it ends.
-        val (records, revision) = dailySummaryRepository.withDatabaseSnapshot {
-            syncRepository.loadPostureEvidenceBefore(request.rangeEndMillis) to
-                syncRepository.loadUsageEventRevision()
-        }
-        if (request.sourceRevision != null && revision != request.sourceRevision) {
-            throw StaleDiagnosticHistoryException()
+        val records = dailySummaryRepository.withDatabaseSnapshot {
+            // Check first, so a stale request does not pay for reading the full history.
+            val revision = syncRepository.loadUsageEventRevision()
+            if (request.sourceRevision != null && revision != request.sourceRevision) {
+                throw StaleDiagnosticHistoryException()
+            }
+            syncRepository.loadPostureEvidenceBefore(request.rangeEndMillis)
         }
         val job = currentCoroutineContext()[Job]
         return analyzer.analyze(

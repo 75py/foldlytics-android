@@ -1,6 +1,7 @@
 package com.nagopy.android.foldlytics.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -17,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -99,12 +101,17 @@ internal fun DiagnosticsContent(
         item { SectionTitle(stringResource(R.string.posture_events_title)) }
         if (historyLoading) {
             item(key = HISTORY_STATUS_KEY) {
-                HintCard(stringResource(R.string.diagnostic_history_loading))
+                Box(Modifier.testTag(DIAGNOSTIC_HISTORY_STATUS_TAG)) {
+                    HintCard(stringResource(R.string.diagnostic_history_loading))
+                }
             }
         } else if (historyFailed) {
             // Do not fall back to the compact startup lookback, which would look complete.
             item(key = HISTORY_STATUS_KEY) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier.testTag(DIAGNOSTIC_HISTORY_STATUS_TAG),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     HintCard(stringResource(R.string.diagnostic_history_failed), isError = true)
                     OutlinedButton(onClick = onLoadDiagnosticHistory) {
                         Text(stringResource(R.string.action_retry))
@@ -116,15 +123,16 @@ internal fun DiagnosticsContent(
         } else {
             if (historyRefreshing) {
                 item(key = HISTORY_STATUS_KEY) {
-                    HintCard(stringResource(R.string.diagnostic_history_refreshing))
+                    Box(Modifier.testTag(DIAGNOSTIC_HISTORY_STATUS_TAG)) {
+                        HintCard(stringResource(R.string.diagnostic_history_refreshing))
+                    }
                 }
             }
             // Stable keys keep the scroll position when the refreshed list replaces this one.
+            val keys = postureEventKeys(events)
             itemsIndexed(
                 items = events,
-                key = { index, event ->
-                    "${event.timestampMillis}:${event.source}:${event.rawEventType}:$index"
-                },
+                key = { index, _ -> keys[index] },
                 contentType = { _, _ -> "posture-event" },
             ) { _, event ->
                 PostureEventRow(event)
@@ -387,3 +395,27 @@ private fun PostureEventRow(event: PostureEvent) {
 }
 
 private const val HISTORY_STATUS_KEY = "diagnostic-history-status"
+
+internal const val DIAGNOSTIC_HISTORY_STATUS_TAG = "diagnostic_history_status"
+
+/**
+ * Lazy-list keys for [events], listed newest first, that stay the same when newer events are
+ * added or the window moves an event from the range into the lookback. Events that share a
+ * timestamp, source, raw type and checkpoint source are told apart by their order counted from
+ * the oldest, which newer events do not change.
+ */
+internal fun postureEventKeys(events: List<PostureEvent>): List<String> {
+    val occurrences = mutableMapOf<String, Int>()
+    val keysOldestFirst = events.asReversed().map { event ->
+        val identity = listOf(
+            event.timestampMillis,
+            event.source,
+            event.rawEventType,
+            event.checkpointSource,
+        ).joinToString(":")
+        val occurrence = occurrences.getOrDefault(identity, 0)
+        occurrences[identity] = occurrence + 1
+        "posture-event:$identity#$occurrence"
+    }
+    return keysOldestFirst.asReversed()
+}

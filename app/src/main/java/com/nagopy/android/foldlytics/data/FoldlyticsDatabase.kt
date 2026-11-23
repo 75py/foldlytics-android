@@ -1232,9 +1232,9 @@ internal val MIGRATION_5_6 = object : Migration(5, 6) {
 object AnalysisSeedSnapshotTriggers {
     // Versioned names: change the version whenever a trigger body changes, so databases that
     // already hold the old body replace it on the next open.
-    const val INSERT = "analysis_seed_snapshot_v2_usage_event_insert"
-    const val UPDATE = "analysis_seed_snapshot_v2_usage_event_update"
-    const val DELETE = "analysis_seed_snapshot_v2_usage_event_delete"
+    const val INSERT = "analysis_seed_snapshot_v3_usage_event_insert"
+    const val UPDATE = "analysis_seed_snapshot_v3_usage_event_update"
+    const val DELETE = "analysis_seed_snapshot_v3_usage_event_delete"
     internal const val NAME_PREFIX = "analysis_seed_snapshot_"
 
     internal val names = listOf(INSERT, UPDATE, DELETE)
@@ -1264,15 +1264,22 @@ object AnalysisSeedSnapshotTriggers {
     }
 
     // A row at timestamp t is part of the history before every boundary after t. Every change
-    // also advances the usage-event revision.
+    // also advances the usage-event revision. Its row is created without a conflict clause:
+    // SQLite applies the outer statement's clause inside a trigger, so Room's UPDATE OR ABORT
+    // would turn INSERT OR IGNORE into a failing insert. The guarded insert never conflicts,
+    // and it recreates the row after clearAllTables.
     private fun trigger(name: String, operation: String, changedMillis: String): String =
         """
         CREATE TRIGGER IF NOT EXISTS `$name` AFTER $operation ON `usage_events`
         BEGIN
             DELETE FROM `analysis_seed_snapshot_events` WHERE `boundary_millis` > $changedMillis;
             DELETE FROM `analysis_seed_snapshots` WHERE `boundary_millis` > $changedMillis;
-            INSERT OR IGNORE INTO `usage_event_revision` (`singleton_id`, `revision`)
-                VALUES (${UsageEventRevisionEntity.SINGLETON_ID}, 0);
+            INSERT INTO `usage_event_revision` (`singleton_id`, `revision`)
+                SELECT ${UsageEventRevisionEntity.SINGLETON_ID}, 0
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM `usage_event_revision`
+                    WHERE `singleton_id` = ${UsageEventRevisionEntity.SINGLETON_ID}
+                );
             UPDATE `usage_event_revision` SET `revision` = `revision` + 1
                 WHERE `singleton_id` = ${UsageEventRevisionEntity.SINGLETON_ID};
         END

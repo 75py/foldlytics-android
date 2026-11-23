@@ -333,6 +333,24 @@ class LongTermDatabaseTest {
         val deleted = requireNotNull(dao.loadUsageEventRevision())
 
         assertTrue(before < inserted && inserted < updated && updated < deleted)
+
+        // SQLite applies an outer conflict clause inside triggers; none may break event writes.
+        val db = writableDatabase()
+        db.execSQL(
+            "INSERT OR REPLACE INTO usage_events (event_key, timestamp_millis, " +
+                "sequence_at_timestamp, raw_event_type, has_configuration) " +
+                "VALUES ('replace', 2000, 0, 15, 0)",
+        )
+        db.execSQL("UPDATE OR ABORT usage_events SET sequence_at_timestamp = 1 WHERE event_key = 'replace'")
+        db.execSQL("UPDATE OR REPLACE usage_events SET sequence_at_timestamp = 2 WHERE event_key = 'replace'")
+        val afterClauses = requireNotNull(dao.loadUsageEventRevision())
+        assertTrue(afterClauses > deleted)
+
+        // clearAllTables also empties the revision table; the next write recreates its row.
+        database.clearAllTables()
+        assertEquals(null, dao.loadUsageEventRevision())
+        dao.insertEvents(listOf(event("after-clear", 3_000L, 0, UsageEvents.Event.SCREEN_INTERACTIVE)))
+        assertEquals(1L, dao.loadUsageEventRevision())
     }
 
     private fun seedSnapshotBoundaries(): List<Long> = database.openHelper.readableDatabase
